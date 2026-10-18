@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { DndContext, TouchSensor, MouseSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { useRef, useState } from 'react'
+import { DndContext, TouchSensor, MouseSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type DragMoveEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -13,10 +13,34 @@ import { Sheet } from '../components/Sheet'
 import { SwipeRow } from '../components/SwipeRow'
 import { VersionSheet } from '../components/VersionSheet'
 
-function SortableRow({ id, children, onDelete }: { id: string; children: React.ReactNode; onDelete: () => void }) {
+export const HOLD_MS = 1500 // still press this long, with zero movement, opens options
+const HOLD_TOLERANCE = 4 // px of movement that cancels the hold
+
+/** Cancel any in-flight dnd-kit drag (its pointer sensors cancel on Escape). */
+function cancelDrag() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })) }
+
+function SortableRow({ id, children, onDelete, onHold }: { id: string; children: React.ReactNode; onDelete: () => void; onHold: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const timer = useRef<number | undefined>(undefined)
+  const origin = useRef<{ x: number; y: number } | null>(null)
+  const clear = () => { window.clearTimeout(timer.current); timer.current = undefined; origin.current = null }
+  const hold = {
+    onTouchStart: (e: React.TouchEvent) => {
+      const t = e.touches[0]; origin.current = { x: t.clientX, y: t.clientY }
+      window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => { if (origin.current) { cancelDrag(); clear(); try { navigator.vibrate?.(20) } catch {}; onHold() } }, HOLD_MS)
+    },
+    onTouchMove: (e: React.TouchEvent) => {
+      if (!origin.current) return
+      const t = e.touches[0]
+      if (Math.hypot(t.clientX - origin.current.x, t.clientY - origin.current.y) > HOLD_TOLERANCE) clear()
+    },
+    onTouchEnd: clear, onTouchCancel: clear,
+  }
+  const dndTouchStart = (listeners as Record<string, (e: React.TouchEvent) => void> | undefined)?.onTouchStart
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
+    <div ref={setNodeRef} {...attributes} {...listeners} {...hold}
+      onTouchStart={e => { dndTouchStart?.(e); hold.onTouchStart(e) }}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .85 : 1, zIndex: isDragging ? 2 : undefined, position: 'relative', boxShadow: isDragging ? '0 10px 30px rgba(0,0,0,.45)' : undefined, borderRadius: 'var(--radius)', touchAction: 'pan-y' }}>
       <SwipeRow onDelete={onDelete} disabled={isDragging}>{children}</SwipeRow>
     </div>
@@ -46,7 +70,8 @@ export function Plan() {
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(r?.name ?? '')
   const [opts, setOpts] = useState<number | null>(null)
-  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }))
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 6 } }))
+  const dragMoved = useRef(false)
   const [editV, setEditV] = useState<string | null>(null)
   if (!r) return <div className="page">Routine not found. <Link to="/">Home</Link></div>
   const vmap = new Map(versions.map(v => [v.id, v]))
@@ -63,11 +88,13 @@ export function Plan() {
     putRoutine({ ...r, items }); setOpts(j)
   }
   const ids = r.items.map((it, i) => `${it.versionId}-${i}`)
+  const onDragMove = (e: DragMoveEvent) => { if (Math.hypot(e.delta.x, e.delta.y) > HOLD_TOLERANCE) dragMoved.current = true }
   const onDragEnd = (e: DragEndEvent) => {
+    const moved = dragMoved.current; dragMoved.current = false
+    if (!moved) return // a lift with no movement does nothing; options come only from the still-hold timer
     const from = ids.indexOf(String(e.active.id))
     const to = e.over ? ids.indexOf(String(e.over.id)) : -1
-    const moved = Math.hypot(e.delta.x, e.delta.y) > 6
-    if (!moved || to < 0 || to === from) { setOpts(from); return } // held without moving: options
+    if (to < 0 || to === from) return
     putRoutine(reorderRoutine(r, from, to))
   }
   const start = () => {
@@ -82,7 +109,7 @@ export function Plan() {
         <h1 onClick={() => setRenaming(true)}>{r.name}</h1>
         <button className="chip" onClick={() => setGymSheet(true)}>{gyms.find(g => g.id === gymId)?.name.replace('Ultradynamic Fitness - ', '') ?? 'gym?'}</button>
       </div>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => { dragMoved.current = false }} onDragMove={onDragMove} onDragEnd={onDragEnd} onDragCancel={() => { dragMoved.current = false }}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
       <div className="stack" style={{ gap: 8 }}>
         {r.items.map((it, i) => {
@@ -90,7 +117,7 @@ export function Plan() {
           const last = lastSession(v.id, workouts, versions)
           const g = it.groupId ? gmap.get(it.groupId) : undefined
           return (
-            <SortableRow key={ids[i]} id={ids[i]} onDelete={() => removeAt(i)}>
+            <SortableRow key={ids[i]} id={ids[i]} onDelete={() => removeAt(i)} onHold={() => setOpts(i)}>
               <div className="card" style={{ padding: '12px 14px', borderLeft: g ? '3px solid var(--accent)' : undefined }}>
                 <div className="row"><b className="grow">{v.name}</b>{g && <span className="small" style={{ color: 'var(--accent)' }}>{g.type}</span>}</div>
                 <div className="small faint" style={{ fontStyle: 'italic' }}>
@@ -101,7 +128,7 @@ export function Plan() {
           )
         })}
         {r.items.length === 0 && <div className="muted">No exercises yet. Add some, then start.</div>}
-        {r.items.length > 0 && <div className="small faint" style={{ textAlign: 'center' }}>swipe left to delete · hold to drag or for options</div>}
+        {r.items.length > 0 && <div className="small faint" style={{ textAlign: 'center' }}>swipe left to delete · hold to drag · hold still 1.5s for options</div>}
       </div>
       </SortableContext>
       </DndContext>
