@@ -10,7 +10,7 @@ import { workoutFromRoutine } from '../workout'
 import type { Routine } from '../model'
 import { AddExerciseSheet } from '../components/AddExerciseSheet'
 import { Sheet } from '../components/Sheet'
-import { SwipeRow } from '../components/SwipeRow'
+import { SwipeRow, swallowNextClick } from '../components/SwipeRow'
 import { VersionSheet } from '../components/VersionSheet'
 
 export const HOLD_MS = 1500 // still press this long, with zero movement, opens options
@@ -19,7 +19,7 @@ const HOLD_TOLERANCE = 4 // px of movement that cancels the hold
 /** Cancel any in-flight dnd-kit drag (its pointer sensors cancel on Escape). */
 function cancelDrag() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })) }
 
-function SortableRow({ id, children, onDelete, onHold }: { id: string; children: React.ReactNode; onDelete: () => void; onHold: () => void }) {
+function SortableRow({ id, children, onDelete, onHold, onTap }: { id: string; children: React.ReactNode; onDelete: () => void; onHold: () => void; onTap: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const timer = useRef<number | undefined>(undefined)
   const origin = useRef<{ x: number; y: number } | null>(null)
@@ -28,7 +28,7 @@ function SortableRow({ id, children, onDelete, onHold }: { id: string; children:
     onTouchStart: (e: React.TouchEvent) => {
       const t = e.touches[0]; origin.current = { x: t.clientX, y: t.clientY }
       window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => { if (origin.current) { cancelDrag(); clear(); try { navigator.vibrate?.(20) } catch {}; onHold() } }, HOLD_MS)
+      timer.current = window.setTimeout(() => { if (origin.current) { cancelDrag(); clear(); swallowNextClick(); try { navigator.vibrate?.(20) } catch {}; onHold() } }, HOLD_MS)
     },
     onTouchMove: (e: React.TouchEvent) => {
       if (!origin.current) return
@@ -42,7 +42,7 @@ function SortableRow({ id, children, onDelete, onHold }: { id: string; children:
     <div ref={setNodeRef} {...attributes} {...listeners} {...hold}
       onTouchStart={e => { dndTouchStart?.(e); hold.onTouchStart(e) }}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .85 : 1, zIndex: isDragging ? 2 : undefined, position: 'relative', boxShadow: isDragging ? '0 10px 30px rgba(0,0,0,.45)' : undefined, borderRadius: 'var(--radius)', touchAction: 'pan-y' }}>
-      <SwipeRow onDelete={onDelete} disabled={isDragging}>{children}</SwipeRow>
+      <SwipeRow onDelete={onDelete} onTap={onTap} disabled={isDragging}>{children}</SwipeRow>
     </div>
   )
 }
@@ -70,7 +70,7 @@ export function Plan() {
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(r?.name ?? '')
   const [opts, setOpts] = useState<number | null>(null)
-  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 6 } }))
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }))
   const dragMoved = useRef(false)
   const [editV, setEditV] = useState<string | null>(null)
   if (!r) return <div className="page">Routine not found. <Link to="/">Home</Link></div>
@@ -117,7 +117,7 @@ export function Plan() {
           const last = lastSession(v.id, workouts, versions)
           const g = it.groupId ? gmap.get(it.groupId) : undefined
           return (
-            <SortableRow key={ids[i]} id={ids[i]} onDelete={() => removeAt(i)} onHold={() => setOpts(i)}>
+            <SortableRow key={ids[i]} id={ids[i]} onDelete={() => removeAt(i)} onHold={() => setOpts(i)} onTap={() => setEditV(it.versionId)}>
               <div className="card" style={{ padding: '12px 14px', borderLeft: g ? '3px solid var(--accent)' : undefined }}>
                 <div className="row"><b className="grow">{v.name}</b>{g && <span className="small" style={{ color: 'var(--accent)' }}>{g.type}</span>}</div>
                 <div className="small faint" style={{ fontStyle: 'italic' }}>
@@ -128,7 +128,7 @@ export function Plan() {
           )
         })}
         {r.items.length === 0 && <div className="muted">No exercises yet. Add some, then start.</div>}
-        {r.items.length > 0 && <div className="small faint" style={{ textAlign: 'center' }}>swipe left to delete · hold to drag · hold still 1.5s for options</div>}
+        {r.items.length > 0 && <div className="small faint" style={{ textAlign: 'center' }}>tap to edit · swipe left to delete · hold to drag · hold still for options</div>}
       </div>
       </SortableContext>
       </DndContext>

@@ -10,6 +10,8 @@ import { LastTime } from './LastTime'
 import { Sheet } from './Sheet'
 import { Wheel, range } from './WheelPicker'
 import { ding } from './Sound'
+import { swallowNextClick } from './SwipeRow'
+import { VersionSheet } from './VersionSheet'
 
 export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwap, compact }: {
   workout: Workout; item: WorkoutItem; version: Version
@@ -27,6 +29,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
 
   const [edit, setEdit] = useState<{ setId: string; field: 'weight' | 'reps' } | null>(null)
   const [menu, setMenu] = useState(false)
+  const [editVersion, setEditVersion] = useState(false)
   const holdRef = useRef<number | undefined>(undefined)
   const holdOrigin = useRef<{ x: number; y: number } | null>(null)
   const labels = setLabels(item.sets)
@@ -60,11 +63,11 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
   return (
     <div className={'exercise' + (v === 'up' ? ' up' : '')}>
       <div className="row" onContextMenu={e => { e.preventDefault(); setMenu(true) }}
-        onTouchStart={e => { const t = e.touches[0]; holdOrigin.current = { x: t.clientX, y: t.clientY }; window.clearTimeout(holdRef.current); holdRef.current = window.setTimeout(() => setMenu(true), 1500) }}
+        onTouchStart={e => { const t = e.touches[0]; holdOrigin.current = { x: t.clientX, y: t.clientY }; window.clearTimeout(holdRef.current); holdRef.current = window.setTimeout(() => { swallowNextClick(); setMenu(true) }, 1500) }}
         onTouchEnd={() => window.clearTimeout(holdRef.current)} onTouchCancel={() => window.clearTimeout(holdRef.current)}
         onTouchMove={e => { const t = e.touches[0]; if (holdOrigin.current && Math.hypot(t.clientX - holdOrigin.current.x, t.clientY - holdOrigin.current.y) > 4) window.clearTimeout(holdRef.current) }}>
         <div className="grow">
-          <h2 className="exname">{version.name} {v === 'down' && <span className="dot red" title="under range" />}</h2>
+          <h2 className="exname" onClick={() => setEditVersion(true)}>{version.name} {v === 'down' && <span className="dot red" title="under range" />}</h2>
           <div className="small faint">{version.equipment}{version.arms === 'one' ? ' · one arm' : ''} · {version.repMin}-{version.repMax} reps{version.machine ? ` · ${version.machine}` : ''}{version.cableHeight != null ? ` · cable ${Math.round(version.cableHeight * 100)}%` : ''}{version.benchAngle != null ? ` · bench ${version.benchAngle}°` : ''}</div>
         </div>
         <button className="iconbtn" onClick={() => setMenu(true)}>⋯</button>
@@ -127,6 +130,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
         )}
       </Sheet>
 
+      {editVersion && <VersionSheet open onClose={() => setEditVersion(false)} version={version} onSaved={() => setEditVersion(false)} />}
       <Sheet open={menu} onClose={() => setMenu(false)} title={version.name}>
         <div className="stack">
           <label className="small muted">Note for this exercise today</label>
