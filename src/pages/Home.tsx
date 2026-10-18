@@ -38,7 +38,7 @@ export function Home() {
         </Link>
       )}
       <div className="stack">
-        {routines.map(r => {
+        {routines.slice().sort((a, b) => (routineLast(a, workouts)?.date ?? '0').localeCompare(routineLast(b, workouts)?.date ?? '0')).map(r => {
           const last = routineLast(r, workouts)
           const templateNames = r.items.map(i => vmap.get(i.versionId)?.name).filter(Boolean) as string[]
           const lastNames = last ? (last.items.map(i => vmap.get(i.versionId)?.name).filter(Boolean) as string[]) : []
