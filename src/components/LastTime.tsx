@@ -12,6 +12,7 @@ export function LastTime({ last, other }: { last?: LastSession; other?: LastSess
           {last.verdict === 'down' && <span className="badge down" style={{ marginLeft: 8 }}>under</span>}
           <br />
           {last.item.sets.filter(s => s.reps != null || s.weight != null).map(s => (s.kind === 'warmup' ? 'W ' : '') + fmtSet(s)).join(' · ')}
+          {last.item.sets.some(s => s.note) && <><br /><span className="small">{last.item.sets.filter(s => s.note).map(s => `${s.side ?? ''}${s.kind === 'warmup' ? 'W' : ''} ${s.note}`.trim()).join(' · ')}</span></>}
           {last.item.note && <><br /><span className="small">{last.item.note}</span></>}
         </div>
       )}

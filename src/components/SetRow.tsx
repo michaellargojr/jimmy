@@ -28,6 +28,7 @@ export function SetRow({ set, label, version, last, improved, onEdit, onPatch }:
           {(version.arms !== 'one' || !isBarbell(version)) && <button className={'tog sm' + (set.partials ? ' on' : '')} onClick={cyclePartials} style={{ fontSize: 11 }}>{set.partials ? `p${set.partials}` : 'p'}</button>}
         </div>
       </div>
+      {set.note && <div className="setnote">{set.note}</div>}
     </div>
   )
 }

@@ -28,6 +28,17 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
   }, [v, settings.sound])
 
   const [edit, setEdit] = useState<{ setId: string; field: 'weight' | 'reps' } | null>(null)
+  const editOrig = useRef<SetEntry | null>(null) // snapshot so tapping outside cancels
+  const openEdit = (setId: string, field: 'weight' | 'reps') => {
+    if (!editOrig.current || editOrig.current.id !== setId) editOrig.current = item.sets.find(s => s.id === setId) ?? null
+    setEdit({ setId, field })
+  }
+  const closeEdit = () => { editOrig.current = null; setEdit(null) }
+  const cancelEdit = () => {
+    const orig = editOrig.current
+    if (orig) onChange({ ...item, sets: item.sets.map(s => (s.id === orig.id ? orig : s)) })
+    closeEdit()
+  }
   const [menu, setMenu] = useState(false)
   const [editVersion, setEditVersion] = useState(false)
   const holdRef = useRef<number | undefined>(undefined)
@@ -78,7 +89,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
           <SetRow key={s.id} set={s} label={labels[i]} version={version}
             last={last ? matchLast(s, item.sets, last.item.sets) : undefined}
             improved={last ? improved(s, matchLast(s, item.sets, last.item.sets)) : false}
-            onEdit={field => setEdit({ setId: s.id, field })}
+            onEdit={field => openEdit(s.id, field)}
             onPatch={p => patchSet(s.id, p)} />
         ))}
       </div>
@@ -89,19 +100,21 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
         {item.note && <span className="small faint" style={{ alignSelf: 'center' }}>{item.note}</span>}
       </div>
 
-      <Sheet open={!!editing} onClose={() => setEdit(null)}>
-        {editing && edit && (
+      <Sheet open={!!editing} onClose={cancelEdit}>
+        {editing && edit && (() => {
+          const lastMatch = last ? matchLast(editing, item.sets, last.item.sets) : undefined
+          return (
           <>
-            <div className="row" style={{ marginBottom: 8 }}>
-              <h3 className="grow" style={{ margin: 0 }}>{version.name} · {labels[item.sets.indexOf(editing)]} · {edit.field}</h3>
+            <div className="row" style={{ marginBottom: 2 }}>
+              <h3 className="grow" style={{ margin: 0 }}>Set {labels[item.sets.indexOf(editing)]} · {edit.field}</h3>
               {edit.field === 'weight' && (
                 <button className="chip" onClick={() => patchSet(editing.id, { unit: editing.unit === 'kg' ? 'lbs' : 'kg' })}>{editing.unit}</button>
               )}
             </div>
-            {last && <div className="small faint" style={{ marginBottom: 6 }}>last: {last.item.sets.filter(x => x.reps != null || x.weight != null).map(x => `${x.weight ?? '–'}×${x.reps ?? '–'}${x.plus ? '+' : ''}`).join(' · ')}</div>}
+            <div className="sub">{version.name}{last ? ` · last: ${last.item.sets.filter(x => x.reps != null || x.weight != null).map(x => `${x.weight ?? '–'}×${x.reps ?? '–'}${x.plus ? '+' : ''}`).join(' · ')}` : ''}</div>
             {edit.field === 'weight' ? (
               <>
-                <Wheel key={editing.unit} values={weightVals(editing.unit)} value={editing.weight} onChange={w => patchSet(editing.id, { weight: w })} />
+                <Wheel key={editing.unit} values={weightVals(editing.unit)} value={editing.weight} hint={lastMatch?.weight ?? last?.item.sets.find(x => x.kind === 'working' && x.weight != null)?.weight} onChange={w => patchSet(editing.id, { weight: w })} />
                 <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
                   {(editing.unit === 'lbs' ? [-2.5, 2.5] : [-1.25, -0.5, 0.5, 1.25]).map(d => (
                     <button key={d} className="btn sm" onClick={() => patchSet(editing.id, { weight: Math.max(0, Math.round(((editing.weight ?? 0) + d) * 100) / 100) })}>{d > 0 ? '+' : ''}{d}</button>
@@ -111,23 +124,26 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
               </>
             ) : (
               <>
-                <Wheel values={range(0, 40, 1)} value={editing.reps} onChange={r => patchSet(editing.id, { reps: r })} />
+                <Wheel values={range(0, 40, 1)} value={editing.reps} hint={lastMatch?.reps ?? version.repMax} onChange={r => patchSet(editing.id, { reps: r })} />
                 <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
                   <button className={'chip' + (editing.plus ? ' on' : '')} onClick={() => patchSet(editing.id, { plus: !editing.plus })}>+ at least</button>
                   <button className="chip" onClick={() => patchSet(editing.id, { partials: ((editing.partials ?? 0) + 1) % 6 || undefined })}>partials {editing.partials ?? 0}</button>
                 </div>
               </>
             )}
-            <div className="row" style={{ marginTop: 12 }}>
-              {edit.field === 'weight' && <button className="btn grow" onClick={() => setEdit({ setId: editing.id, field: 'reps' })}>reps →</button>}
+            <input className="note" style={{ marginTop: 10 }} value={editing.note ?? ''} onChange={e => patchSet(editing.id, { note: e.target.value || undefined })} placeholder="Note for this set (grip, notch, how it felt)" />
+            <div className="row" style={{ marginTop: 10 }}>
+              {edit.field === 'weight' && <button className="btn grow" onClick={() => { editOrig.current = null; openEdit(editing.id, 'reps') }}>reps →</button>}
               {edit.field === 'reps' && (() => {
                 const i = item.sets.indexOf(editing); const nxt = item.sets[i + 1]
-                return nxt ? <button className="btn grow" onClick={() => setEdit({ setId: nxt.id, field: 'weight' })}>next set →</button> : null
+                return nxt ? <button className="btn grow" onClick={() => { editOrig.current = null; openEdit(nxt.id, 'weight') }}>next set →</button> : null
               })()}
-              <button className="btn primary grow" onClick={() => setEdit(null)}>Done</button>
+              <button className="btn primary grow" onClick={closeEdit}>Done</button>
             </div>
+            <div className="small faint" style={{ textAlign: 'center', marginTop: 8 }}>tap outside to cancel</div>
           </>
-        )}
+          )
+        })()}
       </Sheet>
 
       {editVersion && <VersionSheet open onClose={() => setEditVersion(false)} version={version} onSaved={() => setEditVersion(false)} />}
