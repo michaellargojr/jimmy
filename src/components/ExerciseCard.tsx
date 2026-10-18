@@ -27,6 +27,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
 
   const [edit, setEdit] = useState<{ setId: string; field: 'weight' | 'reps' } | null>(null)
   const [menu, setMenu] = useState(false)
+  const holdRef = useRef<number | undefined>(undefined)
   const labels = setLabels(item.sets)
 
   const patchSet = (id: string, patch: Partial<SetEntry>) =>
@@ -57,7 +58,9 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
 
   return (
     <div className={'exercise' + (v === 'up' ? ' up' : '')}>
-      <div className="row">
+      <div className="row" onContextMenu={e => { e.preventDefault(); setMenu(true) }}
+        onTouchStart={() => { holdRef.current = window.setTimeout(() => setMenu(true), 500) }}
+        onTouchEnd={() => window.clearTimeout(holdRef.current)} onTouchMove={() => window.clearTimeout(holdRef.current)}>
         <div className="grow">
           <h2 className="exname">{version.name} {v === 'down' && <span className="dot red" title="under range" />}</h2>
           <div className="small faint">{version.equipment}{version.arms === 'one' ? ' · one arm' : ''} · {version.repMin}-{version.repMax} reps{version.machine ? ` · ${version.machine}` : ''}{version.cableHeight != null ? ` · cable ${Math.round(version.cableHeight * 100)}%` : ''}{version.benchAngle != null ? ` · bench ${version.benchAngle}°` : ''}</div>

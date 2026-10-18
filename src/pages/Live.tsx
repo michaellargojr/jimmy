@@ -24,6 +24,11 @@ export function Live() {
   const pagerRef = useRef<HTMLDivElement>(null)
   const [cur, setCur] = useState(0)
   useEffect(() => { const t = setInterval(() => tick(x => x + 1), 1000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    const saved = Number(localStorage.getItem(`jimmy.pane.${id}`) ?? 0)
+    if (saved > 0) setTimeout(() => { const el = pagerRef.current?.children[saved] as HTMLElement | undefined; el?.scrollIntoView({ block: 'start' }) }, 30)
+    sessionStorage.removeItem('jimmy.left')
+  }, [id])
   if (!w) return <div className="page">Workout not found. <Link to="/">Home</Link></div>
   const vmap = new Map(versions.map(v => [v.id, v]))
   const ps = panes(w.items)
@@ -56,6 +61,7 @@ export function Live() {
     const top = el.scrollTop; let best = 0, bd = Infinity
     Array.from(el.children).forEach((c, i) => { const d = Math.abs((c as HTMLElement).offsetTop - top); if (d < bd) { bd = d; best = i } })
     setCur(best)
+    try { localStorage.setItem(`jimmy.pane.${w.id}`, String(best)) } catch {}
   }
   const finish = async () => {
     putWorkout({ ...w, endedAt: w.endedAt ?? Date.now(), notes })
@@ -68,7 +74,7 @@ export function Live() {
   return (
     <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
       <div className="topbar" style={{ padding: '8px 16px' }}>
-        <Link className="iconbtn" to="/">‹</Link>
+        <Link className="iconbtn" to="/" onClick={() => sessionStorage.setItem('jimmy.left', w.id)}>‹</Link>
         <div className="grow">
           <div style={{ fontWeight: 700 }}>{w.name}</div>
           <div className="small">

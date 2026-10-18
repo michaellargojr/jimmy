@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { routineLast } from '../derive'
@@ -12,6 +12,7 @@ export function Home() {
   const [name, setName] = useState('')
   const vmap = new Map(versions.map(v => [v.id, v]))
   const active = workouts.find(w => w.startedAt && !w.endedAt)
+  useEffect(() => { if (active && sessionStorage.getItem('jimmy.left') !== active.id) nav(`/workout/${active.id}`, { replace: true }) }, [active?.id])
   const history = workouts.slice().sort((a, b) => b.date.localeCompare(a.date)).filter(w => w.endedAt).slice(0, 8)
 
   const createRoutine = () => {
