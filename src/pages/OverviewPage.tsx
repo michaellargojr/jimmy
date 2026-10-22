@@ -4,7 +4,7 @@ import { useStore } from '../store'
 import { Overview, type OvItem } from '../components/Overview'
 import { AddExerciseSheet } from '../components/AddExerciseSheet'
 import { newItem, itemDone } from '../workout'
-import { uid, type Group } from '../model'
+import type { Group } from '../model'
 
 export function OverviewPage({ mode }: { mode: 'workout' | 'routine' }) {
   const { id, routineId } = useParams()
@@ -36,7 +36,6 @@ export function OverviewPage({ mode }: { mode: 'workout' | 'routine' }) {
       <div className="topbar"><Link className="iconbtn" to={`/plan/${r.id}`}>‹</Link><h1>{r.name}: order & groups</h1></div>
       <Overview items={items} groups={r.groups} versions={versions} onChange={onChange} onAdd={() => setAdding(true)} />
       <AddExerciseSheet open={adding} onClose={() => setAdding(false)} onPick={v => putRoutine({ ...r, items: [...r.items, { versionId: v.id }] })} />
-      <span style={{ display: 'none' }}>{uid()}</span>
     </div>
   )
 }

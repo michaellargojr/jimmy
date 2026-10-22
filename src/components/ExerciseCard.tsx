@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SetEntry, Version, Workout, WorkoutItem } from '../model'
-import { newSet } from '../model'
+import { newSet, setupLabel } from '../model'
 import { useStore } from '../store'
 import { lastSession, otherVersionLast } from '../derive'
 import { improved, matchLast, verdict } from '../overload'
@@ -11,13 +11,15 @@ import { Sheet } from './Sheet'
 import { Wheel, range } from './WheelPicker'
 import { ding } from './Sound'
 import { swallowNextClick } from './SwipeRow'
-import { VersionSheet } from './VersionSheet'
+import { VersionSheet, shortGym } from './VersionSheet'
+import { BenchIcon, CableIcon, PlayIcon } from './Icons'
+import { SetupSheet } from './SetupSheet'
 
 export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwap, compact }: {
   workout: Workout; item: WorkoutItem; version: Version
   onChange: (item: WorkoutItem) => void; onRemove: () => void; onSwap?: () => void; compact?: boolean
 }) {
-  const { workouts, versions, settings } = useStore()
+  const { workouts, versions, gyms, settings } = useStore()
   const last = lastSession(version.id, workouts, versions, workout.id)
   const other = otherVersionLast(version, workouts, versions, workout.id)
   const v = verdict(item.sets, version)
@@ -40,6 +42,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
     closeEdit()
   }
   const [menu, setMenu] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
   const [editVersion, setEditVersion] = useState(false)
   const holdRef = useRef<number | undefined>(undefined)
   const holdOrigin = useRef<{ x: number; y: number } | null>(null)
@@ -56,11 +59,14 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
       : [newSet('working', base.unit, base)]
     onChange({ ...item, sets: [...item.sets, ...add] })
   }
+  /** Drop the last working set; for one-arm versions drop the whole L/R pair. */
   const removeSet = () => {
-    const idx = [...item.sets].map((s, i) => ({ s, i })).reverse().find(x => x.s.kind === 'working')?.i
-    if (idx == null) return
-    const sets = item.sets.slice(); sets.splice(idx, 1)
-    onChange({ ...item, sets })
+    const working = item.sets.map((s, i) => ({ s, i })).filter(x => x.s.kind === 'working')
+    if (working.length === 0) return
+    const last = working[working.length - 1], prev = working[working.length - 2]
+    const drop = new Set<number>([last.i])
+    if (last.s.side && prev?.s.side && prev.s.side !== last.s.side) drop.add(prev.i)
+    onChange({ ...item, sets: item.sets.filter((_, i) => !drop.has(i)) })
   }
   const toggleWarmup = () => {
     const has = item.sets.some(s => s.kind === 'warmup')
@@ -69,7 +75,12 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
   }
 
   const editing = edit ? item.sets.find(s => s.id === edit.setId) : undefined
-  const weightVals = (unit: string) => (unit === 'lbs' ? range(0, 500, 5) : range(0, 250, 2.5))
+  const weightVals = (unit: string) => (unit === 'lbs' ? range(0, 600, 5) : range(0, 300, 2.5))
+  const setup = { cableHeight: item.cableHeight, benchAngle: item.benchAngle, attachment: item.attachment }
+  const setupText = setupLabel(setup)
+  const gymNote = workout.gymId ? version.gymNotes?.[workout.gymId] : undefined
+  const gymName = workout.gymId ? gyms.find(g => g.id === workout.gymId)?.name : undefined
+  const video = version.media?.[0]
 
   return (
     <div className={'exercise' + (v === 'up' ? ' up' : '')}>
@@ -79,7 +90,16 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
         onTouchMove={e => { const t = e.touches[0]; if (holdOrigin.current && Math.hypot(t.clientX - holdOrigin.current.x, t.clientY - holdOrigin.current.y) > 4) window.clearTimeout(holdRef.current) }}>
         <div className="grow">
           <h2 className="exname" onClick={() => setEditVersion(true)}>{version.name} {v === 'down' && <span className="dot red" title="under range" />}</h2>
-          <div className="small faint">{version.equipment}{version.arms === 'one' ? ' · one arm' : ''} · {version.repMin}-{version.repMax} reps{version.machine ? ` · ${version.machine}` : ''}{version.cableHeight != null ? ` · cable ${Math.round(version.cableHeight * 100)}%` : ''}{version.benchAngle != null ? ` · bench ${version.benchAngle}°` : ''}</div>
+          <div className="small faint row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <span>{version.equipment}{version.arms === 'one' ? ' · one arm' : ''} · {version.repMin}-{version.repMax} reps{version.machine ? ` · ${version.machine}` : ''}</span>
+            {video && <a href={video.url} target="_blank" rel="noreferrer" style={{ color: 'var(--fg2)' }}><PlayIcon /> {video.type === 'tiktok' ? 'TikTok' : 'video'}</a>}
+          </div>
+          <button className={'chip setup' + (setupText ? '' : ' empty')} onClick={e => { e.stopPropagation(); setSetupOpen(true) }} style={{ marginTop: 4 }}>
+            {item.cableHeight != null && <CableIcon h={item.cableHeight} size={16} />}
+            {item.benchAngle != null && <BenchIcon angle={item.benchAngle} size={16} />}
+            {setupText || 'setup: height · bench · attachment'}
+          </button>
+          {gymNote && <div className="small" style={{ color: 'var(--fg2)', marginTop: 2 }}>📍 {gymName ? shortGym(gymName) + ': ' : ''}{gymNote}</div>}
         </div>
         <button className="iconbtn" onClick={() => setMenu(true)}>⋯</button>
       </div>
@@ -103,6 +123,8 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
       <Sheet open={!!editing} onClose={cancelEdit}>
         {editing && edit && (() => {
           const lastMatch = last ? matchLast(editing, item.sets, last.item.sets) : undefined
+          // blank field: the wheel sits on last time's weight as a hint, and the ± buttons nudge from that same number
+          const weightHint = lastMatch?.weight ?? last?.item.sets.find(x => x.kind === 'working' && x.weight != null)?.weight
           return (
           <>
             <div className="row" style={{ marginBottom: 2 }}>
@@ -114,10 +136,10 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
             <div className="sub">{version.name}{last ? ` · last: ${last.item.sets.filter(x => x.reps != null || x.weight != null).map(x => `${x.weight ?? '–'}×${x.reps ?? '–'}${x.plus ? '+' : ''}`).join(' · ')}` : ''}</div>
             {edit.field === 'weight' ? (
               <>
-                <Wheel key={editing.unit} values={weightVals(editing.unit)} value={editing.weight} hint={lastMatch?.weight ?? last?.item.sets.find(x => x.kind === 'working' && x.weight != null)?.weight} onChange={w => patchSet(editing.id, { weight: w })} />
+                <Wheel key={editing.unit} values={weightVals(editing.unit)} value={editing.weight} hint={weightHint} onChange={w => patchSet(editing.id, { weight: w })} />
                 <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
                   {(editing.unit === 'lbs' ? [-2.5, 2.5] : [-1.25, -0.5, 0.5, 1.25]).map(d => (
-                    <button key={d} className="btn sm" onClick={() => patchSet(editing.id, { weight: Math.max(0, Math.round(((editing.weight ?? 0) + d) * 100) / 100) })}>{d > 0 ? '+' : ''}{d}</button>
+                    <button key={d} className="btn sm" onClick={() => patchSet(editing.id, { weight: Math.max(0, Math.round(((editing.weight ?? weightHint ?? 0) + d) * 100) / 100) })}>{d > 0 ? '+' : ''}{d}</button>
                   ))}
                   <span className="grow" style={{ textAlign: 'right', fontWeight: 700, fontSize: 20 }}>{editing.weight ?? '–'} {editing.unit}</span>
                 </div>
@@ -147,6 +169,8 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
       </Sheet>
 
       {editVersion && <VersionSheet open onClose={() => setEditVersion(false)} version={version} onSaved={() => setEditVersion(false)} />}
+      <SetupSheet open={setupOpen} onClose={() => setSetupOpen(false)} version={version} setup={setup} last={last?.item}
+        onChange={p => onChange({ ...item, cableHeight: p.cableHeight, benchAngle: p.benchAngle, attachment: p.attachment })} />
       <Sheet open={menu} onClose={() => setMenu(false)} title={version.name}>
         <div className="stack">
           <label className="small muted">Note for this exercise today</label>

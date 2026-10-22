@@ -64,7 +64,7 @@ export function Plan() {
   const { routines, versions, workouts, gyms, settings, putRoutine, deleteRoutine, putWorkout, putGym } = useStore()
   const r = routines.find(x => x.id === routineId)
   const [adding, setAdding] = useState(false)
-  const [gymId, setGymId] = useState<string | undefined>(() => routineLast(r!, workouts)?.gymId ?? workouts.slice().sort((a, b) => b.date.localeCompare(a.date))[0]?.gymId)
+  const [gymId, setGymId] = useState<string | undefined>(() => (r ? routineLast(r, workouts)?.gymId : undefined) ?? workouts.slice().sort((a, b) => b.date.localeCompare(a.date))[0]?.gymId)
   const [gymSheet, setGymSheet] = useState(false)
   const [newGym, setNewGym] = useState('')
   const [renaming, setRenaming] = useState(false)
@@ -84,8 +84,7 @@ export function Plan() {
   }
   const move = (i: number, d: -1 | 1) => {
     const j = i + d; if (j < 0 || j >= r.items.length) return
-    const items = r.items.slice(); const [it] = items.splice(i, 1); items.splice(j, 0, it)
-    putRoutine({ ...r, items }); setOpts(j)
+    putRoutine(reorderRoutine(r, i, j)); setOpts(j)
   }
   const ids = r.items.map((it, i) => `${it.versionId}-${i}`)
   const onDragMove = (e: DragMoveEvent) => { if (Math.hypot(e.delta.x, e.delta.y) > HOLD_TOLERANCE) dragMoved.current = true }

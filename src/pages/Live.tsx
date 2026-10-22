@@ -9,6 +9,7 @@ import { AddExerciseSheet } from '../components/AddExerciseSheet'
 import { Sheet } from '../components/Sheet'
 import { exportSnapshot } from '../db'
 import { shareJson } from '../share'
+import { IdeaFab } from '../components/IdeaFab'
 
 export function Live() {
   const { id } = useParams()
@@ -28,6 +29,8 @@ export function Live() {
     const saved = Number(localStorage.getItem(`jimmy.pane.${id}`) ?? 0)
     if (saved > 0) setTimeout(() => { const el = pagerRef.current?.children[saved] as HTMLElement | undefined; el?.scrollIntoView({ block: 'start' }) }, 30)
     sessionStorage.removeItem('jimmy.left')
+    setNotes(workouts.find(x => x.id === id)?.notes ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
   if (!w) return <div className="page">Workout not found. <Link to="/">Home</Link></div>
   const vmap = new Map(versions.map(v => [v.id, v]))
@@ -124,6 +127,7 @@ export function Live() {
           </button>
         ))}
         <button className="item" onClick={() => setAdding({})}>+</button>
+        <IdeaFab variant="strip" />
       </div>
 
       <AddExerciseSheet open={!!adding} onClose={() => setAdding(null)} onPick={addVersion} />

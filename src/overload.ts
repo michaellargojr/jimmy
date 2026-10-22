@@ -9,17 +9,20 @@ export function workingSets(sets: SetEntry[]): SetEntry[] {
   return sets.filter(s => s.kind === 'working')
 }
 
-/** Verdict for a finished (or in-progress) exercise. Warm-ups are ignored. */
+/**
+ * Verdict for a finished (or in-progress) exercise. Warm-ups are ignored.
+ * One-arm versions are judged per side: L1/L2 and R1/R2 are each a pair,
+ * never L1/R1. Down if any side's first set is under range; up only when
+ * every side that has data hits the up rule.
+ */
 export function verdict(sets: SetEntry[], v: Pick<Version, 'repMin' | 'repMax'>): Verdict {
   const w = workingSets(sets).filter(s => s.reps != null)
   if (w.length === 0) return 'none'
-  const s1 = w[0]
-  if (s1.reps! < v.repMin) return 'down'
-  if (w.length >= 2) {
-    const s2 = w[1]
-    if (s1.reps! >= v.repMax + UP_FIRST_OFFSET && s2.reps! >= v.repMax + UP_SECOND_OFFSET) return 'up'
-  }
-  return 'none'
+  const sides = Array.from(new Set(w.map(s => s.side ?? '')))
+  const perSide = sides.map(side => w.filter(s => (s.side ?? '') === side))
+  if (perSide.some(g => g[0].reps! < v.repMin)) return 'down'
+  const up = perSide.every(g => g.length >= 2 && g[0].reps! >= v.repMax + UP_FIRST_OFFSET && g[1].reps! >= v.repMax + UP_SECOND_OFFSET)
+  return up ? 'up' : 'none'
 }
 
 /** Did this set beat the same-index set last time? Same unit assumed. */

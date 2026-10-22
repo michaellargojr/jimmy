@@ -17,6 +17,15 @@ export function Wheel({ values, value, hint, onChange, format }: { values: numbe
     el.scrollTop = nearest(value ?? hint) * H
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  // Follow the value when something other than the wheel changes it (the ±0.5 / ±1.25 buttons).
+  useEffect(() => {
+    const el = ref.current; if (!el || value == null) return
+    const i = nearest(value)
+    if (i === idx) return
+    settleUntil.current = Date.now() + 250
+    setIdx(i); el.scrollTop = i * H
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
   const timer = useRef<number | undefined>(undefined)
   const onScroll = () => {
     const el = ref.current; if (!el) return
