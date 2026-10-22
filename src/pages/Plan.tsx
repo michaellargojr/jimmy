@@ -73,6 +73,7 @@ export function Plan() {
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }))
   const dragMoved = useRef(false)
   const [editV, setEditV] = useState<string | null>(null)
+  const [altFor, setAltFor] = useState<number | null>(null) // routine row getting an either/or alternative
   if (!r) return <div className="page">Routine not found. <Link to="/">Home</Link></div>
   const vmap = new Map(versions.map(v => [v.id, v]))
   const gmap = new Map(r.groups.map(g => [g.id, g]))
@@ -122,6 +123,7 @@ export function Plan() {
                 <div className="small faint" style={{ fontStyle: 'italic' }}>
                   {last ? `${last.daysAgo}d ago · ` + last.item.sets.filter(s => s.reps != null).map(fmtSet).join(' · ') : 'first time'}
                 </div>
+                {it.alts && it.alts.length > 0 && <div className="small" style={{ color: 'var(--fg2)' }}>or {it.alts.map(a => vmap.get(a)?.name).filter(Boolean).join(' · ')}</div>}
               </div>
             </SortableRow>
           )
@@ -150,12 +152,22 @@ export function Plan() {
           <div className="stack">
             <div className="row"><button className="btn grow" onClick={() => move(opts, -1)}>↑ Move up</button><button className="btn grow" onClick={() => move(opts, 1)}>↓ Move down</button></div>
             <button className="btn" onClick={() => { setEditV(r.items[opts].versionId); setOpts(null) }}>Edit exercise (rep range, sets, notes)</button>
+            <button className="btn" onClick={() => { setAltFor(opts); setOpts(null) }}>Add an alternative (either / or)</button>
+            {(r.items[opts].alts ?? []).map(a => (
+              <div key={a} className="row small"><span className="grow muted">or {vmap.get(a)?.name ?? '?'}</span>
+                <button className="chip" onClick={() => putRoutine({ ...r, items: r.items.map((x, j) => (j === opts ? { ...x, alts: (x.alts ?? []).filter(y => y !== a) } : x)) })}>remove</button></div>
+            ))}
             <button className="btn" onClick={() => { setOpts(null); nav(`/plan/${r.id}/overview`) }}>Reorder & groups</button>
             <button className="btn danger" onClick={() => removeAt(opts)}>🗑 Remove from routine</button>
           </div>
         )}
       </Sheet>
       {editV && <VersionSheet open onClose={() => setEditV(null)} version={versions.find(v => v.id === editV)} onSaved={() => setEditV(null)} />}
+      <AddExerciseSheet open={altFor != null} onClose={() => setAltFor(null)} onPick={v => {
+        if (altFor == null) return
+        putRoutine({ ...r, items: r.items.map((x, j) => (j === altFor && v.id !== x.versionId && !(x.alts ?? []).includes(v.id) ? { ...x, alts: [...(x.alts ?? []), v.id] } : x)) })
+        setAltFor(null)
+      }} />
       <Sheet open={renaming} onClose={() => setRenaming(false)} title="Rename routine">
         <div className="stack"><input className="search" value={name} onChange={e => setName(e.target.value)} /><button className="btn primary" onClick={() => { putRoutine({ ...r, name: name.trim() || r.name }); setRenaming(false) }}>Save</button></div>
       </Sheet>

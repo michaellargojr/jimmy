@@ -30,7 +30,8 @@ export function OverviewPage({ mode }: { mode: 'workout' | 'routine' }) {
   if (!r) return <div className="page">Not found</div>
   const ids = r.items.map((_, i) => `${r.id}-${i}`)
   const items: OvItem[] = r.items.map((it, i) => ({ id: ids[i], versionId: it.versionId, groupId: it.groupId }))
-  const onChange = (next: OvItem[], groups: Group[]) => putRoutine({ ...r, groups, items: next.map(n => ({ versionId: n.versionId, groupId: n.groupId })) })
+  const byId = new Map(r.items.map((it, i) => [ids[i], it]))
+  const onChange = (next: OvItem[], groups: Group[]) => putRoutine({ ...r, groups, items: next.map(n => ({ ...byId.get(n.id), versionId: n.versionId, groupId: n.groupId })) })
   return (
     <div className="page">
       <div className="topbar"><Link className="iconbtn" to={`/plan/${r.id}`}>‹</Link><h1>{r.name}: order & groups</h1></div>

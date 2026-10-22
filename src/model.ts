@@ -68,6 +68,8 @@ export interface WorkoutItem extends Setup {
   sets: SetEntry[]
   skipped?: boolean
   note?: string
+  /** Either/or: other versions this slot can be swapped to (machine busy, trying a variant). */
+  alts?: string[]
 }
 
 export const ATTACHMENTS = ['rope', 'straight bar', 'EZ bar', 'V-bar', 'wide bar', 'lat bar', 'D-handle', 'single handle', 'dual handles', 'ankle strap', 'wrist strap', 'neutral grip']
@@ -111,10 +113,12 @@ export interface Workout {
   groups: Group[]
 }
 
+export interface RoutineItem { versionId: string; groupId?: string; alts?: string[] }
+
 export interface Routine {
   id: string
   name: string
-  items: { versionId: string; groupId?: string }[]
+  items: RoutineItem[]
   groups: Group[]
 }
 

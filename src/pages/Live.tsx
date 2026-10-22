@@ -72,11 +72,29 @@ export function Live() {
     nav('/')
   }
   const exportNow = async () => { shareJson(await exportSnapshot(), `jimmy-${w.date}.json`) }
+  /** Either/or: swap this slot to one of its alternatives; the current version becomes an alternative. */
+  const swapTo = (itemId: string, versionId: string) => {
+    const old = w.items.find(i => i.id === itemId); const v = vmap.get(versionId)
+    if (!old || !v) return
+    const logged = old.sets.some(s => s.reps != null || s.weight != null)
+    if (logged && !confirm(`Switch to ${v.name}? Today's sets for ${vmap.get(old.versionId)?.name ?? 'this exercise'} will be cleared.`)) return
+    const fresh = newItem(v, settings.unit, workouts, old.groupId)
+    const alts = [...(old.alts ?? []).filter(a => a !== versionId), old.versionId]
+    putWorkout({ ...w, items: w.items.map(i => (i.id === itemId ? { ...fresh, id: old.id, alts, note: old.note } : i)) })
+  }
+  // Hard swipe left anywhere on the pager opens the routine overview.
+  const swipe = useRef<{ x: number; y: number; t: number } | null>(null)
+  const onSwipeStart = (e: React.TouchEvent) => { const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, t: Date.now() } }
+  const onSwipeEnd = (e: React.TouchEvent) => {
+    const s = swipe.current; swipe.current = null; if (!s) return
+    const t = e.changedTouches[0]; const dx = t.clientX - s.x, dy = t.clientY - s.y
+    if (Date.now() - s.t < 700 && dx < -90 && Math.abs(dx) > Math.abs(dy) * 2) nav(`/workout/${w.id}/overview`)
+  }
   const remaining = w.items.filter(i => !itemDone(i)).length
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <div className="topbar" style={{ padding: '8px 16px' }}>
+    <div className="live">
+      <div className="topbar">
         <Link className="iconbtn" to="/" onClick={() => sessionStorage.setItem('jimmy.left', w.id)}>‹</Link>
         <div className="grow">
           <div style={{ fontWeight: 700 }}>{w.name}</div>
@@ -91,23 +109,25 @@ export function Live() {
           : <span className="small faint">done</span>}
       </div>
 
-      <div className="pager grow" ref={pagerRef} onScroll={onScroll} style={{ height: 'auto', scrollSnapType: 'y proximity' }}>
+      <div className="pager" ref={pagerRef} onScroll={onScroll} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
         {ps.map((pane, pi) => {
           const g = pane[0].groupId ? w.groups.find(x => x.id === pane[0].groupId) : undefined
           return (
             <div className="pane" key={pane[0].id}>
-              {g && pane.length > 1 && <div className="small" style={{ color: 'var(--accent)', fontWeight: 700, margin: '0 0 6px 4px', textTransform: 'uppercase', letterSpacing: '.06em' }}>{g.type}</div>}
-              {pane.map(item => {
-                const v = vmap.get(item.versionId)
-                if (!v) return null
-                return <ExerciseCard key={item.id} workout={w} item={item} version={v} compact={item.skipped}
-                  onChange={updateItem} onRemove={() => removeItem(item.id)} onSwap={() => setAdding({ swapItemId: item.id })} />
-              })}
-              <div className="row" style={{ marginTop: 12 }}>
-                <button className="btn sm ghost" onClick={() => setAdding({ afterItemId: pane[pane.length - 1].id })}>+ add after</button>
-                <span className="grow" />
-                {pi < ps.length - 1 ? <button className="btn primary" onClick={() => scrollTo(pi + 1)}>Next →</button>
-                  : running ? <button className="btn primary" onClick={() => setEnding(true)}>Finish</button> : null}
+              <div className="panebody">
+                {g && pane.length > 1 && <div className="small" style={{ color: 'var(--accent)', fontWeight: 700, margin: '0 0 6px 4px', textTransform: 'uppercase', letterSpacing: '.06em' }}>{g.type}</div>}
+                {pane.map(item => {
+                  const v = vmap.get(item.versionId)
+                  if (!v) return null
+                  return <ExerciseCard key={item.id} workout={w} item={item} version={v} compact={item.skipped}
+                    onChange={updateItem} onRemove={() => removeItem(item.id)} onSwap={() => setAdding({ swapItemId: item.id })} onSwapTo={vid => swapTo(item.id, vid)} />
+                })}
+                <div className="row" style={{ marginTop: 12 }}>
+                  <button className="btn sm ghost" onClick={() => setAdding({ afterItemId: pane[pane.length - 1].id })}>+ add after</button>
+                  <span className="grow" />
+                  {pi < ps.length - 1 ? <button className="btn primary" onClick={() => scrollTo(pi + 1)}>Next →</button>
+                    : running ? <button className="btn primary" onClick={() => setEnding(true)}>Finish</button> : null}
+                </div>
               </div>
             </div>
           )

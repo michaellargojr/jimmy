@@ -35,7 +35,11 @@ export function workoutFromRoutine(r: Routine, versions: Version[], unit: Unit, 
   const vmap = new Map(versions.map(v => [v.id, v]))
   return {
     id: uid(), name: r.name, date: today(), routineId: r.id, gymId, groups: r.groups.map(g => ({ ...g })),
-    items: r.items.filter(i => vmap.has(i.versionId)).map(i => newItem(vmap.get(i.versionId)!, unit, workouts, i.groupId)),
+    items: r.items.filter(i => vmap.has(i.versionId)).map(i => {
+      const it = newItem(vmap.get(i.versionId)!, unit, workouts, i.groupId)
+      const alts = (i.alts ?? []).filter(a => vmap.has(a) && a !== i.versionId)
+      return alts.length ? { ...it, alts } : it
+    }),
   }
 }
 
