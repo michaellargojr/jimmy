@@ -34,7 +34,7 @@ export function ImportSheet({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Import from Apple Notes">
+    <Sheet open={open} onClose={onClose} title="Import from Apple Notes" side="top">
       <div className="stack">
         <textarea className="ta" autoFocus value={text} onChange={e => setText(e.target.value)} style={{ minHeight: 140, fontSize: 14 }}
           placeholder={'Paste the note. One exercise name per line, sets under it:\nIncline Chest Fly Machine\n15kg - warm up - 10+\n20kg - 8\n22.5kg - 6 p2'} />

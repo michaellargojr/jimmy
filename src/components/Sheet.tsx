@@ -17,11 +17,12 @@ function unlockScroll() {
 }
 
 /**
- * Bottom sheet. Sized to the *visual* viewport so it stays above the iOS keyboard and its
- * buttons stay where they are drawn (fixed elements otherwise drift when Safari scrolls
- * the page to reveal a focused field, which is what made taps land on the wrong thing).
+ * Sheet. `side="bottom"` (default) is for pickers and menus: no typing, sized to the visual
+ * viewport. `side="top"` is for anything with a text field: it hangs from the top of the screen
+ * with the field right under the status bar, so the iOS keyboard can never cover it, whatever
+ * the viewport does in a home-screen app.
  */
-export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
+export function Sheet({ open, onClose, title, children, side = 'bottom' }: { open: boolean; onClose: () => void; title?: string; children: ReactNode; side?: 'bottom' | 'top' }) {
   const openedAt = useRef(0)
   const backdrop = useRef<HTMLDivElement>(null)
   const [vv, setVv] = useState<{ bottom: number; height: number }>({ bottom: 0, height: 0 })
@@ -45,13 +46,17 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     return () => el.removeEventListener('touchmove', block)
   }, [open])
   if (!open) return null
+  const style = side === 'top'
+    ? { maxHeight: vv.height ? Math.round(vv.height - 8) : undefined }
+    : { bottom: vv.bottom, maxHeight: vv.height ? Math.round(vv.height * 0.92) : undefined }
   return createPortal(
     <>
       <div ref={backdrop} className="backdrop" onClick={() => { if (Date.now() - openedAt.current > 400) onClose() }} />
-      <div className="sheet" role="dialog" style={{ bottom: vv.bottom, maxHeight: vv.height ? Math.round(vv.height * 0.92) : undefined }}>
-        <div className="handle" />
+      <div className={'sheet' + (side === 'top' ? ' top' : '')} role="dialog" style={style}>
+        {side === 'bottom' && <div className="handle" />}
         {title && <h3>{title}</h3>}
         {children}
+        {side === 'top' && <button className="handle close" onClick={onClose} aria-label="Close" />}
       </div>
     </>,
     document.body,

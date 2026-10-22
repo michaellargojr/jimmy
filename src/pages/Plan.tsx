@@ -141,7 +141,7 @@ export function Plan() {
       <button className="btn ghost block danger" style={{ marginTop: 20 }} onClick={() => { if (confirm('Delete this routine? History is kept.')) { deleteRoutine(r.id); nav('/') } }}>Delete routine</button>
 
       <AddExerciseSheet open={adding} onClose={() => setAdding(false)} onPick={v => putRoutine({ ...r, items: [...r.items, { versionId: v.id }] })} />
-      <Sheet open={gymSheet} onClose={() => setGymSheet(false)} title="Which gym?">
+      <Sheet open={gymSheet} onClose={() => setGymSheet(false)} title="Which gym?" side="top">
         <div className="stack">
           {gyms.map(g => <button key={g.id} className={'btn' + (g.id === gymId ? ' primary' : '')} onClick={() => { setGymId(g.id); setGymSheet(false) }}>{g.name}</button>)}
           <div className="row"><input className="search grow" value={newGym} onChange={e => setNewGym(e.target.value)} placeholder="New gym name" /><button className="btn" onClick={() => { if (!newGym.trim()) return; const g = { id: uid(), name: newGym.trim() }; putGym(g); setGymId(g.id); setNewGym(''); setGymSheet(false) }}>Add</button></div>
@@ -168,7 +168,7 @@ export function Plan() {
         putRoutine({ ...r, items: r.items.map((x, j) => (j === altFor && v.id !== x.versionId && !(x.alts ?? []).includes(v.id) ? { ...x, alts: [...(x.alts ?? []), v.id] } : x)) })
         setAltFor(null)
       }} />
-      <Sheet open={renaming} onClose={() => setRenaming(false)} title="Rename routine">
+      <Sheet open={renaming} onClose={() => setRenaming(false)} title="Rename routine" side="top">
         <div className="stack"><input className="search" value={name} onChange={e => setName(e.target.value)} /><button className="btn primary" onClick={() => { putRoutine({ ...r, name: name.trim() || r.name }); setRenaming(false) }}>Save</button></div>
       </Sheet>
     </div>

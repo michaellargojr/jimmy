@@ -44,6 +44,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
     closeEdit()
   }
   const [menu, setMenu] = useState(false)
+  const [noteFor, setNoteFor] = useState<string | null>(null) // set id whose note is being typed
   const [setupOpen, setSetupOpen] = useState(false)
   const [editVersion, setEditVersion] = useState(false)
   const holdRef = useRef<number | undefined>(undefined)
@@ -187,7 +188,9 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
                 </div>
               </>
             )}
-            <input className="note" style={{ marginTop: 10 }} value={editing.note ?? ''} onChange={e => patchSet(editing.id, { note: e.target.value || undefined })} placeholder="Note for this set (grip, notch, how it felt)" />
+            <button className="btn sm ghost block" style={{ marginTop: 8, justifyContent: 'flex-start', fontWeight: 500, color: editing.note ? 'var(--fg2)' : 'var(--fg3)' }} onClick={() => setNoteFor(editing.id)}>
+              📝 {editing.note || 'note for this set (grip, notch, how it felt)'}
+            </button>
             <div className="row" style={{ marginTop: 10 }}>
               {edit.field === 'weight' && <button className="btn grow" onClick={() => { commitShown(); editOrig.current = null; openEdit(editing.id, 'reps') }}>reps →</button>}
               {edit.field === 'reps' && (() => {
@@ -205,7 +208,15 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
       {editVersion && <VersionSheet open onClose={() => setEditVersion(false)} version={version} onSaved={() => setEditVersion(false)} />}
       <SetupSheet open={setupOpen} onClose={() => setSetupOpen(false)} version={version} setup={setup} last={last?.item}
         onChange={p => onChange({ ...item, cableHeight: p.cableHeight, benchAngle: p.benchAngle, attachment: p.attachment })} />
-      <Sheet open={menu} onClose={() => setMenu(false)} title={version.name}>
+      <Sheet open={noteFor != null} onClose={() => setNoteFor(null)} title={`Note · set ${noteFor ? labels[item.sets.findIndex(s => s.id === noteFor)] ?? '' : ''}`} side="top">
+        {noteFor && (
+          <div className="stack">
+            <input className="search" autoFocus value={item.sets.find(s => s.id === noteFor)?.note ?? ''} onChange={e => patchSet(noteFor, { note: e.target.value || undefined })} placeholder="grip, notch, how it felt" />
+            <button className="btn primary block" onClick={() => setNoteFor(null)}>Done</button>
+          </div>
+        )}
+      </Sheet>
+      <Sheet open={menu} onClose={() => setMenu(false)} title={version.name} side="top">
         <div className="stack">
           <label className="small muted">Note for this exercise today</label>
           <textarea className="ta" style={{ minHeight: 70 }} value={item.note ?? ''} onChange={e => onChange({ ...item, note: e.target.value })} placeholder="e.g. 3rd notch, underhand grip, felt it in the left shoulder" />

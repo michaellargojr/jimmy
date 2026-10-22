@@ -72,7 +72,7 @@ export function Home() {
           </div>
         </>
       )}
-      <Sheet open={naming} onClose={() => setNaming(false)} title="New routine">
+      <Sheet open={naming} onClose={() => setNaming(false)} title="New routine" side="top">
         <div className="stack">
           <input className="search" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Legs" />
           <button className="btn primary block" onClick={createRoutine}>Create</button>

@@ -28,7 +28,7 @@ export function AddExerciseSheet({ open, onClose, onPick }: { open: boolean; onC
 
   return (
     <>
-      <Sheet open={open && !creating} onClose={onClose} title="Add exercise">
+      <Sheet open={open && !creating} onClose={onClose} title="Add exercise" side="top">
         <input className="search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Type a few letters…" />
         <div className="row" style={{ flexWrap: 'nowrap', overflowX: 'auto', gap: 6, margin: '10px 0' }}>
           <button className={'chip' + (muscle == null ? ' on' : '')} onClick={() => setMuscle(null)}>all</button>

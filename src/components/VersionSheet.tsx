@@ -87,7 +87,7 @@ export function VersionSheet({ open, onClose, version, exerciseName, muscle, onS
   )
   const log = (version?.changes ?? []).slice().reverse()
   return (
-    <Sheet open={open} onClose={onClose} title={version ? 'Edit exercise' : 'New exercise'}>
+    <Sheet open={open} onClose={onClose} title={version ? 'Edit exercise' : 'New exercise'} side="top">
       <div className="stack">
         <input className="search" value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Cable Shrug)" />
         <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
