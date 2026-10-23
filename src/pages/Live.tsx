@@ -59,12 +59,45 @@ export function Live() {
     const el = pagerRef.current?.children[paneIdx] as HTMLElement | undefined
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+  const paneTops = (el: HTMLDivElement) => Array.from(el.children).map(c => (c as HTMLElement).offsetTop - el.offsetTop)
+  const paneAt = (tops: number[], top: number) => Math.max(0, tops.filter(t => t <= top + 1).length - 1)
+  /**
+   * Snap after the scroll settles. Inside one exercise the scroll is free, however tall the card.
+   * When a boundary sits inside the viewport, go to the next exercise only if more than half the
+   * screen already shows it; otherwise settle back on the current card's edge. One flick can
+   * never skip an exercise.
+   */
+  const settleSnap = () => {
+    const el = pagerRef.current; if (!el || touching.current) return
+    const h = el.clientHeight, top = el.scrollTop, tops = paneTops(el)
+    if (tops.length < 2) return
+    const endOf = (i: number) => Math.max(tops[i], (tops[i + 1] ?? el.scrollHeight) - h)
+    let target: number | undefined
+    const landed = paneAt(tops, top), from = startPane.current
+    if (landed > from + 1) target = tops[from + 1]
+    else if (landed < from - 1) target = endOf(from - 1)
+    else {
+      const j = tops.findIndex(t => t > top + 1 && t < top + h - 1) // a boundary inside the viewport
+      if (j > 0) {
+        const nextVisible = top + h - tops[j]
+        target = nextVisible >= h / 2 ? tops[j] : endOf(j - 1)
+        if (target === tops[j] && j > from + 1) target = tops[from + 1]
+        if (target !== tops[j] && j - 1 < from - 1) target = endOf(from - 1)
+      }
+    }
+    if (target != null && Math.abs(target - top) > 1) el.scrollTo({ top: target, behavior: 'smooth' })
+  }
+  const touching = useRef(false)
+  const startPane = useRef(0)
+  const settleTimer = useRef<number | undefined>(undefined)
+  const scheduleSnap = (ms = 120) => { window.clearTimeout(settleTimer.current); settleTimer.current = window.setTimeout(settleSnap, ms) }
   const onScroll = () => {
     const el = pagerRef.current; if (!el) return
     const top = el.scrollTop; let best = 0, bd = Infinity
     Array.from(el.children).forEach((c, i) => { const d = Math.abs((c as HTMLElement).offsetTop - top); if (d < bd) { bd = d; best = i } })
     setCur(best)
     try { localStorage.setItem(`jimmy.pane.${w.id}`, String(best)) } catch {}
+    scheduleSnap()
   }
   const finish = async () => {
     putWorkout({ ...w, endedAt: w.endedAt ?? Date.now(), notes })
@@ -84,8 +117,13 @@ export function Live() {
   }
   // Hard swipe left anywhere on the pager opens the routine overview.
   const swipe = useRef<{ x: number; y: number; t: number } | null>(null)
-  const onSwipeStart = (e: React.TouchEvent) => { const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, t: Date.now() } }
+  const onSwipeStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, t: Date.now() }
+    touching.current = true; window.clearTimeout(settleTimer.current)
+    const el = pagerRef.current; if (el) startPane.current = paneAt(paneTops(el), el.scrollTop)
+  }
   const onSwipeEnd = (e: React.TouchEvent) => {
+    touching.current = false; scheduleSnap(160)
     const s = swipe.current; swipe.current = null; if (!s) return
     const t = e.changedTouches[0]; const dx = t.clientX - s.x, dy = t.clientY - s.y
     if (Date.now() - s.t < 700 && dx < -90 && Math.abs(dx) > Math.abs(dy) * 2) nav(`/workout/${w.id}/overview`)
@@ -109,7 +147,7 @@ export function Live() {
           : <span className="small faint">done</span>}
       </div>
 
-      <div className="pager" ref={pagerRef} onScroll={onScroll} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
+      <div className="pager" ref={pagerRef} onScroll={onScroll} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd} onTouchCancel={onSwipeEnd}>
         {ps.map((pane, pi) => {
           const g = pane[0].groupId ? w.groups.find(x => x.id === pane[0].groupId) : undefined
           return (
