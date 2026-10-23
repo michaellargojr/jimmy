@@ -31,13 +31,19 @@ export function Sheet({ open, onClose, title, children, side = 'bottom' }: { ope
     openedAt.current = Date.now()
     lockScroll()
     const v = window.visualViewport
+    let raf = 0
     const update = () => {
       if (!v) return
-      setVv({ bottom: Math.max(0, Math.round(window.innerHeight - (v.height + v.offsetTop))), height: Math.round(v.height) })
+      // iOS often leaves the visual viewport scrolled up after the keyboard closes (offsetTop > 0
+      // with full height). Put it back, and in the meantime let `bottom` go negative so the sheet
+      // follows the visible area down instead of hanging above it with the page showing underneath.
+      const keyboardClosed = v.height >= window.innerHeight - 1
+      if (keyboardClosed && v.offsetTop > 0) { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => window.scrollTo(0, 0)) }
+      setVv({ bottom: Math.round(window.innerHeight - (v.height + v.offsetTop)), height: Math.round(v.height) })
     }
     update()
     v?.addEventListener('resize', update); v?.addEventListener('scroll', update)
-    return () => { v?.removeEventListener('resize', update); v?.removeEventListener('scroll', update); unlockScroll() }
+    return () => { cancelAnimationFrame(raf); v?.removeEventListener('resize', update); v?.removeEventListener('scroll', update); unlockScroll() }
   }, [open])
   useEffect(() => {
     const el = backdrop.current; if (!el) return
