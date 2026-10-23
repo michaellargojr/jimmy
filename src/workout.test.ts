@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { carriedSetup, newItem } from './workout'
+import { carriedSetup, newItem, setLabels } from './workout'
 import { setupLabel, sameSetup, type Version, type Workout } from './model'
 
 const v: Version = { id: 'v1', exerciseId: 'e1', name: 'Rope Pushdown', equipment: 'cable', arms: 'two', repMin: 8, repMax: 12, defaultWarmup: true, defaultSets: 2, gymNotes: {}, media: [], changes: [], attachment: 'rope', cableHeight: 1 }
@@ -14,6 +14,11 @@ describe('setup carries forward', () => {
     expect(carriedSetup(v, ws)).toEqual({ cableHeight: 0.72, benchAngle: 30, attachment: 'straight bar' })
     const it = newItem(v, 'kg', ws)
     expect(it.attachment).toBe('straight bar'); expect(it.sets.length).toBe(3)
+  })
+  it('gives one-arm versions a warm-up per side', () => {
+    const one = { ...v, arms: 'one' as const }
+    const it = newItem(one, 'kg', [])
+    expect(setLabels(it.sets)).toEqual(['WL', 'WR', '1L', '1R', '2L', '2R'])
   })
   it('labels and compares setups', () => {
     expect(setupLabel({ attachment: 'rope', cableHeight: 0.72, benchAngle: 0 })).toBe('rope · chest · flat')

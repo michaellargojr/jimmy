@@ -45,6 +45,11 @@ export function Sheet({ open, onClose, title, children, side = 'bottom' }: { ope
     el.addEventListener('touchmove', block, { passive: false })
     return () => el.removeEventListener('touchmove', block)
   }, [open])
+  // Fallback for a focused field the keyboard would hide: ask the browser to reveal it once the keyboard is up.
+  const onFocus = (e: React.FocusEvent) => {
+    const t = e.target as HTMLElement
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') setTimeout(() => t.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250)
+  }
   if (!open) return null
   const style = side === 'top'
     ? { maxHeight: vv.height ? Math.round(vv.height - 8) : undefined }
@@ -52,7 +57,7 @@ export function Sheet({ open, onClose, title, children, side = 'bottom' }: { ope
   return createPortal(
     <>
       <div ref={backdrop} className="backdrop" onClick={() => { if (Date.now() - openedAt.current > 400) onClose() }} />
-      <div className={'sheet' + (side === 'top' ? ' top' : '')} role="dialog" style={style}>
+      <div className={'sheet' + (side === 'top' ? ' top' : '')} role="dialog" style={style} onFocus={onFocus}>
         {side === 'bottom' && <div className="handle" />}
         {title && <h3>{title}</h3>}
         {children}

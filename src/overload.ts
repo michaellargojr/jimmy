@@ -39,5 +39,8 @@ export function matchLast(now: SetEntry, nowAll: SetEntry[], lastAll: SetEntry[]
   const sameKindNow = nowAll.filter(s => s.kind === now.kind && (!now.side || s.side === now.side))
   const idx = sameKindNow.findIndex(s => s.id === now.id)
   const sameKindLast = lastAll.filter(s => s.kind === now.kind && (!now.side || s.side === now.side))
-  return sameKindLast[idx]
+  if (sameKindLast[idx]) return sameKindLast[idx]
+  // last time's warm-up was a single unsided row; show it under both WL and WR
+  if (now.kind === 'warmup' && now.side) return lastAll.filter(s => s.kind === 'warmup' && !s.side)[idx]
+  return undefined
 }

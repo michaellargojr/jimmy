@@ -71,19 +71,27 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
     if (last.s.side && prev?.s.side && prev.s.side !== last.s.side) drop.add(prev.i)
     onChange({ ...item, sets: item.sets.filter((_, i) => !drop.has(i)) })
   }
-  /** Remove the warm-up row, but never its numbers: they move into a blank set 1, or the row becomes set 1. */
+  /** Remove the warm-up rows, but never their numbers: they move into a blank set 1 (per side), or the row becomes set 1. */
   const toggleWarmup = () => {
-    const w = item.sets.find(s => s.kind === 'warmup')
-    if (!w) { onChange({ ...item, sets: [newSet('warmup', item.sets[0]?.unit ?? settings.unit, { bar: item.sets[0]?.bar }), ...item.sets] }); return }
-    const hasData = w.reps != null || w.weight != null
-    if (!hasData) { onChange({ ...item, sets: item.sets.filter(s => s.id !== w.id) }); return }
-    const first = item.sets.find(s => s.kind === 'working' && (!w.side || s.side === w.side))
-    if (first && first.reps == null && first.weight == null) {
-      const moved: SetEntry = { ...first, weight: w.weight, reps: w.reps, plus: w.plus, partials: w.partials, unit: w.unit, note: w.note ?? first.note }
-      onChange({ ...item, sets: item.sets.filter(s => s.id !== w.id).map(s => (s.id === first.id ? moved : s)) })
-    } else {
-      onChange({ ...item, sets: item.sets.map(s => (s.id === w.id ? { ...s, kind: 'working' as const } : s)) })
+    const warm = item.sets.filter(s => s.kind === 'warmup')
+    if (warm.length === 0) {
+      const unit = item.sets[0]?.unit ?? settings.unit, bar = item.sets[0]?.bar
+      const add = version.arms === 'one' ? [newSet('warmup', unit, { bar, side: 'L' }), newSet('warmup', unit, { bar, side: 'R' })] : [newSet('warmup', unit, { bar })]
+      onChange({ ...item, sets: [...add, ...item.sets] }); return
     }
+    let sets = item.sets.slice()
+    for (const w of warm) {
+      const hasData = w.reps != null || w.weight != null
+      if (!hasData) { sets = sets.filter(s => s.id !== w.id); continue }
+      const first = sets.find(s => s.kind === 'working' && (!w.side || s.side === w.side))
+      if (first && first.reps == null && first.weight == null) {
+        const moved: SetEntry = { ...first, weight: w.weight, reps: w.reps, plus: w.plus, partials: w.partials, unit: w.unit, note: w.note ?? first.note }
+        sets = sets.filter(s => s.id !== w.id).map(s => (s.id === first.id ? moved : s))
+      } else {
+        sets = sets.map(s => (s.id === w.id ? { ...s, kind: 'working' as const } : s))
+      }
+    }
+    onChange({ ...item, sets })
   }
 
   const editing = edit ? item.sets.find(s => s.id === edit.setId) : undefined
@@ -208,7 +216,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
       {editVersion && <VersionSheet open onClose={() => setEditVersion(false)} version={version} onSaved={() => setEditVersion(false)} />}
       <SetupSheet open={setupOpen} onClose={() => setSetupOpen(false)} version={version} setup={setup} last={last?.item}
         onChange={p => onChange({ ...item, cableHeight: p.cableHeight, benchAngle: p.benchAngle, attachment: p.attachment })} />
-      <Sheet open={noteFor != null} onClose={() => setNoteFor(null)} title={`Note · set ${noteFor ? labels[item.sets.findIndex(s => s.id === noteFor)] ?? '' : ''}`} side="top">
+      <Sheet open={noteFor != null} onClose={() => setNoteFor(null)} title={`Note · set ${noteFor ? labels[item.sets.findIndex(s => s.id === noteFor)] ?? '' : ''}`}>
         {noteFor && (
           <div className="stack">
             <input className="search" autoFocus value={item.sets.find(s => s.id === noteFor)?.note ?? ''} onChange={e => patchSet(noteFor, { note: e.target.value || undefined })} placeholder="grip, notch, how it felt" />
@@ -216,7 +224,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
           </div>
         )}
       </Sheet>
-      <Sheet open={menu} onClose={() => setMenu(false)} title={version.name} side="top">
+      <Sheet open={menu} onClose={() => setMenu(false)} title={version.name}>
         <div className="stack">
           <label className="small muted">Note for this exercise today</label>
           <textarea className="ta" style={{ minHeight: 70 }} value={item.note ?? ''} onChange={e => onChange({ ...item, note: e.target.value })} placeholder="e.g. 3rd notch, underhand grip, felt it in the left shoulder" />

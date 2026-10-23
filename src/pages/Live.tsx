@@ -155,7 +155,7 @@ export function Live() {
       </div>
 
       <AddExerciseSheet open={!!adding} onClose={() => setAdding(null)} onPick={addVersion} />
-      <Sheet open={ending} onClose={() => setEnding(false)} title="End workout" side="top">
+      <Sheet open={ending} onClose={() => setEnding(false)} title="End workout">
         <div className="stack">
           <div className="muted small">{w.startedAt ? elapsed(Date.now() - w.startedAt) : ''} · {w.items.filter(itemDone).length}/{w.items.length} exercises · {w.items.reduce((n, i) => n + i.sets.filter(s => s.reps != null).length, 0)} sets logged</div>
           <textarea className="ta" autoFocus value={notes} onChange={e => setNotes(e.target.value)} placeholder="How did it go? Dictate anything: machines, notches, what to change next time." />
@@ -164,7 +164,7 @@ export function Live() {
           <button className="btn ghost block danger" onClick={() => { if (confirm('Discard this workout?')) { deleteWorkout(w.id); nav('/') } }}>Discard workout</button>
         </div>
       </Sheet>
-      <Sheet open={gymSheet} onClose={() => setGymSheet(false)} title="Which gym?" side="top">
+      <Sheet open={gymSheet} onClose={() => setGymSheet(false)} title="Which gym?">
         <div className="stack">
           {gyms.map(g => <button key={g.id} className={'btn' + (g.id === w.gymId ? ' primary' : '')} onClick={() => { putWorkout({ ...w, gymId: g.id }); setGymSheet(false) }}>{g.name}</button>)}
           <div className="row"><input className="search grow" value={newGym} onChange={e => setNewGym(e.target.value)} placeholder="New gym name" /><button className="btn" onClick={() => { if (!newGym.trim()) return; const g = { id: uid(), name: newGym.trim() }; putGym(g); putWorkout({ ...w, gymId: g.id }); setNewGym(''); setGymSheet(false) }}>Add</button></div>

@@ -5,7 +5,10 @@ import { lastBar, lastItemOf } from './derive'
 export function defaultSets(v: Version, unit: Unit, workouts: Workout[]): SetEntry[] {
   const bar = isBarbell(v) ? (lastBar(v.id, workouts) ?? (v.equipment === 'ezbar' ? 'ez' : 'straight')) : undefined
   const sets: SetEntry[] = []
-  if (v.defaultWarmup) sets.push(newSet('warmup', unit, { bar }))
+  if (v.defaultWarmup) {
+    if (v.arms === 'one') { sets.push(newSet('warmup', unit, { bar, side: 'L' })); sets.push(newSet('warmup', unit, { bar, side: 'R' })) }
+    else sets.push(newSet('warmup', unit, { bar }))
+  }
   for (let i = 0; i < v.defaultSets; i++) {
     if (v.arms === 'one') { sets.push(newSet('working', unit, { bar, side: 'L' })); sets.push(newSet('working', unit, { bar, side: 'R' })) }
     else sets.push(newSet('working', unit, { bar }))
@@ -48,7 +51,7 @@ export function setLabels(sets: SetEntry[]): string[] {
   let n = 0
   const seen: Record<string, number> = {}
   return sets.map(s => {
-    if (s.kind === 'warmup') return 'W'
+    if (s.kind === 'warmup') return s.side ? `W${s.side}` : 'W'
     if (s.side) {
       // number by pairs: L and R of the same ordinal share a number
       const key = s.side
