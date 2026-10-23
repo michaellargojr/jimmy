@@ -147,7 +147,7 @@ struct ExerciseCardView: View {
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
             ForEach(Array(item.sets.enumerated()), id: \.element.id) { i, s in
                 let lastMatch = last.map { matchLast(now: s, nowAll: item.sets, lastAll: $0.item.sets) } ?? nil
-                SetRowView(set: s, label: labels[i], ghost: lastMatch, isCurrent: i == firstOpen,
+                SetRowView(entry: s, label: labels[i], ghost: lastMatch, isCurrent: i == firstOpen,
                            improved: improved(now: s, last: lastMatch),
                            onWeight: { editing = SetEdit(setId: s.id, field: .weight) },
                            onReps: { editing = SetEdit(setId: s.id, field: .reps) },
@@ -256,7 +256,7 @@ struct ExerciseCardView: View {
 
 struct SetRowView: View {
     @Environment(\.palette) private var p
-    let set: SetEntry
+    let entry: SetEntry
     let label: String
     let ghost: SetEntry?
     let isCurrent: Bool
@@ -266,7 +266,7 @@ struct SetRowView: View {
     let onCheck: () -> Void
     let onLabel: () -> Void
 
-    private var done: Bool { set.kind == .working ? set.reps != nil : (set.reps != nil || set.weight != nil) }
+    private var done: Bool { entry.kind == .working ? entry.reps != nil : (entry.reps != nil || entry.weight != nil) }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -274,15 +274,15 @@ struct SetRowView: View {
                 Button(action: onLabel) {
                     Text(label)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(isCurrent ? p.accent : set.kind == .warmup ? p.muted : p.secondary)
+                        .foregroundStyle(isCurrent ? p.accent : entry.kind == .warmup ? p.muted : p.secondary)
                         .frame(width: 48, height: 50)
                         .background(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(isCurrent ? p.accent : p.border, lineWidth: 2))
                 }
                 .buttonStyle(.plain)
 
-                field(value: set.weight.map { fmtWeight($0) }, ghost: ghost?.weight.map { fmtWeight($0) }, suffix: set.unit.label, action: onWeight)
-                field(value: set.reps.map { "\($0)\(set.plus ? "+" : "")" }, ghost: ghost?.reps.map { "\($0)\(ghost!.plus ? "+" : "")" },
-                      suffix: (set.partials ?? 0) > 0 ? "p\(set.partials!)" : nil, action: onReps)
+                field(value: entry.weight.map { fmtWeight($0) }, ghost: ghost?.weight.map { fmtWeight($0) }, suffix: entry.unit.label, action: onWeight)
+                field(value: entry.reps.map { "\($0)\(entry.plus ? "+" : "")" }, ghost: ghost?.reps.map { "\($0)\(ghost!.plus ? "+" : "")" },
+                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, action: onReps)
 
                 Button(action: onCheck) {
                     ZStack {
@@ -296,13 +296,13 @@ struct SetRowView: View {
                 .accessibilityLabel(done ? "Set \(label) done" : "Mark set \(label) done")
             }
             HStack(spacing: 8) {
-                if set.bar != nil { Text(set.bar == .ez ? "EZ bar" : "Straight bar").font(.system(size: 11, weight: .semibold)).foregroundStyle(p.muted) }
+                if entry.bar != nil { Text(entry.bar == .ez ? "EZ bar" : "Straight bar").font(.system(size: 11, weight: .semibold)).foregroundStyle(p.muted) }
                 if improved { Text("✓ beat last time").font(.system(size: 11, weight: .bold)).foregroundStyle(p.accent) }
-                if let n = set.note, !n.isEmpty { Text(n).font(.system(size: 11)).foregroundStyle(p.muted).lineLimit(1) }
+                if let n = entry.note, !n.isEmpty { Text(n).font(.system(size: 11)).foregroundStyle(p.muted).lineLimit(1) }
                 Spacer()
             }
             .padding(.leading, 56)
-            .frame(minHeight: (set.bar != nil || improved || set.note?.isEmpty == false) ? 14 : 0)
+            .frame(minHeight: (entry.bar != nil || improved || entry.note?.isEmpty == false) ? 14 : 0)
         }
         .padding(.horizontal, 14).padding(.vertical, 5)
     }
