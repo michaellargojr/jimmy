@@ -95,8 +95,13 @@ a { color: inherit; text-decoration: none; }
 .tog.sm { width: 34px; height: 34px; font-size: 13px; border-radius: 9px; }
 .setextras { display: flex; gap: 6px; }
 .setbtns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.strip { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 16px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); font-size: 13px; color: var(--fg3); display: flex; gap: 8px; align-items: center; overflow-x: auto; white-space: nowrap; z-index: 6; }
-.strip .item { padding: 6px 10px; border-radius: 999px; background: var(--bg2); color: var(--fg2); }
+.strip { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(10px + env(safe-area-inset-bottom)) 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); font-size: 13px; color: var(--fg3); display: flex; gap: 8px; align-items: center; z-index: 6; }
+/* the exercise list scrolls; + and the bulb are pinned at the right edge so they are always on screen */
+.strip-scroll { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.strip-scroll::-webkit-scrollbar { display: none; }
+.strip-fixed { flex: none; display: flex; gap: 8px; align-items: center; padding-left: 8px; border-left: 1px solid var(--line); }
+.strip .item { padding: 6px 10px; border-radius: 999px; background: var(--bg2); color: var(--fg2); flex: none; }
+.strip .item.bulb { font-size: 17px; padding: 4px 9px; background: color-mix(in srgb, var(--amber) 18%, var(--bg2)); }
 .strip .item.done { opacity: .45; text-decoration: line-through; }
 .strip .item.cur { background: var(--bg3); color: var(--fg); font-weight: 600; }
 

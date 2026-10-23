@@ -140,14 +140,18 @@ export function Live() {
       </div>
 
       <div className="strip">
-        <span>{remaining} left</span>
-        {ps.map((pane, i) => (
-          <button key={pane[0].id} className={'item' + (pane.every(itemDone) ? ' done' : '') + (i === cur ? ' cur' : '')} onClick={() => scrollTo(i)}>
-            {pane.map(it => vmap.get(it.versionId)?.name.split(' ').slice(0, 2).join(' ')).join(' + ')}
-          </button>
-        ))}
-        <button className="item" onClick={() => setAdding({})}>+</button>
-        <IdeaFab variant="strip" />
+        <div className="strip-scroll">
+          <span>{remaining} left</span>
+          {ps.map((pane, i) => (
+            <button key={pane[0].id} className={'item' + (pane.every(itemDone) ? ' done' : '') + (i === cur ? ' cur' : '')} onClick={() => scrollTo(i)}>
+              {pane.map(it => vmap.get(it.versionId)?.name.split(' ').slice(0, 2).join(' ')).join(' + ')}
+            </button>
+          ))}
+        </div>
+        <div className="strip-fixed">
+          <button className="item" onClick={() => setAdding({})} aria-label="Add exercise">+</button>
+          <IdeaFab variant="strip" />
+        </div>
       </div>
 
       <AddExerciseSheet open={!!adding} onClose={() => setAdding(null)} onPick={addVersion} />

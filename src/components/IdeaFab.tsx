@@ -19,7 +19,7 @@ export function IdeaFab({ variant = 'fab' }: { variant?: 'fab' | 'strip' }) {
   }
   return (
     <>
-      <button className={variant === 'strip' ? 'item' : 'fab'} onClick={() => setOpen(true)} aria-label="Capture an idea">💡</button>
+      <button className={variant === 'strip' ? 'item bulb' : 'fab'} onClick={() => setOpen(true)} aria-label="Capture an idea">💡</button>
       <Sheet open={open} onClose={() => setOpen(false)} title={saved ? 'Saved ✓' : 'Idea for Jimmy'} side="top">
         <div className="stack">
           <div className="row" style={{ gap: 6 }}>
