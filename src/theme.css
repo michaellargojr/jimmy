@@ -71,7 +71,7 @@ a { color: inherit; text-decoration: none; }
 /* Live page: fixed to the viewport so the window itself can never scroll (that is what let the title slide under the status bar). */
 .live { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 .live .topbar { padding: calc(8px + env(safe-area-inset-top)) 16px 8px; flex: none; }
-.pager { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.pager { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 /* Snapping is done in Live.tsx (settleSnap): free scrolling inside a tall card, snap only once more than half the screen has crossed into the next one. */
 .pane { min-height: 100%; padding: 8px 16px calc(72px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
 .panebody { margin: auto 0; } /* centred when shorter than the viewport, flows normally when taller */
@@ -108,7 +108,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Sheet */
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 20; }
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 20px 20px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); z-index: 21; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 20px 20px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); z-index: 21; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .sheet.top { top: 0; bottom: auto; border-radius: 0 0 22px 22px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; max-height: 92dvh; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
 .sheet.top h3 { margin-top: 0; }
 .sheet .handle.close { display: block; width: 44px; height: 5px; margin: 12px auto 2px; padding: 0; }
