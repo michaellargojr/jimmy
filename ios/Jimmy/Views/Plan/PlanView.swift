@@ -177,41 +177,41 @@ struct ExercisesList: View {
     }
 
     var body: some View {
-        List {
-            Section {
-                TextField("Search", text: $query)
-                    .padding(12)
-                    .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                    .foregroundStyle(p.text)
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
-            }
-            ForEach(grouped) { sec in
-                Section {
-                    ForEach(sec.list) { v in
-                        NavigationLink(value: v) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                                    Text("\(v.equipment.label)\(v.arms == .one ? " · one arm" : "") · \(v.repRange) reps · \(sessions(v)) sessions").font(.system(size: 12)).foregroundStyle(p.muted)
+        VStack(spacing: 0) {
+            SearchField(placeholder: "Search exercises", text: $query)
+            List {
+                ForEach(grouped) { sec in
+                    Section {
+                        ForEach(sec.list) { v in
+                            NavigationLink(value: v) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                        Text("\(v.equipment.label)\(v.arms == .one ? " · one arm" : "") · \(v.repRange) reps · \(sessions(v)) sessions").font(.system(size: 12)).foregroundStyle(p.muted)
+                                    }
+                                    Spacer()
                                 }
-                                Spacer()
+                                .padding(.horizontal, 16).padding(.vertical, 12)
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                        }
-                        .rowCard(p)
-                        .swipeActions {
-                            if sessions(v) == 0 {
-                                Button(role: .destructive) { store.deleteVersion(v.id) } label: { Label("Delete", systemImage: "trash") }
+                            .rowCard(p)
+                            .swipeActions {
+                                if sessions(v) == 0 {
+                                    Button(role: .destructive) { store.deleteVersion(v.id) } label: { Label("Delete", systemImage: "trash") }
+                                }
                             }
                         }
+                    } header: {
+                        SectionLabel(sec.muscle.rawValue).padding(.leading, 16)
                     }
-                } header: {
-                    SectionLabel(sec.muscle.rawValue).padding(.leading, 16)
+                }
+                if grouped.isEmpty {
+                    Text(query.isEmpty ? "No exercises yet. Tap New to add one." : "Nothing matches \"\(query)\".")
+                        .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
+            .cardList()
         }
-        .cardList()
+        .background(p.bg.ignoresSafeArea())
     }
 
     private func sessions(_ v: Version) -> Int {

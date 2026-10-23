@@ -125,32 +125,34 @@ struct ExercisesHistoryList: View {
     }
 
     var body: some View {
-        List {
-            TextField("Search", text: $query)
-                .padding(12)
-                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                .foregroundStyle(p.text)
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
-            ForEach(list) { e in
-                let v = e.version
-                NavigationLink(value: v) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                            Text("\(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted)
+        VStack(spacing: 0) {
+            SearchField(placeholder: "Search exercises", text: $query)
+            List {
+                ForEach(list) { e in
+                    let v = e.version
+                    NavigationLink(value: v) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                Text("\(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted)
+                            }
+                            Spacer()
+                            if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
+                                Text(t.formatted).font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(p.secondary)
+                            }
                         }
-                        Spacer()
-                        if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
-                            Text(t.formatted).font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(p.secondary)
-                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .rowCard(p)
                 }
-                .rowCard(p)
+                if list.isEmpty {
+                    Text(query.isEmpty ? "Log a workout and your exercises show up here." : "Nothing matches \"\(query)\".")
+                        .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
             }
+            .cardList()
         }
-        .cardList()
+        .background(p.bg.ignoresSafeArea())
     }
 }
 
