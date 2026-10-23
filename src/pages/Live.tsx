@@ -23,11 +23,14 @@ export function Live() {
   const [newGym, setNewGym] = useState('')
   const [, tick] = useState(0)
   const pagerRef = useRef<HTMLDivElement>(null)
+  const touching = useRef(false)
+  const startPane = useRef(0)
+  const settleTimer = useRef<number | undefined>(undefined)
   const [cur, setCur] = useState(0)
   useEffect(() => { const t = setInterval(() => tick(x => x + 1), 1000); return () => clearInterval(t) }, [])
   useEffect(() => {
     const saved = Number(localStorage.getItem(`jimmy.pane.${id}`) ?? 0)
-    if (saved > 0) setTimeout(() => { const el = pagerRef.current?.children[saved] as HTMLElement | undefined; el?.scrollIntoView({ block: 'start' }) }, 30)
+    if (saved > 0) setTimeout(() => { startPane.current = saved; const el = pagerRef.current?.children[saved] as HTMLElement | undefined; el?.scrollIntoView({ block: 'start' }) }, 30)
     sessionStorage.removeItem('jimmy.left')
     setNotes(workouts.find(x => x.id === id)?.notes ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,6 +59,7 @@ export function Live() {
     setTimeout(() => scrollTo(panes(items).findIndex(p => p.some(i => i.id === item.id))), 50)
   }
   const scrollTo = (paneIdx: number) => {
+    startPane.current = paneIdx // a deliberate jump (strip chip, Next, add) is never clamped by the one-flick guard
     const el = pagerRef.current?.children[paneIdx] as HTMLElement | undefined
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -87,9 +91,6 @@ export function Live() {
     }
     if (target != null && Math.abs(target - top) > 1) el.scrollTo({ top: target, behavior: 'smooth' })
   }
-  const touching = useRef(false)
-  const startPane = useRef(0)
-  const settleTimer = useRef<number | undefined>(undefined)
   const scheduleSnap = (ms = 120) => { window.clearTimeout(settleTimer.current); settleTimer.current = window.setTimeout(settleSnap, ms) }
   const onScroll = () => {
     const el = pagerRef.current; if (!el) return
