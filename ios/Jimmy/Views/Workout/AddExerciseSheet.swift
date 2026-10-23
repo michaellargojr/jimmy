@@ -52,6 +52,7 @@ struct AddExerciseSheet: View {
                 .focused($focused)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
+                .submitLabel(.done)
                 .padding(12)
                 .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                 .foregroundStyle(p.text)
@@ -76,7 +77,12 @@ struct AddExerciseSheet: View {
             }
         }
         .padding(16)
-        .onAppear { focused = true }
+        // Focus once the sheet has settled. Focusing during the slide-up animation can leave
+        // the field showing a cursor while the keyboard never attaches.
+        .task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            focused = true
+        }
     }
 
     private func pick(_ r: Row) {

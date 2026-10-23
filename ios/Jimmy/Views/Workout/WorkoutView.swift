@@ -9,6 +9,9 @@ struct WorkoutView: View {
     @State private var current: Int? = 0
     @State private var showOverview = false
     @State private var adding: AddTarget? = nil
+    /// Set by the Overview sheet; presented only after Overview has finished closing,
+    /// because two sheets changing at once leaves the new one unable to take the keyboard.
+    @State private var pendingAdd: AddTarget? = nil
     @State private var confirmFinish = false
     @State private var restEndsAt: Date? = nil
 
@@ -38,8 +41,10 @@ struct WorkoutView: View {
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
             }
             .background(p.bg.ignoresSafeArea())
-            .sheet(isPresented: $showOverview) {
-                OverviewSheet(workoutId: workoutId, current: $current, adding: $adding)
+            .sheet(isPresented: $showOverview, onDismiss: {
+                if let t = pendingAdd { pendingAdd = nil; adding = t }
+            }) {
+                OverviewSheet(workoutId: workoutId, current: $current, adding: $pendingAdd)
                     .presentationDetents([.medium, .large])
                     .presentationBackground(p.card)
             }

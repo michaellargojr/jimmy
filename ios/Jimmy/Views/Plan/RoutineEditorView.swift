@@ -211,20 +211,53 @@ struct VersionEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let versionId: String
 
+    // Text fields edit local drafts and save when you leave the field. Writing to the store on
+    // every keystroke re-sorted the exercise list behind this screen and knocked the keyboard away.
+    private enum Field: Hashable { case name, machine, notes }
+    @FocusState private var field: Field?
+    @State private var draftName = ""
+    @State private var draftMachine = ""
+    @State private var draftNotes = ""
+    @State private var loaded = false
+
     private var version: Version? { store.version(versionId) }
+
+    private func loadDrafts() {
+        guard !loaded, let v = version else { return }
+        draftName = v.name; draftMachine = v.machine ?? ""; draftNotes = v.notes ?? ""
+        loaded = true
+    }
+
+    private func commitText() {
+        guard loaded, var v = store.version(versionId) else { return }
+        let name = draftName.trimmingCharacters(in: .whitespaces)
+        let machine = draftMachine.trimmingCharacters(in: .whitespaces)
+        let notes = draftNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        var changed = false
+        if !name.isEmpty, name != v.name { v.name = name; changed = true }
+        if (machine.isEmpty ? nil : machine) != v.machine { v.machine = machine.isEmpty ? nil : machine; changed = true }
+        if (notes.isEmpty ? nil : notes) != v.notes { v.notes = notes.isEmpty ? nil : notes; changed = true }
+        if changed { store.put(v) }
+    }
 
     var body: some View {
         if let v = version {
             let b = Binding(get: { store.version(versionId) ?? v }, set: { store.put($0) })
             Form {
                 Section {
-                    TextField("Name", text: b.name)
+                    TextField("Name", text: $draftName)
+                        .focused($field, equals: .name)
+                        .submitLabel(.done)
+                        .onSubmit(commitText)
                     Picker("Muscle", selection: Binding(get: { store.muscle(of: v) ?? .Back }, set: { m in
                         if var e = store.exercise(v.exerciseId) { e.muscleGroup = m; store.put(e) }
                     })) { ForEach(MuscleGroup.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
                     Picker("Equipment", selection: b.equipment) { ForEach(Equipment.allCases, id: \.self) { Text($0.label).tag($0) } }
                     Picker("Arms", selection: b.arms) { Text("Two").tag(Arms.two); Text("One at a time").tag(Arms.one) }
-                    TextField("Machine (optional)", text: Binding(get: { v.machine ?? "" }, set: { t in var vv = v; vv.machine = t.isEmpty ? nil : t; store.put(vv) }))
+                    TextField("Machine (optional)", text: $draftMachine)
+                        .focused($field, equals: .machine)
+                        .submitLabel(.done)
+                        .onSubmit(commitText)
                 }
                 Section("Rep range") {
                     Stepper("Min \(v.repMin)", value: b.repMin, in: 1...50)
@@ -237,7 +270,9 @@ struct VersionEditorView: View {
                     Toggle("Warm-up set", isOn: b.defaultWarmup)
                 }
                 Section("Notes") {
-                    TextField("Setup, grip, what to watch", text: Binding(get: { v.notes ?? "" }, set: { t in var vv = v; vv.notes = t.isEmpty ? nil : t; store.put(vv) }), axis: .vertical).lineLimit(2...5)
+                    TextField("Setup, grip, what to watch", text: $draftNotes, axis: .vertical)
+                        .lineLimit(2...5)
+                        .focused($field, equals: .notes)
                 }
                 Section {
                     NavigationLink { ExerciseProgressView(versionId: v.id) } label: { Label("Progress over time", systemImage: "chart.xyaxis.line") }
@@ -249,6 +284,9 @@ struct VersionEditorView: View {
             .navigationTitle(v.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(p.bg, for: .navigationBar)
+            .onAppear(perform: loadDrafts)
+            .onChange(of: field) { _, _ in commitText() }
+            .onDisappear(perform: commitText)
         }
     }
 }
