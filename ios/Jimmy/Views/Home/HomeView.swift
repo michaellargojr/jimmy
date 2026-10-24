@@ -30,7 +30,7 @@ struct HomeView: View {
     @ViewBuilder
     private func block(_ b: HomeBlock) -> some View {
         switch b {
-        case .quote: QuoteBlock(text: store.settings.quote)
+        case .quote: MantraBlock(text: store.settings.quote)
         case .upNext: UpNextBlock()
         case .week: WeekBlock()
         case .recent: RecentBlock()
@@ -40,18 +40,34 @@ struct HomeView: View {
     }
 }
 
-struct QuoteBlock: View {
+/// The Mantra card: a bordered card with a solid accent "MANTRA" tag and the mantra
+/// in bold block capitals. Nothing in the text is emphasized, since the mantra changes.
+/// Deliberately quieter than the solid Up Next card.
+struct MantraBlock: View {
     @Environment(\.palette) private var p
     let text: String
+
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 20, weight: .heavy))
-            .tracking(0.2)
-            .lineSpacing(2)
-            .foregroundStyle(p.text)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("MANTRA")
+                .font(.system(size: 11, weight: .heavy))
+                .tracking(1)
+                .foregroundStyle(p.onAccent)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(p.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Text(text.uppercased())
+                .font(.system(size: 20, weight: .heavy))
+                .tracking(0.2)
+                .lineSpacing(2)
+                .foregroundStyle(p.text)
+        }
+        .padding(EdgeInsets(top: 16, leading: 18, bottom: 18, trailing: 18))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(p.accent, lineWidth: 1.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Mantra. \(text)")
     }
 }
 
