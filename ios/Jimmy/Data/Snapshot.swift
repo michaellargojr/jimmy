@@ -1,11 +1,15 @@
 import Foundation
 
-/// The JSON export. Same shape as the web app's Settings > Export, plus `splits`.
+/// The JSON export. Same shape as the web app's Settings > Export, plus `splits` and `styles`.
+/// Version 2 is the base > variation > style library (Oct 2026).
+let SNAPSHOT_VERSION = 2
+
 struct Snapshot: Codable {
-    var version: Int = 1
+    var version: Int = SNAPSHOT_VERSION
     var exportedAt: String
     var exercises: [Exercise]
     var versions: [Version]
+    var styles: [Style]
     var workouts: [Workout]
     var routines: [Routine]
     var gyms: [Gym]
@@ -13,9 +17,9 @@ struct Snapshot: Codable {
     var ideas: [Idea]
     var splits: [Split]
 
-    init(exportedAt: String, exercises: [Exercise], versions: [Version], workouts: [Workout], routines: [Routine],
+    init(exportedAt: String, exercises: [Exercise], versions: [Version], styles: [Style] = [], workouts: [Workout], routines: [Routine],
          gyms: [Gym], settings: Settings?, ideas: [Idea], splits: [Split]) {
-        self.exportedAt = exportedAt; self.exercises = exercises; self.versions = versions; self.workouts = workouts
+        self.exportedAt = exportedAt; self.exercises = exercises; self.versions = versions; self.styles = styles; self.workouts = workouts
         self.routines = routines; self.gyms = gyms; self.settings = settings; self.ideas = ideas; self.splits = splits
     }
 
@@ -25,6 +29,7 @@ struct Snapshot: Codable {
         exportedAt = try c.decodeIfPresent(String.self, forKey: .exportedAt) ?? ""
         exercises = try c.decodeIfPresent([Exercise].self, forKey: .exercises) ?? []
         versions = try c.decodeIfPresent([Version].self, forKey: .versions) ?? []
+        styles = try c.decodeIfPresent([Style].self, forKey: .styles) ?? []
         workouts = try c.decodeIfPresent([Workout].self, forKey: .workouts) ?? []
         routines = try c.decodeIfPresent([Routine].self, forKey: .routines) ?? []
         gyms = try c.decodeIfPresent([Gym].self, forKey: .gyms) ?? []

@@ -116,7 +116,7 @@ struct ExercisesHistoryList: View {
     private var list: [Entry] {
         let q = query.lowercased()
         return store.versions.compactMap { v -> Entry? in
-            if !q.isEmpty && !v.name.lowercased().contains(q) { return nil }
+            if !q.isEmpty && !store.fullName(v).lowercased().contains(q) { return nil }
             let sessions = store.finishedWorkouts.filter { w in w.items.contains { $0.versionId == v.id && $0.sets.contains { $0.hasData } } }
             guard !sessions.isEmpty else { return nil }
             return Entry(version: v, count: sessions.count, last: sessions.first?.date)
@@ -133,8 +133,8 @@ struct ExercisesHistoryList: View {
                     NavigationLink(value: v) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                                Text("\(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted)
+                                Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                Text("\(store.variationText(v)) · \(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                             }
                             Spacer()
                             if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
@@ -187,7 +187,10 @@ struct WorkoutDetailView: View {
                                         NavigationLink { ExerciseProgressView(versionId: v.id) } label: {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 HStack {
-                                                    Text(v.name).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                                                    VStack(alignment: .leading, spacing: 1) {
+                                                        Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                                                        Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                                                    }
                                                     Spacer()
                                                     switch verdict(item.sets, v) {
                                                     case .up: Badge(text: "up", kind: .up)

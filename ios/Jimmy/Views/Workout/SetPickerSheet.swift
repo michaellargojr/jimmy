@@ -23,13 +23,13 @@ struct SetPickerSheet: View {
         if let item, let s = set, let v = version {
             let labels = setLabels(item.sets)
             let idx = item.sets.firstIndex { $0.id == setId } ?? 0
-            let last = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions, excludeWorkoutId: workoutId)
+            let last = lastSession(versionId: v.id, styleId: item.styleId, workouts: store.workouts, versions: store.versions, excludeWorkoutId: workoutId)
             let ghost = last.map { matchLast(now: s, nowAll: item.sets, lastAll: $0.item.sets) } ?? nil
             VStack(spacing: 10) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Set \(labels[idx]) · \(field == .weight ? "weight" : "reps")").font(.system(size: 20, weight: .heavy)).foregroundStyle(p.text)
-                        Text(v.name + (ghost.map { " · last \($0.formatted)" } ?? "")).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1)
+                        Text(store.fullName(v, styleId: item.styleId) + (ghost.map { " · last \($0.formatted)" } ?? "")).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1)
                     }
                     Spacer()
                     HStack(spacing: 6) {

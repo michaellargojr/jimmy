@@ -49,7 +49,7 @@ struct WorkoutView: View {
                     .presentationBackground(p.card)
             }
             .sheet(item: $adding) { t in
-                AddExerciseSheet { v in addVersion(v, target: t) }
+                AddExerciseSheet { v, st in addVersion(v, style: st, target: t) }
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
@@ -111,7 +111,7 @@ struct WorkoutView: View {
     private func footer(index: Int, total: Int, panesOf w: Workout) -> some View {
         HStack {
             if index + 1 < total, let next = panes(w.items)[index + 1].first, let v = store.version(next.versionId) {
-                Text("Swipe up for \(v.name)").font(.system(size: 13)).foregroundStyle(p.muted)
+                Text("Swipe up for \(store.baseName(v))").font(.system(size: 13)).foregroundStyle(p.muted)
             } else {
                 Text("Last one. Tap Done when you finish.").font(.system(size: 13)).foregroundStyle(p.muted)
             }
@@ -150,9 +150,9 @@ struct WorkoutView: View {
         }
     }
 
-    private func addVersion(_ v: Version, target: AddTarget) {
+    private func addVersion(_ v: Version, style: Style?, target: AddTarget) {
         guard var w = workout else { return }
-        let item = newItem(for: v, unit: store.settings.unit, workouts: store.workouts)
+        let item = newItem(for: v, style: style, unit: store.settings.unit, workouts: store.workouts)
         if let swapId = target.swapItemId, let i = w.items.firstIndex(where: { $0.id == swapId }) {
             var it = item; it.groupId = w.items[i].groupId
             w.items[i] = it
@@ -245,9 +245,10 @@ struct OverviewSheet: View {
                 RectCheck(on: item.isDone, size: 26)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(v?.name ?? "?").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                Text(v.map { store.baseName($0) } ?? "?").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                 HStack(spacing: 6) {
                     if let g { Text(g.type.label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
+                    if let v { Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.secondary).lineLimit(1) }
                     Text(item.sets.filter { $0.isDone }.map { $0.formatted }.joined(separator: " · "))
                         .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                 }

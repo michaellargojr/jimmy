@@ -75,7 +75,8 @@ struct ExerciseProgressView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(v.name).font(.system(size: 26, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
+                        Text(store.baseName(v)).font(.system(size: 26, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
+                        Text(store.variationText(v)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
                         Text([routineName, "\(v.repRange) reps"].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(p.muted)
                     }
                     HStack(spacing: 8) {
