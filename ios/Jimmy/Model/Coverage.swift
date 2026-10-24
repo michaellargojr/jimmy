@@ -190,11 +190,14 @@ struct CoverageReport: Codable, Hashable {
     var madeAt: Double
 }
 
-/// Changes whenever the goals or any exercise or set count in the split changes.
+/// Bump when the rules or the assistant prompt change, so cached reports are redone.
+let COVERAGE_RULES_VERSION = 2
+
+/// Changes whenever the goals, any exercise or set count in the split, or the rules version changes.
 func coverageFingerprint(_ split: Split, store: AppStore) -> String {
     let ex = splitExercises(split, store: store).map { "\($0.routineId):\($0.base):\($0.variation):\($0.sets)" }.joined(separator: "|")
     let g = split.goals ?? SplitGoals()
-    return "\(g.picks.sorted().joined(separator: ","))/\(g.text.trimmingCharacters(in: .whitespacesAndNewlines))/\(ex)".hashValueStable
+    return "r\(COVERAGE_RULES_VERSION)/\(g.picks.sorted().joined(separator: ","))/\(g.text.trimmingCharacters(in: .whitespacesAndNewlines))/\(ex)".hashValueStable
 }
 
 private extension String {
