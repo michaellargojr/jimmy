@@ -25,5 +25,5 @@ enum Keychain {
         SecItemAdd(add as CFDictionary, nil)
     }
 
-    static var apiKey: String? { get(apiKeyAccount) }
+    static var apiKey: String? { Keychain.get(apiKeyAccount) }
 }
