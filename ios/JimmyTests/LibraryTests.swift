@@ -43,7 +43,7 @@ import Testing
     @Test func seedMapsLoggedExercisesOntoBases() {
         let s = buildSeed()
         #expect(s.exercises.count == 60)                       // every logged exercise lands on a library base
-        #expect(s.exercises.allSatisfy { $0.imageRequested != true })
+        #expect(s.exercises.allSatisfy { $0.custom != true })
         let byId = Dictionary(uniqueKeysWithValues: s.exercises.map { ($0.id, $0) })
         let pulldown = s.exercises.first { $0.name == "Pulldown" }!
         let pulldownVars = s.versions.filter { $0.exerciseId == pulldown.id }

@@ -13,7 +13,7 @@ func buildSeed() -> SeedResult {
     var exercises: [Exercise] = LIBRARY.map { $0.exercise }
     func base(named name: String, group: MuscleGroup) -> Exercise {
         if let e = exercises.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) { return e }
-        let e = Exercise(name: name, muscleGroup: group, imageRequested: true)
+        let e = Exercise(name: name, muscleGroup: group, custom: true)
         exercises.append(e)
         return e
     }

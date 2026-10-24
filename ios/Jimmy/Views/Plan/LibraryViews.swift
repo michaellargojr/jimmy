@@ -138,7 +138,7 @@ struct BasePageView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(p.bg, for: .navigationBar)
             .toolbar {
-                if mine.isEmpty, e.imageRequested == true || libraryBase(named: e.name) == nil {
+                if mine.isEmpty, e.custom == true || libraryBase(named: e.name) == nil {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(role: .destructive) { store.deleteExercise(e.id) } label: { Image(systemName: "trash") }
                     }

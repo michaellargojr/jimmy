@@ -121,13 +121,13 @@ struct Exercise: Codable, Identifiable, Hashable {
     /// Muscle regions, from the encyclopedia (see MuscleRegion).
     var primary: [String] = []
     var secondary: [String] = []
-    /// Set when Michael adds a base the library does not know, so an image can be drawn later.
-    var imageRequested: Bool?
+    /// Set on a base Michael added himself, one the library does not know.
+    var custom: Bool?
 
     init(id: String = uid(), name: String, muscleGroup: MuscleGroup, aliases: [String] = [], alsoGroups: [MuscleGroup] = [],
-         primary: [String] = [], secondary: [String] = [], imageRequested: Bool? = nil) {
+         primary: [String] = [], secondary: [String] = [], custom: Bool? = nil) {
         self.id = id; self.name = name; self.muscleGroup = muscleGroup; self.aliases = aliases; self.alsoGroups = alsoGroups
-        self.primary = primary; self.secondary = secondary; self.imageRequested = imageRequested
+        self.primary = primary; self.secondary = secondary; self.custom = custom
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -138,7 +138,7 @@ struct Exercise: Codable, Identifiable, Hashable {
         alsoGroups = (try? c.decodeIfPresent([MuscleGroup].self, forKey: .alsoGroups)) ?? []
         primary = try c.decodeIfPresent([String].self, forKey: .primary) ?? []
         secondary = try c.decodeIfPresent([String].self, forKey: .secondary) ?? []
-        imageRequested = try c.decodeIfPresent(Bool.self, forKey: .imageRequested)
+        custom = try c.decodeIfPresent(Bool.self, forKey: .custom)
     }
 
     /// Leg bases say "one leg" instead of "one arm".
