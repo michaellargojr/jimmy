@@ -230,11 +230,11 @@ final class AppStore {
             ?? exercises.first { $0.aliases.contains { $0.caseInsensitiveCompare(n) == .orderedSame } }
     }
 
-    /// A base that is not in the library. Its image is requested so it can be drawn later.
+    /// A base that is not in the library.
     @discardableResult
     func addBase(name: String, group: MuscleGroup) -> Exercise {
         if let e = base(named: name) { return e }
-        let e = Exercise(name: name.trimmingCharacters(in: .whitespaces), muscleGroup: group, imageRequested: true)
+        let e = Exercise(name: name.trimmingCharacters(in: .whitespaces), muscleGroup: group, custom: true)
         put(e)
         return e
     }
@@ -295,7 +295,7 @@ final class AppStore {
 
         func ensureBase(_ name: String, _ group: MuscleGroup) -> Exercise {
             if let e = base(named: name) { return e }
-            let e = libraryBase(named: name)?.exercise ?? Exercise(name: name, muscleGroup: group, imageRequested: true)
+            let e = libraryBase(named: name)?.exercise ?? Exercise(name: name, muscleGroup: group, custom: true)
             exercises.append(e)
             return e
         }
@@ -344,7 +344,7 @@ final class AppStore {
 
         // Replace the old flat library (names like "Cable Hammer Curl") with the encyclopedia bases.
         let used = usedExerciseIds
-        exercises.removeAll { !used.contains($0.id) && libraryBase(named: $0.name) == nil && $0.imageRequested != true }
+        exercises.removeAll { !used.contains($0.id) && libraryBase(named: $0.name) == nil && $0.custom != true }
         for lib in LIBRARY where base(named: lib.name) == nil { exercises.append(lib.exercise) }
         for i in exercises.indices {
             if let lib = libraryBase(named: exercises[i].name) {

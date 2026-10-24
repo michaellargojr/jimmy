@@ -65,7 +65,7 @@ struct ExercisesList: View {
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(e.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(vs.isEmpty ? p.secondary : p.text)
-                Text(vs.isEmpty ? e.primary.joined(separator: ", ") : vs.map { store.variationText($0) }.joined(separator: " · "))
+                Text(vs.isEmpty ? e.primary.joined(separator: ", ") : vs.map { store.variationText($0) }.joined(separator: ",  "))
                     .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(2)
             }
             Spacer()
@@ -138,7 +138,7 @@ struct BasePageView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(p.bg, for: .navigationBar)
             .toolbar {
-                if mine.isEmpty, e.imageRequested == true || libraryBase(named: e.name) == nil {
+                if mine.isEmpty, e.custom == true || libraryBase(named: e.name) == nil {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(role: .destructive) { store.deleteExercise(e.id) } label: { Image(systemName: "trash") }
                     }
