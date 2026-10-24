@@ -159,6 +159,9 @@ struct SplitEditorView: View {
     @State private var renaming = false
     @State private var name = ""
     @State private var goals = false
+    @State private var naming = false
+    @State private var newName = ""
+    @State private var created: Routine? = nil
 
     private var split: Split? { store.splits.first { $0.id == splitId } }
 
@@ -173,6 +176,10 @@ struct SplitEditorView: View {
                 }
                 Section {
                     CoverageCard(splitId: s.id).rowCard(p, radius: Radius.card)
+                }
+                Section {
+                    PillButton(title: "New routine", icon: "plus", full: true) { newName = ""; naming = true }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
                 Section {
                     ForEach(Array(s.routineIds.enumerated()), id: \.offset) { i, rid in
@@ -231,6 +238,18 @@ struct SplitEditorView: View {
                 Button("Save") { var ss = s; ss.name = name.trimmingCharacters(in: .whitespaces); if !ss.name.isEmpty { store.put(ss) } }
                 Button("Cancel", role: .cancel) {}
             }
+            .alert("New routine", isPresented: $naming) {
+                TextField("Name", text: $newName)
+                Button("Create") {
+                    let n = newName.trimmingCharacters(in: .whitespaces)
+                    let r = Routine(name: n.isEmpty ? "New routine" : n)
+                    store.put(r)
+                    var ss = s; ss.routineIds.append(r.id); store.put(ss)
+                    created = r
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .navigationDestination(item: $created) { r in RoutineEditorView(routineId: r.id) }
             .sheet(isPresented: $goals) {
                 GoalsSheet(splitId: s.id)
                     .presentationDetents([.large])

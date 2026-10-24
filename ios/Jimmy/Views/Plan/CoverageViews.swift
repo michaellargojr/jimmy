@@ -146,7 +146,8 @@ struct CoverageCard: View {
             Mark(mark: f.mark)
             VStack(alignment: .leading, spacing: 6) {
                 Text(f.text).font(.system(size: 15)).foregroundStyle(p.text).fixedSize(horizontal: false, vertical: true)
-                if button, let base = f.addBase, let target = f.routineId.flatMap({ store.routine($0) }) {
+                // On a routine screen the button always adds to that routine; on the split it names the day.
+                if button, let base = f.addBase, let target = (routineId ?? f.routineId).flatMap({ store.routine($0) }) {
                     Button {
                         if let e = store.exercise(named: base) { adding = AddTarget(exercise: e, routineId: target.id) }
                     } label: {
