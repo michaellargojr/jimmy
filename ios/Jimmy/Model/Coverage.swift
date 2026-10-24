@@ -318,5 +318,12 @@ func rulesReport(volume: [MuscleVolume], goals: [String: String], exercises: [Sp
         out.append(Finding(text: "\(n.name) \(verb(v.region, "get", "gets")) \(v.rounded) sets a week\(from).", mark: .low, region: v.region, addBase: base, routineId: rid))
     }
 
+    // One button per exercise: a base already offered keeps its sentence but loses the button.
+    var offered: Set<String> = []
+    for i in out.indices {
+        guard let b = out[i].addBase else { continue }
+        if offered.contains(b) { out[i].addBase = nil; out[i].routineId = nil } else { offered.insert(b) }
+    }
+
     return CoverageReport(right: Array(right.prefix(2)), suggestions: Array(out.prefix(4)), source: "rules", fingerprint: fingerprint, madeAt: nowMs())
 }

@@ -107,6 +107,8 @@ private let PPL_ROUTINES = [Routine(id: "push", name: "Push"), Routine(id: "pull
         #expect(rear?.routineId == "pull")
         #expect(r.suggestions.allSatisfy { $0.mark != .good })
         #expect(r.suggestions.map(\.region) == ["rear delt", "side delt", nil, "triceps"])
+        let bases = r.suggestions.compactMap(\.addBase)
+        #expect(bases.count == Set(bases).count)
     }
 
     @Test func noGoalsStillReports() {
@@ -121,7 +123,7 @@ private let PPL_ROUTINES = [Routine(id: "push", name: "Push"), Routine(id: "pull
         let r = rulesReport(volume: splitVolume([], cycle: 0, perWeek: 0), goals: [:], exercises: [], routines: [], fingerprint: "")
         #expect(r.right.first?.text == "No exercises in this split yet.")
         #expect(r.suggestions.count == 1)
-        #expect(r.suggestions.first?.mark == .none)
+        #expect(r.suggestions.first?.mark == FindingMark.none)
     }
 
     @Test func namesReadPlainly() {

@@ -101,7 +101,6 @@ struct CoverageCard: View {
                         SectionLabel("Coverage")
                         if routineId != nil { Badge(text: s.name) }
                         Spacer()
-                        Chevron()
                     }
                 }
                 .buttonStyle(.plain)
