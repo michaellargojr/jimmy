@@ -4,6 +4,7 @@ struct RoutineEditorView: View {
     @Environment(AppStore.self) private var store
     @Environment(AppNav.self) private var nav
     @Environment(\.palette) private var p
+    @Environment(\.dismiss) private var dismiss
     let routineId: String
     @State private var adding = false
     @State private var renaming = false
@@ -65,7 +66,7 @@ struct RoutineEditorView: View {
                             Button("Group…") { selecting = true }
                             Menu {
                                 Button { name = r.name; renaming = true } label: { Label("Rename", systemImage: "pencil") }
-                                Button(role: .destructive) { store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
+                                Button(role: .destructive) { dismiss(); store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
                             } label: { Image(systemName: "ellipsis") }
                         }
                     }
