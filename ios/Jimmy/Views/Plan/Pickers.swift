@@ -1,34 +1,14 @@
 import SwiftUI
 
-// The two picture pickers: cable height on a full silhouette, bench angle on a bench.
+// The two picture pickers: cable height on the athletic figure, bench angle on the bench.
+// The pictures themselves live in PickerArt.swift.
 
-/// The approved V2 athletic figure, drawn in a 200 by 500 box.
-struct SilhouetteShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let s = min(rect.width / 200, rect.height / 500)
-        let ox = rect.midX - 100 * s, oy = rect.minY
-        func P(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: ox + x * s, y: oy + y * s) }
-        var p = Path()
-        p.move(to: P(88, 64)); p.addLine(to: P(112, 64)); p.addLine(to: P(112, 76)); p.addLine(to: P(146, 86))
-        p.addQuadCurve(to: P(160, 102), control: P(158, 90)); p.addLine(to: P(186, 236))
-        p.addQuadCurve(to: P(174, 256), control: P(188, 252)); p.addQuadCurve(to: P(156, 244), control: P(160, 258))
-        p.addLine(to: P(132, 134)); p.addLine(to: P(128, 200)); p.addLine(to: P(134, 250)); p.addLine(to: P(146, 484))
-        p.addQuadCurve(to: P(134, 496), control: P(146, 496)); p.addLine(to: P(112, 496)); p.addLine(to: P(110, 484))
-        p.addLine(to: P(100, 310)); p.addLine(to: P(90, 484)); p.addLine(to: P(88, 496)); p.addLine(to: P(66, 496))
-        p.addQuadCurve(to: P(54, 484), control: P(54, 496)); p.addLine(to: P(66, 250)); p.addLine(to: P(72, 200)); p.addLine(to: P(68, 134))
-        p.addLine(to: P(44, 244)); p.addQuadCurve(to: P(26, 256), control: P(40, 258)); p.addQuadCurve(to: P(14, 236), control: P(12, 252))
-        p.addLine(to: P(40, 102)); p.addQuadCurve(to: P(54, 86), control: P(42, 90)); p.addLine(to: P(88, 76)); p.closeSubpath()
-        p.addEllipse(in: CGRect(x: ox + 72 * s, y: oy + 8 * s, width: 56 * s, height: 56 * s))
-        return p
-    }
-}
-
-/// Where each height sits on the 500 tall figure.
+/// Where each height sits on the 1000 tall figure.
 private let HEIGHT_Y: [CableHeight: CGFloat] = [
-    .overhead: 6, .head: 36, .shoulder: 88, .chest: 130, .waist: 192, .hip: 245, .thigh: 300, .knee: 370, .shin: 430, .ankle: 484,
+    .overhead: -40, .head: 70, .shoulder: 200, .chest: 268, .waist: 450, .hip: 530, .thigh: 640, .knee: 772, .shin: 868, .ankle: 950,
 ]
 
-/// Tap a point on the figure. One tap picks and closes.
+/// Tap a height. Each whole row is the target, so a sweaty tap still lands. One tap picks and closes.
 struct CableHeightPicker: View {
     @Environment(\.palette) private var p
     @Environment(\.dismiss) private var dismiss
@@ -46,70 +26,59 @@ struct CableHeightPicker: View {
                 Button("Close") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
             }
             GeometryReader { geo in
-                let h = geo.size.height - 24
-                let s = h / 500
-                let figureW: CGFloat = 200 * s
-                let left: CGFloat = 8
+                // Art box: labels left of x -60, figure in x 0...400, heights from y -110 to 1000.
+                let s = min(geo.size.width / 690, geo.size.height / 1110)
+                let x0 = (geo.size.width - 690 * s) / 2 + 250 * s
+                let y0 = (geo.size.height - 1110 * s) / 2 + 110 * s
                 ZStack(alignment: .topLeading) {
-                    SilhouetteShape().fill(p.isDark ? Color(hex: 0xD7D9DE) : Color(hex: 0x6B7280))
-                        .frame(width: figureW, height: h)
-                        .offset(x: left, y: 12)
-                    ForEach(CableHeight.allCases, id: \.self) { hgt in
-                        let y = (HEIGHT_Y[hgt] ?? 0) * s + 12
-                        let on = picked == hgt
-                        Button { onPick(hgt); dismiss() } label: {
-                            HStack(spacing: 0) {
-                                Rectangle().fill(on ? p.accent : p.border).frame(width: 36, height: 2)
-                                Text(hgt.label.replacingOccurrences(of: " height", with: ""))
-                                    .font(.system(size: 15, weight: on ? .bold : .semibold))
-                                    .foregroundStyle(on ? p.onAccent : p.text)
-                                    .frame(height: 38)
-                                    .padding(.horizontal, 14)
-                                    .background(on ? p.accent : p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .offset(x: left + figureW - 4, y: y - 19)
-                        if on {
-                            RoundedRectangle(cornerRadius: 3, style: .continuous).fill(p.accent)
-                                .frame(width: figureW * 0.9, height: 4)
-                                .offset(x: left + figureW * 0.05, y: y - 2)
-                        }
+                    AthleteFigure()
+                        .frame(width: 400 * s, height: 1000 * s)
+                        .offset(x: x0, y: y0)
+                    ForEach(Array(CableHeight.allCases.enumerated()), id: \.element) { i, h in
+                        heightRow(h, index: i, s: s, x0: x0, y0: y0, width: geo.size.width)
                     }
                 }
             }
         }
         .padding(16)
     }
-}
 
-/// The approved V1 bench: rail, two posts, seat, and a back pad that rotates to the angle.
-struct BenchShape: View {
-    @Environment(\.palette) private var p
-    let angle: Int
-    var body: some View {
-        Canvas { ctx, size in
-            let s = min(size.width / 300, size.height / 220)
-            let ox = (size.width - 300 * s) / 2, oy = (size.height - 220 * s) / 2
-            func R(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat = 4) -> Path {
-                Path(roundedRect: CGRect(x: ox + x * s, y: oy + y * s, width: w * s, height: h * s), cornerRadius: r * s)
+    private func heightRow(_ h: CableHeight, index i: Int, s: CGFloat, x0: CGFloat, y0: CGFloat, width: CGFloat) -> some View {
+        let all = CableHeight.allCases
+        let y = HEIGHT_Y[h] ?? 0
+        let top = i == 0 ? y - 60 : (y + (HEIGHT_Y[all[i - 1]] ?? 0)) / 2
+        let bottom = i == all.count - 1 ? y + 50 : (y + (HEIGHT_Y[all[i + 1]] ?? 0)) / 2
+        let lineY = (y - top) * s
+        let on = picked == h
+        let bar = max(6, 14 * s)
+        return Button { onPick(h); dismiss() } label: {
+            ZStack(alignment: .topLeading) {
+                Color.clear
+                if on {
+                    RoundedRectangle(cornerRadius: bar / 2, style: .continuous).fill(p.accent)
+                        .frame(width: 490 * s, height: bar)
+                        .offset(x: x0 - 62 * s, y: lineY - bar / 2)
+                } else {
+                    Rectangle().fill(p.border)
+                        .frame(width: 70 * s, height: 1.5)
+                        .offset(x: x0 - 60 * s, y: lineY - 0.75)
+                }
+                Text(h.label.replacingOccurrences(of: " height", with: ""))
+                    .font(.system(size: on ? 17 : 15, weight: on ? .heavy : .semibold))
+                    .foregroundStyle(on ? p.accent : p.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: max(0, x0 - 74 * s), height: 24, alignment: .trailing)
+                    .offset(y: lineY - 12)
             }
-            let frame = p.border, seat = p.secondary
-            ctx.fill(R(35, 196, 230, 10, 5), with: .color(frame))
-            ctx.fill(R(64, 150, 10, 50, 3), with: .color(frame))
-            ctx.fill(R(146, 150, 10, 50, 3), with: .color(frame))
-            ctx.fill(R(45, 132, 110, 22, 6), with: .color(seat))
-            var pad = ctx
-            pad.translateBy(x: ox + 155 * s, y: oy + 143 * s)
-            pad.rotate(by: .degrees(Double(-angle)))
-            pad.translateBy(x: -(ox + 155 * s), y: -(oy + 143 * s))
-            pad.fill(R(155, 132, 110, 22, 6), with: .color(p.accent))
+            .frame(width: width, height: (bottom - top) * s, alignment: .topLeading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .offset(y: y0 + top * s)
     }
 }
 
-/// Pick a bench notch. Chips set the angle; the bench shows it; Done keeps it.
+/// Pick a bench notch. Chips set the angle; the bench swings to it; Done keeps it.
 struct BenchAnglePicker: View {
     @Environment(\.palette) private var p
     @Environment(\.dismiss) private var dismiss
@@ -128,9 +97,10 @@ struct BenchAnglePicker: View {
                 Button("Clear") { onPick(nil); dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.muted)
                 Button("Close") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
             }
-            BenchShape(angle: angle)
-                .frame(height: 200)
-                .animation(.snappy(duration: 0.25), value: angle)
+            BenchDrawing(angle: Double(angle))
+                .frame(maxWidth: .infinity)
+                .frame(height: 240)
+                .animation(.snappy(duration: 0.3), value: angle)
             Text(benchAngleLabel(angle)).font(.system(size: 28, weight: .heavy)).foregroundStyle(p.text)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                 ForEach(BENCH_ANGLES, id: \.self) { a in
