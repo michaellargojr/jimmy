@@ -20,7 +20,7 @@ enum HomeBlock: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .quote: return "Wall quote"
+        case .quote: return "Mantra"
         case .upNext: return "Up next"
         case .week: return "This week"
         case .recent: return "Recent workouts"
@@ -30,7 +30,7 @@ enum HomeBlock: String, Codable, CaseIterable, Identifiable {
     }
     var subtitle: String {
         switch self {
-        case .quote: return "One line, block capitals"
+        case .quote: return "Bordered card, bold and plain"
         case .upNext: return "Next routine in the split, one tap to start"
         case .week: return "Seven day strip"
         case .recent: return "Last two, with up or down"
@@ -46,11 +46,16 @@ struct HomeBlockSetting: Codable, Hashable, Identifiable {
     var id: String { block.rawValue }
 
     static let defaults: [HomeBlockSetting] = [
-        .init(block: .quote, on: true), .init(block: .upNext, on: true), .init(block: .week, on: true),
-        .init(block: .recent, on: true), .init(block: .allRoutines, on: false), .init(block: .watchExercise, on: false),
+        .init(block: .upNext, on: true), .init(block: .week, on: true), .init(block: .recent, on: true),
+        .init(block: .quote, on: true), .init(block: .allRoutines, on: false), .init(block: .watchExercise, on: false),
     ]
+
+    /// The order before the Mantra card moved to the bottom of Home. Saved
+    /// settings still in this order are migrated to the new default order.
+    static let legacyOrder: [HomeBlock] = [.quote, .upNext, .week, .recent, .allRoutines, .watchExercise]
 }
 
+/// The Mantra shown on Home. The stored key stays `quote` so web exports still decode.
 let DEFAULT_QUOTE = "Keep stacking days and you'll inevitably make a change."
 
 /// Settings. The first few keys match the web app so its export decodes here.
@@ -83,6 +88,9 @@ struct Settings: Codable, Hashable {
         quote = try c.decodeIfPresent(String.self, forKey: .quote) ?? DEFAULT_QUOTE
         var blocks = (try? c.decode([HomeBlockSetting].self, forKey: .homeBlocks)) ?? HomeBlockSetting.defaults
         for d in HomeBlockSetting.defaults where !blocks.contains(where: { $0.block == d.block }) { blocks.append(d) }
+        if blocks.map(\.block) == HomeBlockSetting.legacyOrder {
+            blocks = HomeBlockSetting.defaults.map { d in .init(block: d.block, on: blocks.first { $0.block == d.block }?.on ?? d.on) }
+        }
         homeBlocks = blocks
         restTimer = try c.decodeIfPresent(Bool.self, forKey: .restTimer) ?? false
         restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 90
