@@ -16,11 +16,14 @@ struct Snapshot: Codable {
     var settings: Settings?
     var ideas: [Idea]
     var splits: [Split]
+    /// The Form cues library: what each stored clip is. The files themselves stay on the
+    /// phone and are not in the export; an import on the same phone relinks them by id.
+    var clips: [Clip]
 
     init(exportedAt: String, exercises: [Exercise], versions: [Version], styles: [Style] = [], workouts: [Workout], routines: [Routine],
-         gyms: [Gym], settings: Settings?, ideas: [Idea], splits: [Split]) {
+         gyms: [Gym], settings: Settings?, ideas: [Idea], splits: [Split], clips: [Clip] = []) {
         self.exportedAt = exportedAt; self.exercises = exercises; self.versions = versions; self.styles = styles; self.workouts = workouts
-        self.routines = routines; self.gyms = gyms; self.settings = settings; self.ideas = ideas; self.splits = splits
+        self.routines = routines; self.gyms = gyms; self.settings = settings; self.ideas = ideas; self.splits = splits; self.clips = clips
     }
 
     init(from decoder: Decoder) throws {
@@ -36,6 +39,7 @@ struct Snapshot: Codable {
         settings = try? c.decodeIfPresent(Settings.self, forKey: .settings)
         ideas = try c.decodeIfPresent([Idea].self, forKey: .ideas) ?? []
         splits = try c.decodeIfPresent([Split].self, forKey: .splits) ?? []
+        clips = try c.decodeIfPresent([Clip].self, forKey: .clips) ?? []
     }
 
     static func decode(_ data: Data) throws -> Snapshot {

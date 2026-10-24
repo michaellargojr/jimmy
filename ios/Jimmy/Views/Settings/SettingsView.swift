@@ -88,6 +88,11 @@ struct SettingsView: View {
                                 .buttonStyle(.plain)
                             }
                             Divider1()
+                            NavigationLink { MyClipsView(mode: .manage) } label: {
+                                SettingsRow(title: "My clips", subtitle: "\(store.clips.count) form cue clips, \(byteLabel(ClipFiles.totalBytes(store.clips)))") { Chevron() }
+                            }
+                            .buttonStyle(.plain)
+                            Divider1()
                             Button { importing = true } label: {
                                 SettingsRow(title: "Import", subtitle: "A Jimmy export from the web app or this one. Replaces everything.") { Chevron() }
                             }

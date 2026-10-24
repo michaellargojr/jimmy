@@ -190,9 +190,30 @@ struct VersionChange: Codable, Hashable {
     var to: JSONValue?
 }
 
+/// A link saved on a variation (TikTok, YouTube, anything). Kept apart from clips, which
+/// are files stored inside the app.
 struct Media: Codable, Hashable {
     var type: String // "tiktok" | "video"
     var url: String
+}
+
+enum ClipKind: String, Codable, Hashable { case video, photo }
+
+/// A form cue clip: a video or photo stored once inside the app and shared by any number of
+/// variations. The id is a fingerprint of the file you picked, so the same video added twice
+/// (to the same or another variation) reuses the stored copy.
+struct Clip: Codable, Identifiable, Hashable {
+    var id: String
+    var kind: ClipKind
+    /// File extension of the stored copy ("mp4", "jpg", "heic").
+    var ext: String
+    var bytes: Int
+    /// Seconds, for videos.
+    var duration: Double?
+    var width: Int?
+    var height: Int?
+    var addedAt: Double
+    var fileName: String { "\(id).\(ext)" }
 }
 
 /// A Version is a variation of a base: equipment family, arms, position. It carries the
@@ -217,7 +238,10 @@ struct Version: Codable, Identifiable, Hashable {
     var defaultSets: Int
     var notes: String?
     var gymNotes: [String: String] = [:]
+    /// Links (Form cues).
     var media: [Media] = []
+    /// Clips from the shared library (Form cues), in display order.
+    var clipIds: [String] = []
     var changes: [VersionChange] = []
 
     init(id: String = uid(), exerciseId: String, name: String, equipment: Equipment, arms: Arms,
@@ -248,6 +272,7 @@ struct Version: Codable, Identifiable, Hashable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         gymNotes = try c.decodeIfPresent([String: String].self, forKey: .gymNotes) ?? [:]
         media = try c.decodeIfPresent([Media].self, forKey: .media) ?? []
+        clipIds = try c.decodeIfPresent([String].self, forKey: .clipIds) ?? []
         changes = try c.decodeIfPresent([VersionChange].self, forKey: .changes) ?? []
     }
 

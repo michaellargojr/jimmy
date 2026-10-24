@@ -13,6 +13,8 @@ final class AppStore {
     var gyms: [Gym] = []
     var splits: [Split] = []
     var ideas: [Idea] = []
+    /// Form cues library. See ClipFiles for where the files live.
+    var clips: [Clip] = []
     var settings = Settings()
     var loaded = false
 
@@ -93,12 +95,18 @@ final class AppStore {
     private func apply(_ s: Snapshot) {
         exercises = s.exercises; versions = s.versions; styles = s.styles; workouts = s.workouts; routines = s.routines
         gyms = s.gyms; ideas = s.ideas; splits = s.splits
+        // Keep clips already on this phone; add any the import knows about whose file is here.
+        var known = Dictionary(clips.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for c in s.clips where known[c.id] == nil { known[c.id] = c }
+        clips = known.values.filter { ClipFiles.exists($0) }.sorted { $0.addedAt > $1.addedAt }
+        let have = Set(clips.map { $0.id })
+        for i in versions.indices { versions[i].clipIds.removeAll { !have.contains($0) } }
         if let st = s.settings { settings = st }
     }
 
     func snapshot() -> Snapshot {
         Snapshot(exportedAt: ISO8601DateFormatter().string(from: Date()), exercises: exercises, versions: versions, styles: styles,
-                 workouts: workouts, routines: routines, gyms: gyms, settings: settings, ideas: ideas, splits: splits)
+                 workouts: workouts, routines: routines, gyms: gyms, settings: settings, ideas: ideas, splits: splits, clips: clips)
     }
 
     func markDirty() {
@@ -189,6 +197,56 @@ final class AppStore {
         markDirty()
     }
     func put(_ i: Idea) { upsert(&ideas, i); markDirty() }
+
+    // MARK: Form cues
+
+    func clip(_ id: String) -> Clip? { clips.first { $0.id == id } }
+    /// The clips on a variation, in its order.
+    func clips(of versionId: String) -> [Clip] { (version(versionId)?.clipIds ?? []).compactMap { clip($0) } }
+    /// How many variations use a clip.
+    func usage(of clipId: String) -> [Version] { versions.filter { $0.clipIds.contains(clipId) } }
+    func formCueCount(_ versionId: String) -> Int {
+        guard let v = version(versionId) else { return 0 }
+        return v.clipIds.count + v.media.count
+    }
+
+    /// Add a stored clip to the library (if new) and to the end of a variation's list.
+    func attach(_ c: Clip, to versionId: String?) {
+        if clip(c.id) == nil { clips.insert(c, at: 0) }
+        if let versionId, var v = version(versionId), !v.clipIds.contains(c.id) {
+            v.clipIds.append(c.id)
+            upsert(&versions, v)
+        }
+        markDirty()
+    }
+    func attach(clipIds ids: [String], to versionId: String) {
+        guard var v = version(versionId) else { return }
+        for id in ids where !v.clipIds.contains(id) && clip(id) != nil { v.clipIds.append(id) }
+        put(v)
+    }
+    func detach(_ clipId: String, from versionId: String) {
+        guard var v = version(versionId) else { return }
+        v.clipIds.removeAll { $0 == clipId }
+        put(v)
+    }
+    /// Deletes the clip and its file. Only allowed when no variation uses it.
+    func deleteClip(_ id: String) {
+        guard usage(of: id).isEmpty, let c = clip(id) else { return }
+        clips.removeAll { $0.id == id }
+        ClipFiles.remove(c)
+        markDirty()
+    }
+    func addLink(_ raw: String, to versionId: String) {
+        guard var v = version(versionId), let url = normalizedLink(raw) else { return }
+        guard !v.media.contains(where: { $0.url == url }) else { return }
+        v.media.append(Media(type: url.lowercased().contains("tiktok.com") ? "tiktok" : "video", url: url))
+        put(v)
+    }
+    func removeLink(_ url: String, from versionId: String) {
+        guard var v = version(versionId) else { return }
+        v.media.removeAll { $0.url == url }
+        put(v)
+    }
     func deleteIdea(_ id: String) { ideas.removeAll { $0.id == id }; markDirty() }
     func update(_ f: (inout Settings) -> Void) { f(&settings); markDirty() }
 

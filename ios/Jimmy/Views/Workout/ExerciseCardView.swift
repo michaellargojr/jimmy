@@ -17,6 +17,7 @@ struct ExerciseCardView: View {
     @State private var showNote = false
     @State private var editVersion = false
     @State private var newStyle = false
+    @State private var showFormCues = false
 
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
     enum SetField: String { case weight, reps }
@@ -46,6 +47,10 @@ struct ExerciseCardView: View {
             .sheet(isPresented: $showNote) { noteSheet(item) }
             .sheet(isPresented: $editVersion) {
                 NavigationStack { VersionEditorView(versionId: v.id) }.presentationBackground(p.bg)
+            }
+            .sheet(isPresented: $showFormCues) {
+                NavigationStack { FormCuesView(versionId: v.id, showsClose: true) }
+                    .presentationDetents([.large]).presentationBackground(p.bg)
             }
             .sheet(isPresented: $newStyle) {
                 StyleEditorSheet(version: v, style: nil) { s in update { $0.styleId = s.id } }
@@ -96,6 +101,7 @@ struct ExerciseCardView: View {
             }
             Spacer()
             Chip(text: v.repRange, small: true)
+            formCuesButton(v)
             Menu {
                 cardMenu(v)
             } label: {
@@ -103,6 +109,20 @@ struct ExerciseCardView: View {
                     .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             }
         }
+    }
+
+    /// Small play button beside the menu. Lime when the variation has form cues, grey when
+    /// it has none yet (tap to add one mid-workout).
+    private func formCuesButton(_ v: Version) -> some View {
+        let has = store.formCueCount(v.id) > 0
+        return Button { showFormCues = true } label: {
+            Image(systemName: "play.fill").font(.system(size: 14, weight: .bold))
+                .foregroundStyle(has ? p.accent : p.muted)
+                .frame(width: 36, height: 36)
+                .background(has ? p.accentSoft : p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Form cues")
     }
 
     /// The style this item is in. Tap to switch to another style of the variation or make one.
