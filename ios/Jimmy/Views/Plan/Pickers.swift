@@ -29,7 +29,7 @@ struct CableHeightPicker: View {
                 // Art box: labels left of x -60, figure in x 0...490, heights from y -110 to 1000.
                 let s = min(geo.size.width / 740, geo.size.height / 1110)
                 let x0 = (geo.size.width - 740 * s) / 2 + 240 * s
-                let y0 = (geo.size.height - 1110 * s) / 2 + 110 * s
+                let y0 = 110 * s   // sit right under the title
                 ZStack(alignment: .topLeading) {
                     AthleteFigure()
                         .frame(width: 490 * s, height: 1000 * s)
@@ -99,7 +99,7 @@ struct BenchAnglePicker: View {
             }
             BenchDrawing(angle: Double(angle))
                 .frame(maxWidth: .infinity)
-                .frame(height: 240)
+                .frame(height: 280)
                 .animation(.snappy(duration: 0.3), value: angle)
             Text(benchAngleLabel(angle)).font(.system(size: 28, weight: .heavy)).foregroundStyle(p.text)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
