@@ -35,14 +35,14 @@ struct SettingsView: View {
                             .buttonStyle(.plain)
                             Divider1()
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Wall quote").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                                TextField("Something you'd paint on the gym wall", text: $store.settings.quote, axis: .vertical)
+                                Text("Mantra").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                TextField("Your mantra, bold and plain", text: $store.settings.quote, axis: .vertical)
                                     .lineLimit(1...3)
                                     .padding(12)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                                     .foregroundStyle(p.text)
                                     .onChange(of: store.settings.quote) { _, _ in store.markDirty() }
-                                Text("Shown on Home in block capitals.").font(.system(size: 13)).foregroundStyle(p.muted)
+                                Text("Shown on Home as the Mantra card, in block capitals.").font(.system(size: 13)).foregroundStyle(p.muted)
                             }
                             .padding(16)
                         }
