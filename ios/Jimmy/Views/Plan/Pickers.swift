@@ -26,13 +26,13 @@ struct CableHeightPicker: View {
                 Button("Close") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
             }
             GeometryReader { geo in
-                // Art box: labels left of x -60, figure in x 0...400, heights from y -110 to 1000.
-                let s = min(geo.size.width / 690, geo.size.height / 1110)
-                let x0 = (geo.size.width - 690 * s) / 2 + 250 * s
+                // Art box: labels left of x -60, figure in x 0...490, heights from y -110 to 1000.
+                let s = min(geo.size.width / 740, geo.size.height / 1110)
+                let x0 = (geo.size.width - 740 * s) / 2 + 240 * s
                 let y0 = (geo.size.height - 1110 * s) / 2 + 110 * s
                 ZStack(alignment: .topLeading) {
                     AthleteFigure()
-                        .frame(width: 400 * s, height: 1000 * s)
+                        .frame(width: 490 * s, height: 1000 * s)
                         .offset(x: x0, y: y0)
                     ForEach(Array(CableHeight.allCases.enumerated()), id: \.element) { i, h in
                         heightRow(h, index: i, s: s, x0: x0, y0: y0, width: geo.size.width)
@@ -56,11 +56,11 @@ struct CableHeightPicker: View {
                 Color.clear
                 if on {
                     RoundedRectangle(cornerRadius: bar / 2, style: .continuous).fill(p.accent)
-                        .frame(width: 490 * s, height: bar)
+                        .frame(width: 552 * s, height: bar)
                         .offset(x: x0 - 62 * s, y: lineY - bar / 2)
                 } else {
                     Rectangle().fill(p.border)
-                        .frame(width: 70 * s, height: 1.5)
+                        .frame(width: 56 * s, height: 1.5)
                         .offset(x: x0 - 60 * s, y: lineY - 0.75)
                 }
                 Text(h.label.replacingOccurrences(of: " height", with: ""))
