@@ -21,6 +21,9 @@ struct RoutineEditorView: View {
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
                 }
+                if let s = store.split(containing: r.id) {
+                    Section { CoverageCard(splitId: s.id, routineId: r.id).rowCard(p, radius: Radius.card) }
+                }
                 Section {
                     ForEach(Array(r.items.enumerated()), id: \.offset) { i, item in
                         row(r, index: i, item: item)
@@ -155,6 +158,7 @@ struct SplitEditorView: View {
     let splitId: String
     @State private var renaming = false
     @State private var name = ""
+    @State private var goals = false
 
     private var split: Split? { store.splits.first { $0.id == splitId } }
 
@@ -162,6 +166,14 @@ struct SplitEditorView: View {
         if let s = split {
             let inSplit = Set(s.routineIds)
             List {
+                Section {
+                    Button { goals = true } label: { GoalsRow(goals: s.goals ?? SplitGoals()) }
+                        .buttonStyle(.plain)
+                        .rowCard(p, radius: Radius.card)
+                }
+                Section {
+                    CoverageCard(splitId: s.id).rowCard(p, radius: Radius.card)
+                }
                 Section {
                     ForEach(Array(s.routineIds.enumerated()), id: \.offset) { i, rid in
                         HStack(spacing: 12) {
@@ -218,6 +230,11 @@ struct SplitEditorView: View {
                 TextField("Name", text: $name)
                 Button("Save") { var ss = s; ss.name = name.trimmingCharacters(in: .whitespaces); if !ss.name.isEmpty { store.put(ss) } }
                 Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $goals) {
+                GoalsSheet(splitId: s.id)
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
             }
         }
     }
