@@ -102,3 +102,59 @@ import Testing
         #expect(clipDuration(nil) == nil)
     }
 }
+
+import AVFoundation
+import CoreVideo
+
+/// The import path end to end: a 1080 x 1920 portrait video goes in, a 720-wide copy is
+/// stored, a thumbnail is made, and a second import of the same file reuses the copy.
+@Suite struct ClipImportTests {
+    @Test func portraitVideoShrinksTo720() async throws {
+        let src = FileManager.default.temporaryDirectory.appendingPathComponent("src-\(uid()).mp4")
+        try await makeVideo(at: src, width: 1080, height: 1920, seconds: 2)
+        defer { try? FileManager.default.removeItem(at: src) }
+
+        let c = try await ClipFiles.importFile(src, kind: .video, existing: [])
+        defer { ClipFiles.remove(c) }
+        #expect(ClipFiles.exists(c))
+        #expect(c.kind == .video && c.ext == "mp4")
+        #expect(c.width == 720 && c.height == 1280)
+        #expect(abs((c.duration ?? 0) - 2) < 0.3)
+        #expect(c.bytes > 0)
+
+        let again = try await ClipFiles.importFile(src, kind: .video, existing: [c])
+        #expect(again == c)
+
+        let thumb = await ClipFiles.thumbnail(c)
+        #expect(thumb != nil)
+    }
+
+    /// Writes a plain grey H.264 video, 30 frames a second.
+    private func makeVideo(at url: URL, width: Int, height: Int, seconds: Int) async throws {
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+        ])
+        input.expectsMediaDataInRealTime = false
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
+        ])
+        writer.add(input)
+        #expect(writer.startWriting())
+        writer.startSession(atSourceTime: .zero)
+        for f in 0..<(seconds * 30) {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 2_000_000) }
+            var pb: CVPixelBuffer?
+            CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA, nil, &pb)
+            guard let pb else { continue }
+            CVPixelBufferLockBaseAddress(pb, [])
+            memset(CVPixelBufferGetBaseAddress(pb), Int32(40 + f % 100), CVPixelBufferGetDataSize(pb))
+            CVPixelBufferUnlockBaseAddress(pb, [])
+            adaptor.append(pb, withPresentationTime: CMTime(value: CMTimeValue(f), timescale: 30))
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        #expect(writer.status == .completed)
+    }
+}

@@ -212,8 +212,10 @@ enum VideoShrinker {
     private static func pump(output: AVAssetReaderOutput, input: AVAssetWriterInput, label: String) async {
         let queue = DispatchQueue(label: label)
         let state = PumpState()
+        let io = PumpIO(output: output, input: input)
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            input.requestMediaDataWhenReady(on: queue) {
+            io.input.requestMediaDataWhenReady(on: queue) {
+                let input = io.input, output = io.output
                 while input.isReadyForMoreMediaData && !state.finished {
                     if let buf = output.copyNextSampleBuffer() {
                         if !input.append(buf) { state.finished = true }
@@ -229,6 +231,12 @@ enum VideoShrinker {
             }
         }
     }
+}
+
+/// The reader output and writer input of one pump, used only on its own serial queue.
+private struct PumpIO: @unchecked Sendable {
+    let output: AVAssetReaderOutput
+    let input: AVAssetWriterInput
 }
 
 /// Flags for one pump, touched only on its own serial queue.
