@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var confirmReset = false
     @State private var importError: String? = nil
     @State private var newIdea = ""
+    @State private var apiKey = Keychain.apiKey ?? ""
 
     var body: some View {
         @Bindable var store = store
@@ -65,8 +66,13 @@ struct SettingsView: View {
                                 }
                             }
                             Divider1()
-                            SettingsRow(title: "Go-up sound", subtitle: "Short chime when you beat the range.") {
-                                RectToggle(on: Binding(get: { store.settings.sound }, set: { v in store.update { $0.sound = v } }))
+                            SettingsRow(title: "Set rating", subtitle: capitalized(store.settings.rating.words.map { $0.lowercased() }.joined(separator: ", "))) {
+                                HStack(spacing: 6) {
+                                    ForEach(SetRating.allCases, id: \.self) { r in
+                                        Chip(text: r.title, on: store.settings.rating == r, small: true) { store.update { $0.rating = r } }
+                                    }
+                                }
+                                .fixedSize()
                             }
                             Divider1()
                             SettingsRow(title: "Units") {
@@ -79,6 +85,23 @@ struct SettingsView: View {
                         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     }
                     Group {
+                        SectionLabel("Assistant").padding(.top, 4)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Claude API key").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                            SecureField("sk-ant-…", text: $apiKey)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(12)
+                                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                                .foregroundStyle(p.text)
+                                .onChange(of: apiKey) { _, v in Keychain.set(v, for: Keychain.apiKeyAccount) }
+                            Text(apiKey.isEmpty ? "Coverage uses the built-in rules until a key is set." : "Coverage asks Claude when a split or its goals change.")
+                                .font(.system(size: 13)).foregroundStyle(p.muted)
+                        }
+                        .padding(16)
+                        .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                    }
+                    Group {
                         SectionLabel("Data").padding(.top, 4)
                         VStack(spacing: 0) {
                             if let url = store.exportURL {
@@ -87,6 +110,11 @@ struct SettingsView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
+                            Divider1()
+                            NavigationLink { MyClipsView(mode: .manage) } label: {
+                                SettingsRow(title: "Jimmy library", subtitle: "\(store.clips.count) form cue clips, \(byteLabel(ClipFiles.totalBytes(store.clips)))") { Chevron() }
+                            }
+                            .buttonStyle(.plain)
                             Divider1()
                             Button { importing = true } label: {
                                 SettingsRow(title: "Import", subtitle: "A Jimmy export from the web app or this one. Replaces everything.") { Chevron() }
@@ -273,7 +301,7 @@ struct HomeBlocksView: View {
                 Section {
                     Picker("Exercise to watch", selection: Binding(get: { store.settings.watchVersionId ?? "" }, set: { v in store.update { $0.watchVersionId = v.isEmpty ? nil : v } })) {
                         Text("None").tag("")
-                        ForEach(store.versions.sorted { $0.name < $1.name }) { v in Text(v.name).tag(v.id) }
+                        ForEach(store.versions.sorted { store.fullName($0) < store.fullName($1) }) { v in Text(store.fullName(v)).tag(v.id) }
                     }
                     .foregroundStyle(p.text)
                     .padding(.horizontal, 14).frame(minHeight: 52)

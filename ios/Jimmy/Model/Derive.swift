@@ -8,6 +8,8 @@ struct LastSession {
     var daysAgo: Int
     var verdict: Verdict
     var version: Version
+    /// False when a style was asked for and the last session used a different one.
+    var sameStyle: Bool = true
 }
 
 private func hasData(_ item: WorkoutItem) -> Bool { item.sets.contains { $0.hasData } }
@@ -19,17 +21,25 @@ func sortedNewestFirst(_ ws: [Workout]) -> [Workout] {
     }
 }
 
-/// Most recent session of this version (excluding the given workout).
-func lastSession(versionId: String, workouts: [Workout], versions: [Version], excludeWorkoutId: String? = nil, before: String? = nil) -> LastSession? {
+/// Most recent session of this variation (excluding the given workout). With a style, the
+/// last time in that same style wins; otherwise the last time in any style, flagged.
+func lastSession(versionId: String, styleId: String? = nil, workouts: [Workout], versions: [Version], excludeWorkoutId: String? = nil, before: String? = nil) -> LastSession? {
     guard let v = versions.first(where: { $0.id == versionId }) else { return nil }
-    for w in sortedNewestFirst(workouts) {
-        if w.id == excludeWorkoutId { continue }
-        if let before, w.date > before { continue }
-        if let item = w.items.first(where: { $0.versionId == versionId && hasData($0) }) {
-            return LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, v), version: v)
+    let ordered = sortedNewestFirst(workouts).filter { w in w.id != excludeWorkoutId && (before == nil || w.date <= before!) }
+    func find(_ match: (WorkoutItem) -> Bool) -> LastSession? {
+        for w in ordered {
+            if let item = w.items.first(where: { $0.versionId == versionId && hasData($0) && match($0) }) {
+                return LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, v), version: v)
+            }
         }
+        return nil
     }
-    return nil
+    if let styleId {
+        if let same = find({ $0.styleId == styleId }) { return same }
+        if var any = find({ _ in true }) { any.sameStyle = false; return any }
+        return nil
+    }
+    return find { _ in true }
 }
 
 /// Most recent session of any other version of the same base exercise.

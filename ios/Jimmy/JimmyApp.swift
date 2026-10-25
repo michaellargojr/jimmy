@@ -47,6 +47,7 @@ struct RootView: View {
         }
         .tint(p.accent)
         .environment(\.palette, p)
+        .onChange(of: store.settings.scheme) { _, s in AppIcon.match(s) }
         .preferredColorScheme(store.settings.appearance == .system ? nil : (isDark ? .dark : .light))
     }
 }

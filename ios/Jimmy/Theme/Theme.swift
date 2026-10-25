@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The palette for one appearance + accent scheme. Values come from the approved
-/// "lime on black" direction; light mode uses darker accents so text stays readable.
+/// "orange on black" direction; light mode uses darker accents so text stays readable.
 struct Palette: Equatable {
     var bg: Color
     var card: Color
@@ -23,12 +23,10 @@ struct Palette: Equatable {
         let accent: Color
         let onAccent: Color
         switch (scheme, dark) {
-        case (.lime, true): accent = Color(hex: 0xC6F135); onAccent = Color(hex: 0x0A0A0D)
-        case (.lime, false): accent = Color(hex: 0x7FA800); onAccent = .white
+        case (.orange, true): accent = Color(hex: 0xFFB84D); onAccent = Color(hex: 0x0A0A0D)
+        case (.orange, false): accent = Color(hex: 0xC77A00); onAccent = .white
         case (.mint, true): accent = Color(hex: 0x5DD68C); onAccent = Color(hex: 0x0A0A0D)
         case (.mint, false): accent = Color(hex: 0x1F9B5A); onAccent = .white
-        case (.amber, true): accent = Color(hex: 0xFFB84D); onAccent = Color(hex: 0x0A0A0D)
-        case (.amber, false): accent = Color(hex: 0xC77A00); onAccent = .white
         case (.ice, true): accent = Color(hex: 0x5EB5FF); onAccent = Color(hex: 0x0A0A0D)
         case (.ice, false): accent = Color(hex: 0x1F6FD0); onAccent = .white
         case (.red, true): accent = Color(hex: 0xFF5F6D); onAccent = Color(hex: 0x0A0A0D)
@@ -55,7 +53,7 @@ extension Color {
     }
 }
 
-private struct PaletteKey: EnvironmentKey { static let defaultValue = Palette.make(scheme: .lime, dark: true) }
+private struct PaletteKey: EnvironmentKey { static let defaultValue = Palette.make(scheme: .orange, dark: true) }
 
 extension EnvironmentValues {
     var palette: Palette {

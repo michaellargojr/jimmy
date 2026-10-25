@@ -100,7 +100,7 @@ struct UpNextBlock: View {
         let n = "\(r.items.count) exercises"
         guard let last else { return n }
         let template = Set(r.items.map { $0.versionId })
-        let added = last.items.filter { !template.contains($0.versionId) }.compactMap { store.version($0.versionId)?.name }
+        let added = last.items.filter { !template.contains($0.versionId) }.compactMap { store.version($0.versionId).map { store.baseName($0) } }
         if let first = added.first { return "\(n) · last time you added \(first)" }
         return n
     }
@@ -249,7 +249,10 @@ struct WatchExerciseBlock: View {
                     Card {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text(v.name).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                                    Text(store.variationText(v)).font(.system(size: 12)).foregroundStyle(p.muted)
+                                }
                                 Spacer()
                                 Chevron()
                             }

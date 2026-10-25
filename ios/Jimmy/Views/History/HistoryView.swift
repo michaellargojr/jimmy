@@ -116,7 +116,7 @@ struct ExercisesHistoryList: View {
     private var list: [Entry] {
         let q = query.lowercased()
         return store.versions.compactMap { v -> Entry? in
-            if !q.isEmpty && !v.name.lowercased().contains(q) { return nil }
+            if !q.isEmpty && !store.fullName(v).lowercased().contains(q) { return nil }
             let sessions = store.finishedWorkouts.filter { w in w.items.contains { $0.versionId == v.id && $0.sets.contains { $0.hasData } } }
             guard !sessions.isEmpty else { return nil }
             return Entry(version: v, count: sessions.count, last: sessions.first?.date)
@@ -125,32 +125,34 @@ struct ExercisesHistoryList: View {
     }
 
     var body: some View {
-        List {
-            TextField("Search", text: $query)
-                .padding(12)
-                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                .foregroundStyle(p.text)
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
-            ForEach(list) { e in
-                let v = e.version
-                NavigationLink(value: v) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                            Text("\(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted)
+        VStack(spacing: 0) {
+            SearchField(placeholder: "Search exercises", text: $query)
+            List {
+                ForEach(list) { e in
+                    let v = e.version
+                    NavigationLink(value: v) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                Text("\(store.variationText(v)) · \(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                            }
+                            Spacer()
+                            if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
+                                Text(t.formatted).font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(p.secondary)
+                            }
                         }
-                        Spacer()
-                        if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
-                            Text(t.formatted).font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(p.secondary)
-                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .rowCard(p)
                 }
-                .rowCard(p)
+                if list.isEmpty {
+                    Text(query.isEmpty ? "Log a workout and your exercises show up here." : "Nothing matches \"\(query)\".")
+                        .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
             }
+            .cardList()
         }
-        .cardList()
+        .background(p.bg.ignoresSafeArea())
     }
 }
 
@@ -185,7 +187,10 @@ struct WorkoutDetailView: View {
                                         NavigationLink { ExerciseProgressView(versionId: v.id) } label: {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 HStack {
-                                                    Text(v.name).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                                                    VStack(alignment: .leading, spacing: 1) {
+                                                        Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                                                        Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                                                    }
                                                     Spacer()
                                                     switch verdict(item.sets, v) {
                                                     case .up: Badge(text: "up", kind: .up)
@@ -193,7 +198,7 @@ struct WorkoutDetailView: View {
                                                     case .none: Chevron()
                                                     }
                                                 }
-                                                Text(item.sets.filter { $0.hasData }.map { ($0.kind == .warmup ? "W " : "") + $0.formatted }.joined(separator: " · "))
+                                                Text(item.sets.filter { $0.hasData }.map { $0.kind.prefix + $0.formatted }.joined(separator: " · "))
                                                     .font(.system(size: 14)).monospacedDigit().foregroundStyle(p.secondary)
                                                 if let n = item.note, !n.isEmpty { Text(n).font(.system(size: 13)).foregroundStyle(p.muted) }
                                                 let notes = item.sets.compactMap { $0.note }.filter { !$0.isEmpty }

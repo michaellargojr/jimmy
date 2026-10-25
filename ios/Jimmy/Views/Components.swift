@@ -1,5 +1,4 @@
 import SwiftUI
-import AudioToolbox
 
 // Shared building blocks. Everything is a rounded rectangle: no circles anywhere.
 
@@ -58,15 +57,16 @@ struct PillButton: View {
     var style: PillStyle = .secondary
     var icon: String? = nil
     var full: Bool = false
+    var height: CGFloat = 44
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let icon { Image(systemName: icon).font(.system(size: 15, weight: .bold)) }
-                Text(title).font(.system(size: 16, weight: style == .primary ? .bold : .semibold))
+                Text(title).font(.system(size: height > 50 ? 18 : 16, weight: style == .primary ? .bold : .semibold))
             }
             .frame(maxWidth: full ? .infinity : nil)
-            .frame(height: 44)
+            .frame(height: height)
             .padding(.horizontal, 18)
             .foregroundStyle(fg)
             .background(bg, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
@@ -198,6 +198,50 @@ struct SettingsRow<Trailing: View>: View {
     }
 }
 
+/// Lays its children out left to right and wraps to a new line when a row is full.
+struct FlowRow: Layout {
+    var spacing: CGFloat = 18
+    var lineSpacing: CGFloat = 6
+
+    private struct Line { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func lines(_ subviews: Subviews, width: CGFloat) -> [Line] {
+        var out = [Line()]
+        for (i, v) in subviews.enumerated() {
+            let size = v.sizeThatFits(.unspecified)
+            let line = out[out.count - 1]
+            let wide = line.items.isEmpty ? size.width : line.width + spacing + size.width
+            if wide > width && !line.items.isEmpty {
+                out.append(Line(items: [i], width: size.width, height: size.height))
+            } else {
+                out[out.count - 1].items.append(i)
+                out[out.count - 1].width = wide
+                out[out.count - 1].height = max(line.height, size.height)
+            }
+        }
+        return out.filter { !$0.items.isEmpty }
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ls = lines(subviews, width: proposal.width ?? .infinity)
+        let height = ls.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(0, ls.count - 1))
+        return CGSize(width: ls.map(\.width).max() ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for line in lines(subviews, width: bounds.width) {
+            var x = bounds.minX
+            for i in line.items {
+                let size = subviews[i].sizeThatFits(.unspecified)
+                subviews[i].place(at: CGPoint(x: x, y: y + (line.height - size.height) / 2), proposal: .unspecified)
+                x += size.width + spacing
+            }
+            y += line.height + lineSpacing
+        }
+    }
+}
+
 struct Divider1: View {
     @Environment(\.palette) private var p
     var body: some View { Rectangle().fill(p.line).frame(height: 1).padding(.leading, 16) }
@@ -215,6 +259,37 @@ struct ScreenBackground: ViewModifier {
 extension View { func screen() -> some View { modifier(ScreenBackground()) } }
 
 /// Style for the plain Lists used on Plan, History and Settings.
+/// A search box that lives above a List, never inside it. A text field inside a List row is a
+/// reusable cell: when the filtered rows below it change shape, the List rebuilds and the field
+/// resigns the keyboard after the first letter.
+struct SearchField: View {
+    @Environment(\.palette) private var p
+    var placeholder = "Search"
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .semibold)).foregroundStyle(p.muted)
+            TextField(placeholder, text: $text)
+                .focused($focused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .foregroundStyle(p.text)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted).frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12).frame(height: 44)
+        .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+        .padding(.horizontal, 16).padding(.bottom, 4)
+    }
+}
+
 struct ListCardStyle: ViewModifier {
     @Environment(\.palette) private var p
     func body(content: Content) -> some View {
@@ -234,12 +309,6 @@ extension View {
         )
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-    }
-}
-
-enum Feedback {
-    static func ding(sound: Bool) {
-        if sound { AudioServicesPlaySystemSound(1057) }
     }
 }
 

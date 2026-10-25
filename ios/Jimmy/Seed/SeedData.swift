@@ -3,10 +3,17 @@ import Foundation
 // One-time import of Michael's Notion workout history (Aug 3 to Oct 15, 2026).
 // Ported from src/seed/notion.ts. Set grammar per line: [W] [L|R] [EZ] <weight|-> x <reps|->[+] [pN] [# note]
 
+/// One of the 40 exercises Michael logged, mapped onto the library: the name his notes used,
+/// the base it belongs to, the variation and the style. Names that land on one variation merge.
 struct SeedExercise {
-    var name: String; var muscle: MuscleGroup; var equipment: Equipment; var arms: Arms
-    var base: String? = nil; var aliases: [String] = []; var notes: String? = nil
-    var repMin: Int = 5; var repMax: Int = 8; var machine: String? = nil
+    var name: String
+    var base: String
+    var group: MuscleGroup
+    var variation: VariationSpec
+    var style: StyleSpec = StyleSpec()
+    var aliases: [String] = []
+    var notes: String? = nil
+    var repMin: Int = 5; var repMax: Int = 8
 }
 struct SeedEntry { var ex: String; var group: String? = nil; var sets: [String]; var note: String? = nil }
 struct SeedWorkout {
@@ -19,57 +26,75 @@ struct SeedRoutine { var name: String; var items: [SeedRoutineItem]; var groups:
 let SEED_GYMS = ["Ultradynamic Fitness - Catalunan Grande", "Ultradynamic Fitness - Bangkal"]
 
 private func hi(_ e: SeedExercise) -> SeedExercise { var x = e; x.repMin = 10; x.repMax = 15; return x }
+private func S(_ name: String, _ base: String, _ group: MuscleGroup, _ v: VariationSpec, style: StyleSpec = StyleSpec(),
+               aliases: [String] = [], notes: String? = nil) -> SeedExercise {
+    SeedExercise(name: name, base: base, group: group, variation: v, style: style, aliases: aliases, notes: notes)
+}
+private func V(_ family: EquipmentFamily, arms: Arms = .two, position: Position? = nil, tag: String? = nil) -> VariationSpec {
+    VariationSpec(family: family, arms: arms, position: position, tag: tag)
+}
 
 let SEED_EXERCISES: [SeedExercise] = [
-    // Abs
-    hi(SeedExercise(name: "Kneeling Cable Crunch", muscle: .Abs, equipment: .cable, arms: .two)),
-    hi(SeedExercise(name: "Standing Cable Crunch", muscle: .Abs, equipment: .cable, arms: .two)),
+    // Core
+    hi(S("Kneeling Cable Crunch", "Crunch", .Abs, V(.cable, position: .kneeling))),
+    hi(S("Standing Cable Crunch", "Crunch", .Abs, V(.cable, position: .standing))),
     // Back
-    SeedExercise(name: "Cable Pulldown (Extended)", muscle: .Back, equipment: .cable, arms: .one, notes: "Added mid-workout Sep 21. Rename if the machine name is different."),
-    SeedExercise(name: "Cable Seated Row", muscle: .Back, equipment: .cable, arms: .two),
-    hi(SeedExercise(name: "Cable Shrug", muscle: .Back, equipment: .cable, arms: .two, base: "Shrug")),
-    SeedExercise(name: "Chest-Supported Row", muscle: .Back, equipment: .machine, arms: .two),
-    SeedExercise(name: "Face Pull", muscle: .Back, equipment: .cable, arms: .two),
-    SeedExercise(name: "High-to-Low Pulldown Machine", muscle: .Back, equipment: .machine, arms: .two, notes: "Double or single arm. Sep 21: left shoulder pain on eccentric, consider abandoning."),
-    SeedExercise(name: "Lat Pulldown (Two-Arm)", muscle: .Back, equipment: .cable, arms: .two, base: "Lat Pulldown"),
-    SeedExercise(name: "One-Arm Lat Pulldown", muscle: .Back, equipment: .cable, arms: .one, base: "Lat Pulldown"),
-    SeedExercise(name: "Seated Unilateral Cable Row", muscle: .Back, equipment: .cable, arms: .one, aliases: ["Seated extended unilateral cable rows"]),
-    SeedExercise(name: "Standing Cable Row", muscle: .Back, equipment: .cable, arms: .two),
+    S("Cable Pulldown (Extended)", "Pulldown", .Back, V(.cable, arms: .one), notes: "Added mid-workout Sep 21."),
+    S("Cable Seated Row", "Row", .Back, V(.cable, position: .seated)),
+    hi(S("Cable Shrug", "Shrug", .Back, V(.cable))),
+    S("Chest-Supported Row", "Row", .Back, V(.machine, position: .chestSupported)),
+    S("Face Pull", "Face Pull", .Shoulders, V(.cable)),
+    S("High-to-Low Pulldown Machine", "Pulldown", .Back, V(.machine, tag: "high row"), notes: "Double or single arm. Sep 21: left shoulder pain on eccentric, consider abandoning."),
+    S("Lat Pulldown (Two-Arm)", "Pulldown", .Back, V(.cable)),
+    S("One-Arm Lat Pulldown", "Pulldown", .Back, V(.cable, arms: .one)),
+    S("Seated Unilateral Cable Row", "Row", .Back, V(.cable, arms: .one), aliases: ["Seated extended unilateral cable rows"]),
+    S("Standing Cable Row", "Row", .Back, V(.cable, position: .standing)),
     // Biceps
-    SeedExercise(name: "Hammer Curl", muscle: .Biceps, equipment: .cable, arms: .two, notes: "Part of the bicep triset."),
-    SeedExercise(name: "Incline Dumbbell Curl", muscle: .Biceps, equipment: .dumbbell, arms: .two),
-    SeedExercise(name: "Single-Arm Bayesian Curl", muscle: .Biceps, equipment: .cable, arms: .one, notes: "Part of the bicep triset."),
-    SeedExercise(name: "Single-Arm Cable Curl", muscle: .Biceps, equipment: .cable, arms: .one, aliases: ["Single arm curls"], notes: "Part of the bicep triset."),
-    SeedExercise(name: "Spider Curl", muscle: .Biceps, equipment: .dumbbell, arms: .two),
-    SeedExercise(name: "Standing Barbell Curl", muscle: .Biceps, equipment: .barbell, arms: .two, base: "Barbell Curl"),
+    S("Hammer Curl", "Hammer Curl", .Biceps, V(.cable), notes: "Part of the bicep triset."),
+    S("Incline Dumbbell Curl", "Curl", .Biceps, V(.dumbbell, position: .armsBehind)),
+    S("Single-Arm Bayesian Curl", "Curl", .Biceps, V(.cable, arms: .one, position: .armsBehind), notes: "Part of the bicep triset."),
+    S("Single-Arm Cable Curl", "Curl", .Biceps, V(.cable, arms: .one), aliases: ["Single arm curls"], notes: "Part of the bicep triset."),
+    S("Spider Curl", "Curl", .Biceps, V(.dumbbell, position: .chestSupported)),
+    S("Standing Barbell Curl", "Curl", .Biceps, V(.bar, position: .standing), style: StyleSpec(barType: .barbell)),
     // Calves
-    hi(SeedExercise(name: "Standing Calf Raise Machine", muscle: .Calves, equipment: .machine, arms: .two, base: "Standing Calf Raise")),
-    hi(SeedExercise(name: "Standing Calf Raise (D Stars)", muscle: .Calves, equipment: .machine, arms: .two, base: "Standing Calf Raise", notes: "Weight is plates added.", machine: "D Stars")),
-    hi(SeedExercise(name: "Smith Machine Calf Raise", muscle: .Calves, equipment: .smith, arms: .two, notes: "Weight is total on the bar.")),
+    hi(S("Standing Calf Raise Machine", "Calf Raise", .Calves, V(.machine, position: .standing))),
+    hi(S("Standing Calf Raise (D Stars)", "Calf Raise", .Calves, V(.machine, position: .standing, tag: "D Stars"), notes: "Own history. Weight is plates added.")),
+    hi(S("Smith Machine Calf Raise", "Calf Raise", .Calves, V(.bar, position: .standing), style: StyleSpec(barType: .smith), notes: "Weight is total on the bar.")),
     // Chest
-    SeedExercise(name: "Chest Fly", muscle: .Chest, equipment: .machine, arms: .one, notes: "Aug 7 tracked left/right separately."),
-    SeedExercise(name: "Incline Chest Fly Machine", muscle: .Chest, equipment: .machine, arms: .two, notes: "Weight recorded as each side."),
-    SeedExercise(name: "Low-to-High Chest Fly", muscle: .Chest, equipment: .cable, arms: .one),
-    SeedExercise(name: "Machine Dip", muscle: .Chest, equipment: .machine, arms: .two),
-    SeedExercise(name: "Pec Deck", muscle: .Chest, equipment: .machine, arms: .two),
-    SeedExercise(name: "Incline Bench Press", muscle: .Chest, equipment: .barbell, arms: .two, base: "Bench Press"),
+    S("Chest Fly", "Chest Fly", .Chest, V(.machine, arms: .one), notes: "Aug 7 tracked left/right separately."),
+    S("Incline Chest Fly Machine", "Incline Fly", .Chest, V(.machine), notes: "Weight recorded as each side."),
+    S("Low-to-High Chest Fly", "Incline Fly", .Chest, V(.cable, arms: .one, position: .standing), style: StyleSpec(cableHeight: .ankle)),
+    S("Machine Dip", "Dip", .Chest, V(.machine)),
+    S("Pec Deck", "Chest Fly", .Chest, V(.machine), style: StyleSpec(machine: "Pec deck")),
+    S("Incline Bench Press", "Incline Press", .Chest, V(.bar, position: .lying), style: StyleSpec(barType: .barbell)),
     // Forearms
-    hi(SeedExercise(name: "Cable Wrist Curl", muscle: .Forearms, equipment: .cable, arms: .one, aliases: ["Single cable wrist curl"])),
-    hi(SeedExercise(name: "Reverse Cable Wrist Curl", muscle: .Forearms, equipment: .cable, arms: .two)),
+    hi(S("Cable Wrist Curl", "Wrist Curl", .Forearms, V(.cable, arms: .one), aliases: ["Single cable wrist curl"])),
+    hi(S("Reverse Cable Wrist Curl", "Reverse Wrist Curl", .Forearms, V(.cable))),
     // Shoulders
-    SeedExercise(name: "Cable Lateral Raise", muscle: .Shoulders, equipment: .cable, arms: .one, aliases: ["Side cable lateral raise"]),
-    SeedExercise(name: "Dumbbell Shoulder Press", muscle: .Shoulders, equipment: .dumbbell, arms: .two, base: "Shoulder Press"),
-    SeedExercise(name: "Front Raise", muscle: .Shoulders, equipment: .dumbbell, arms: .one),
-    SeedExercise(name: "Lateral Raise", muscle: .Shoulders, equipment: .dumbbell, arms: .two),
-    SeedExercise(name: "Reverse Rear Delt Fly", muscle: .Shoulders, equipment: .machine, arms: .two),
-    SeedExercise(name: "Rope Cable Front Raise", muscle: .Shoulders, equipment: .cable, arms: .two),
-    SeedExercise(name: "Shoulder Lateral Machine Press", muscle: .Shoulders, equipment: .machine, arms: .two, base: "Shoulder Press"),
-    SeedExercise(name: "Upright Row", muscle: .Shoulders, equipment: .ezbar, arms: .two),
+    S("Cable Lateral Raise", "Lateral Raise", .Shoulders, V(.cable, arms: .one), aliases: ["Side cable lateral raise"]),
+    S("Dumbbell Shoulder Press", "Shoulder Press", .Shoulders, V(.dumbbell, position: .seated)),
+    S("Front Raise", "Front Raise", .Shoulders, V(.dumbbell, arms: .one)),
+    S("Lateral Raise", "Lateral Raise", .Shoulders, V(.dumbbell)),
+    S("Reverse Rear Delt Fly", "Rear Delt Fly", .Shoulders, V(.machine)),
+    S("Rope Cable Front Raise", "Front Raise", .Shoulders, V(.cable), style: StyleSpec(attachment: "rope")),
+    S("Shoulder Lateral Machine Press", "Shoulder Press", .Shoulders, V(.machine)),
+    S("Upright Row", "Upright Row", .Shoulders, V(.bar), style: StyleSpec(barType: .ez)),
     // Triceps
-    SeedExercise(name: "One-Arm Cuffed Tricep Extension", muscle: .Triceps, equipment: .cable, arms: .one),
-    SeedExercise(name: "Standing Cable Tricep Extension", muscle: .Triceps, equipment: .cable, arms: .two),
-    SeedExercise(name: "Tricep Pushdown", muscle: .Triceps, equipment: .cable, arms: .one, aliases: ["Tricep pull downs"]),
+    S("One-Arm Cuffed Tricep Extension", "Tricep Extension", .Triceps, V(.cable, arms: .one, tag: "overhead"), style: StyleSpec(attachment: "cuff")),
+    S("Standing Cable Tricep Extension", "Tricep Extension", .Triceps, V(.cable, tag: "overhead")),
+    S("Tricep Pushdown", "Tricep Pushdown", .Triceps, V(.cable, arms: .one), aliases: ["Tricep pull downs"]),
 ]
+
+/// How an old free-form version name maps onto the library. Used by the seed and by the
+/// migration of exports made before the library existed.
+struct LegacyMapping { var base: String; var group: MuscleGroup; var variation: VariationSpec; var style: StyleSpec }
+
+func legacyMapping(for name: String) -> LegacyMapping? {
+    let n = name.trimmingCharacters(in: .whitespaces)
+    guard let e = SEED_EXERCISES.first(where: { $0.name.caseInsensitiveCompare(n) == .orderedSame
+        || $0.aliases.contains { $0.caseInsensitiveCompare(n) == .orderedSame } }) else { return nil }
+    return LegacyMapping(base: e.base, group: e.group, variation: e.variation, style: e.style)
+}
 
 private let G = SEED_GYMS
 
