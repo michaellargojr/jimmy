@@ -12,7 +12,11 @@ struct WorkoutView: View {
     /// Set by the Overview sheet; presented only after Overview has finished closing,
     /// because two sheets changing at once leaves the new one unable to take the keyboard.
     @State private var pendingAdd: AddTarget? = nil
-    @State private var confirmFinish = false
+    /// Done asks Finish, Discard or Keep going, then Finish and Discard each ask again,
+    /// so a tap from a pocket can never end the workout.
+    @State private var askEnd = false
+    @State private var sureFinish = false
+    @State private var sureDiscard = false
     @State private var restEndsAt: Date? = nil
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
@@ -55,12 +59,23 @@ struct WorkoutView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
-            .alert("Finish workout?", isPresented: $confirmFinish) {
+            .alert("End workout?", isPresented: $askEnd) {
+                Button("Finish") { sureFinish = true }
+                Button("Discard", role: .destructive) { sureDiscard = true }
+                Button("Keep going", role: .cancel) {}
+            }
+            .alert("Are you sure?", isPresented: $sureFinish) {
                 Button("Finish") { store.finishWorkout(workoutId) }
                 Button("Keep going", role: .cancel) {}
             } message: {
                 let undone = w.items.filter { !$0.isDone }.count
-                Text(undone > 0 ? "\(undone) exercises have no sets logged. They will be dropped." : "Nice. This saves to history.")
+                Text(undone > 0 ? "\(undone) exercises have no sets logged. They will be dropped." : "This saves to history.")
+            }
+            .alert("Are you sure?", isPresented: $sureDiscard) {
+                Button("Discard", role: .destructive) { store.deleteWorkout(workoutId) }
+                Button("Keep going", role: .cancel) {}
+            } message: {
+                Text("This workout won't be saved.")
             }
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
@@ -81,7 +96,7 @@ struct WorkoutView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             Spacer()
-            PillButton(title: "Done", style: .primary) { confirmFinish = true }
+            PillButton(title: "Done", style: .primary) { askEnd = true }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
