@@ -40,6 +40,7 @@ struct ExerciseCardView: View {
             VStack(alignment: .leading, spacing: 14) {
                 titleBlock(v, item: item)
                 lastTime(last: last, other: other)
+                formCuesLine(v)
                 setGrid(item: item, v: v, last: last, done: complete)
                 if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 14)).foregroundStyle(p.secondary).padding(.horizontal, 4) }
                 if complete { statusBox(verdictNow) }
@@ -90,7 +91,6 @@ struct ExerciseCardView: View {
                 Text(store.armsText(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.secondary).lineLimit(1)
                 Spacer(minLength: 4)
                 repRangeMenu(v)
-                formCuesButton(v)
                 Menu { cardMenu(v) } label: {
                     Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(p.secondary)
                         .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
@@ -124,18 +124,21 @@ struct ExerciseCardView: View {
         .accessibilityLabel("Rep range \(v.repMin) to \(v.repMax)")
     }
 
-    /// Small play button beside the menu. Accent colored when the variation has form cues, grey when
-    /// it has none yet (tap to add one mid-workout).
-    private func formCuesButton(_ v: Version) -> some View {
-        let has = store.formCueCount(v.id) > 0
+    /// One small line under last time. Accent colored with a count when the variation has
+    /// form cues, grey when it has none yet (tap to add one mid-workout).
+    private func formCuesLine(_ v: Version) -> some View {
+        let n = store.formCueCount(v.id)
         return Button { showFormCues = true } label: {
-            Image(systemName: "play.fill").font(.system(size: 14, weight: .bold))
-                .foregroundStyle(has ? p.accent : p.muted)
-                .frame(width: 36, height: 36)
-                .background(has ? p.accentSoft : p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+            HStack(spacing: 5) {
+                Image(systemName: "play.fill").font(.system(size: 10, weight: .bold))
+                Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(n > 0 ? p.accent : p.muted)
+            .frame(minHeight: 28)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Form cues")
     }
 
     /// The style, written out. The chevron opens the list to switch style or make one.
