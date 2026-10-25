@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Type the base, tap a variation you have, or set up a new variation and style.
+/// Opened from an exercise page in Plan (`base` set), it is just the setup: variation, style, Add.
 struct AddExerciseSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -14,6 +15,7 @@ struct AddExerciseSheet: View {
     @State private var newBaseGroup: MuscleGroup? = nil
     @State private var variation = VariationSpec(family: .dumbbell)
     @State private var style = StyleSpec()
+    @State private var started = false
     @FocusState private var focused: Bool
 
     init(base: Exercise? = nil, onPick: @escaping (Version, Style?) -> Void) {
@@ -24,7 +26,7 @@ struct AddExerciseSheet: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Add exercise").font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)
+                Text(base == nil ? "Add exercise" : "Add variation").font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)
                 Spacer()
                 Button("Close") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
             }
@@ -33,6 +35,10 @@ struct AddExerciseSheet: View {
             else { searchPage }
         }
         .padding(16)
+        .onAppear {
+            guard !started, let b = base else { return }
+            started = true; startSetup(b)
+        }
         .task {
             guard chosen == nil else { return }
             // Focus once the sheet has settled, or the keyboard never attaches.
@@ -126,6 +132,16 @@ struct AddExerciseSheet: View {
         style = StyleSpec()
     }
 
+    /// From Plan: start on a common variation you don't have yet, so Add makes something new.
+    private func startSetup(_ b: Exercise) {
+        let mine = store.variations(of: b.id)
+        let lib = libraryBase(named: b.name)
+        if let s = lib?.variations.first(where: { s in !mine.contains { $0.key == s.key } }) { variation = s }
+        else if let v = mine.first { variation = VariationSpec(family: v.family, arms: v.arms, position: v.position, tag: v.tag) }
+        else { variation = VariationSpec(family: .dumbbell) }
+        style = StyleSpec()
+    }
+
     // MARK: New base: pick the muscle group
 
     private func groupPage(_ name: String) -> some View {
@@ -168,12 +184,12 @@ struct AddExerciseSheet: View {
                         Button("Change") { chosen = nil; style = StyleSpec() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.muted)
                     }
                 }
-                if !mine.isEmpty {
+                if base == nil, !mine.isEmpty {
                     VStack(spacing: 6) {
                         ForEach(mine) { v in variationRow(v) }
                     }
                 }
-                if !suggested.isEmpty {
+                if base == nil, !suggested.isEmpty {
                     VStack(spacing: 6) {
                         ForEach(suggested, id: \.self) { s in
                             Button { let v = store.makeVariation(base: b, spec: s); finish(v, nil) } label: {
@@ -204,10 +220,12 @@ struct AddExerciseSheet: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     Text(verdictText(verdict, base: b)).font(.system(size: 14, weight: .semibold)).foregroundStyle(verdictColor(verdict))
+                    let have = base != nil && verdict.isExisting
                     PillButton(title: "Add", style: .primary, full: true) {
                         let (v, s) = store.resolve(base: b, variation: variation, style: style)
                         finish(v, s)
                     }
+                    .disabled(have).opacity(have ? 0.4 : 1)
                 }
             }
             .padding(.bottom, 24)
@@ -257,7 +275,7 @@ struct AddExerciseSheet: View {
         switch v {
         case .existing: return "Matches a variation you have"
         case .newStyle: return "New style"
-        case .newVariation: return "New variation · Joins the \(b.name) family"
+        case .newVariation: return "New variation"
         }
     }
     private func verdictColor(_ v: AppStore.AddVerdict) -> Color {

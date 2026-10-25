@@ -264,7 +264,10 @@ final class AppStore {
     }
 
     /// Where a picked variation and style land: an existing variation, a new style of it, or a new variation.
-    enum AddVerdict: Equatable { case existing(Version, Style?), newStyle(Version), newVariation }
+    enum AddVerdict: Equatable {
+        case existing(Version, Style?), newStyle(Version), newVariation
+        var isExisting: Bool { if case .existing = self { return true }; return false }
+    }
 
     func addVerdict(base: Exercise, variation: VariationSpec, style: StyleSpec) -> AddVerdict {
         guard let v = findVariation(baseId: base.id, key: variation.key) else { return .newVariation }

@@ -165,6 +165,11 @@ struct BasePageView: View {
                 } header: {
                     SectionLabel("Variations").padding(.leading, 16)
                 }
+                Section {
+                    PillButton(title: "Add variation", style: .primary, icon: "plus", full: true) { adding = true }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
+                // Shortcuts under the button: one tap adds a common variation.
                 if !suggested.isEmpty {
                     Section {
                         ForEach(suggested, id: \.self) { s in
@@ -180,13 +185,7 @@ struct BasePageView: View {
                             .buttonStyle(.plain)
                             .rowCard(p)
                         }
-                    } header: {
-                        SectionLabel("Add").padding(.leading, 16)
                     }
-                }
-                Section {
-                    PillButton(title: "Other variation", icon: "plus", full: true) { adding = true }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
             }
             .cardList()
@@ -229,7 +228,7 @@ struct BasePageView: View {
     }
 }
 
-/// "Side delt" in the accent, then "also upper traps" muted. Plain words for beginners.
+/// "Side delt" in bold, then "also upper traps" muted. Plain words for beginners.
 struct MusclesLine: View {
     @Environment(\.palette) private var p
     let primary: [String]
@@ -240,7 +239,7 @@ struct MusclesLine: View {
                 Text("Muscles not set").font(.system(size: 14)).foregroundStyle(p.muted)
             }
             if !primary.isEmpty {
-                Text(capitalized(primary.joined(separator: ", "))).font(.system(size: 16, weight: .bold)).foregroundStyle(p.accent)
+                Text(capitalized(primary.joined(separator: ", "))).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
             }
             if !secondary.isEmpty {
                 Text("also " + secondary.joined(separator: ", ")).font(.system(size: 14)).foregroundStyle(p.muted)
