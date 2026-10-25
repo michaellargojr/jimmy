@@ -58,11 +58,11 @@ struct FormCuesView: View {
                     }
                     SectionLabel("Add").padding(.top, 4)
                     VStack(spacing: 0) {
-                        addRow("Photos", icon: "photo.on.rectangle") { showPhotos = true }
+                        addRow("Photos and videos", icon: "photo.on.rectangle") { showPhotos = true }
                         Divider1()
                         addRow("Files", icon: "folder") { showFiles = true }
                         Divider1()
-                        addRow("From my clips", icon: "square.grid.3x3") { showLibrary = true }
+                        addRow("From my Jimmy library", icon: "square.grid.3x3") { showLibrary = true }
                         Divider1()
                         addRow("Paste a link", icon: "link") { linkText = ""; showLink = true }
                     }

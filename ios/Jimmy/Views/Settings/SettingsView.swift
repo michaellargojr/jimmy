@@ -89,7 +89,7 @@ struct SettingsView: View {
                             }
                             Divider1()
                             NavigationLink { MyClipsView(mode: .manage) } label: {
-                                SettingsRow(title: "My clips", subtitle: "\(store.clips.count) form cue clips, \(byteLabel(ClipFiles.totalBytes(store.clips)))") { Chevron() }
+                                SettingsRow(title: "Jimmy library", subtitle: "\(store.clips.count) form cue clips, \(byteLabel(ClipFiles.totalBytes(store.clips)))") { Chevron() }
                             }
                             .buttonStyle(.plain)
                             Divider1()
