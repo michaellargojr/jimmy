@@ -102,7 +102,7 @@ struct ExerciseCardView: View {
         }
     }
 
-    /// The rep range in lime. Picking another one changes the variation for good.
+    /// The rep range in the accent color. Picking another one changes the variation for good.
     private func repRangeMenu(_ v: Version) -> some View {
         Menu {
             ForEach(Self.repRanges.indices, id: \.self) { i in
