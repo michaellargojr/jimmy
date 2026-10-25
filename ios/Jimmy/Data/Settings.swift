@@ -2,15 +2,25 @@ import Foundation
 
 enum Appearance: String, Codable, CaseIterable { case dark, light, system }
 
+/// The app's color. Orange is the default; the home-screen icon follows the choice.
+/// A saved scheme that no longer exists (lime, amber) decodes as orange.
 enum AccentScheme: String, Codable, CaseIterable {
-    case lime, mint, amber, ice, red
+    case orange, mint, ice, red
     var label: String {
         switch self {
-        case .lime: return "Lime"
+        case .orange: return "Orange"
         case .mint: return "Mint"
-        case .amber: return "Amber"
         case .ice: return "Ice"
         case .red: return "Signal red"
+        }
+    }
+    /// The alternate app icon for this color; nil is the primary (orange) icon.
+    var iconName: String? {
+        switch self {
+        case .orange: return nil
+        case .mint: return "AppIcon-Mint"
+        case .ice: return "AppIcon-Ice"
+        case .red: return "AppIcon-Red"
         }
     }
 }
@@ -74,7 +84,7 @@ struct Settings: Codable, Hashable {
     var sound: Bool = true // unused since sounds were shelved; kept so web exports still decode
     var seeded: Bool? = true
     var appearance: Appearance = .dark
-    var scheme: AccentScheme = .lime
+    var scheme: AccentScheme = .orange
     var quote: String = DEFAULT_QUOTE
     var homeBlocks: [HomeBlockSetting] = HomeBlockSetting.defaults
     var restTimer: Bool = false
@@ -93,7 +103,7 @@ struct Settings: Codable, Hashable {
         sound = try c.decodeIfPresent(Bool.self, forKey: .sound) ?? true
         seeded = try c.decodeIfPresent(Bool.self, forKey: .seeded)
         appearance = (try? c.decode(Appearance.self, forKey: .appearance)) ?? (theme == "light" || theme == "paper" ? .light : .dark)
-        scheme = (try? c.decode(AccentScheme.self, forKey: .scheme)) ?? .lime
+        scheme = (try? c.decode(AccentScheme.self, forKey: .scheme)) ?? .orange
         quote = try c.decodeIfPresent(String.self, forKey: .quote) ?? DEFAULT_QUOTE
         var blocks = (try? c.decode([HomeBlockSetting].self, forKey: .homeBlocks)) ?? HomeBlockSetting.defaults
         for d in HomeBlockSetting.defaults where !blocks.contains(where: { $0.block == d.block }) { blocks.append(d) }
