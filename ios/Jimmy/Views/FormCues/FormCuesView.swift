@@ -158,7 +158,7 @@ struct FormCuesView: View {
                 }
                 .buttonStyle(.plain)
                 Button { removing = .link(m.url) } label: {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted)
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 18, weight: .semibold)).foregroundStyle(p.muted.opacity(0.8))
                         .frame(width: 48, height: 50).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -308,9 +308,11 @@ struct RemoveX: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Image(systemName: "xmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
-                .frame(width: 24, height: 24)
-                .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            // A light grey disc with the X cut in dark, slightly see-through over the picture.
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color.black.opacity(0.7), Color(white: 0.88).opacity(0.8))
                 .padding(6)
                 .frame(width: 44, height: 44, alignment: .topTrailing)
                 .contentShape(Rectangle())
