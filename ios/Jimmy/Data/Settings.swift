@@ -15,6 +15,14 @@ enum AccentScheme: String, Codable, CaseIterable {
     }
 }
 
+/// The 1 to 3 rating logged with each set. Only one is used at a time, so logging stays light.
+enum SetRating: String, Codable, CaseIterable {
+    case activation, intensity
+    var title: String { self == .activation ? "Activation" : "Intensity" }
+    /// What 1, 2 and 3 mean.
+    var words: [String] { self == .activation ? ["Barely felt", "Felt", "Really felt"] : ["Easy", "Effort", "Max"] }
+}
+
 enum HomeBlock: String, Codable, CaseIterable, Identifiable {
     case quote, upNext, week, recent, allRoutines, watchExercise
     var id: String { rawValue }
@@ -63,7 +71,7 @@ struct Settings: Codable, Hashable {
     var id: String = "settings"
     var unit: WeightUnit = .kg
     var theme: String = "dark" // kept for web compatibility
-    var sound: Bool = true
+    var sound: Bool = true // unused since sounds were shelved; kept so web exports still decode
     var seeded: Bool? = true
     var appearance: Appearance = .dark
     var scheme: AccentScheme = .lime
@@ -71,6 +79,7 @@ struct Settings: Codable, Hashable {
     var homeBlocks: [HomeBlockSetting] = HomeBlockSetting.defaults
     var restTimer: Bool = false
     var restSeconds: Int = 90
+    var rating: SetRating = .activation
     var activeSplitId: String?
     var watchVersionId: String?
 
@@ -94,6 +103,7 @@ struct Settings: Codable, Hashable {
         homeBlocks = blocks
         restTimer = try c.decodeIfPresent(Bool.self, forKey: .restTimer) ?? false
         restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 90
+        rating = (try? c.decode(SetRating.self, forKey: .rating)) ?? .activation
         activeSplitId = try c.decodeIfPresent(String.self, forKey: .activeSplitId)
         watchVersionId = try c.decodeIfPresent(String.self, forKey: .watchVersionId)
     }

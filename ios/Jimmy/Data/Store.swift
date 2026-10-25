@@ -52,6 +52,29 @@ final class AppStore {
     }
     /// "Lateral Raise · Cable · one arm", for lists that show one line.
     func fullName(_ v: Version, styleId: String? = nil) -> String { baseName(v) + " · " + subtitle(v, styleId: styleId) }
+    /// The Workout title, built from the blocks: "Dumbbell Shoulder Press", "Cable Overhead Tricep
+    /// Extension". A named machine tag reads last: "Machine Calf Raise (D Stars)". Plan keeps base names.
+    func workoutName(_ v: Version) -> String {
+        var words: [String] = []
+        switch v.family {
+        case .body: break
+        case .bar: words.append("Barbell")
+        default: words.append(v.family.label)
+        }
+        let tag = v.tag?.trimmingCharacters(in: .whitespaces) ?? ""
+        let namedMachine = v.family == .machine && tag.first?.isUppercase == true
+        if !tag.isEmpty && !namedMachine { words.append(tag.split(separator: " ").map { capitalized(String($0)) }.joined(separator: " ")) }
+        words.append(baseName(v))
+        return words.joined(separator: " ") + (namedMachine ? " (\(tag))" : "")
+    }
+    /// The Workout subtitle: "Two arms", "One arm · seated", "One leg".
+    func armsText(_ v: Version) -> String {
+        let legs = base(of: v)?.isLegs ?? false
+        var parts: [String] = []
+        if v.arms == .one || v.family != .body { parts.append(capitalized(v.arms.label(legs: legs))) }
+        if let pos = v.position { parts.append(parts.isEmpty ? capitalized(pos.label) : pos.label) }
+        return parts.joined(separator: " · ")
+    }
     func routine(_ id: String) -> Routine? { routines.first { $0.id == id } }
     func workout(_ id: String) -> Workout? { workouts.first { $0.id == id } }
     func muscle(of v: Version) -> MuscleGroup? { exercise(v.exerciseId)?.muscleGroup }

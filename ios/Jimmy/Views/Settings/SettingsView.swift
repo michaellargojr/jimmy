@@ -66,8 +66,13 @@ struct SettingsView: View {
                                 }
                             }
                             Divider1()
-                            SettingsRow(title: "Go-up sound", subtitle: "Short chime when you beat the range.") {
-                                RectToggle(on: Binding(get: { store.settings.sound }, set: { v in store.update { $0.sound = v } }))
+                            SettingsRow(title: "Set rating", subtitle: capitalized(store.settings.rating.words.map { $0.lowercased() }.joined(separator: ", "))) {
+                                HStack(spacing: 6) {
+                                    ForEach(SetRating.allCases, id: \.self) { r in
+                                        Chip(text: r.title, on: store.settings.rating == r, small: true) { store.update { $0.rating = r } }
+                                    }
+                                }
+                                .fixedSize()
                             }
                             Divider1()
                             SettingsRow(title: "Units") {
