@@ -294,11 +294,16 @@ final class AppStore {
         return w
     }
 
+    /// Exercises with nothing logged, not even a warm-up. Finish drops them so history stays clean.
+    func unlogged(_ w: Workout) -> [WorkoutItem] {
+        w.items.filter { !$0.isDone && !$0.sets.contains { $0.hasData } }
+    }
+
     func finishWorkout(_ id: String) {
         guard var w = workout(id) else { return }
         w.endedAt = nowMs()
-        // Drop exercises that never got a set logged so history stays clean.
-        w.items.removeAll { !$0.isDone && !$0.sets.contains { $0.hasData } }
+        let drop = Set(unlogged(w).map(\.id))
+        w.items.removeAll { drop.contains($0.id) }
         if w.items.isEmpty { deleteWorkout(id) } else { put(w) }
     }
 

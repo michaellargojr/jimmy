@@ -68,8 +68,9 @@ struct WorkoutView: View {
                 Button("Finish") { store.finishWorkout(workoutId) }
                 Button("Keep going", role: .cancel) {}
             } message: {
-                let undone = w.items.filter { !$0.isDone }.count
-                Text(undone > 0 ? "\(undone) exercises have no sets logged. They will be dropped." : "This saves to history.")
+                // Counted the same way Finish drops them, so a logged warm-up keeps its exercise.
+                let n = store.unlogged(w).count
+                Text(n == 0 ? "This saves to history." : n == 1 ? "1 exercise has no sets logged. It will be dropped." : "\(n) exercises have no sets logged. They will be dropped.")
             }
             .alert("Are you sure?", isPresented: $sureDiscard) {
                 Button("Discard", role: .destructive) { store.deleteWorkout(workoutId) }

@@ -97,6 +97,17 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(verdict(sets + [S(.drop, weight: 10, reps: 3)], repMin: 5, repMax: 8) == .up)
     }
 
+    @Test func finishDropsOnlyExercisesWithNothingLogged() {
+        let s = AppStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("finish-\(uid()).json"))
+        let warm = WorkoutItem(versionId: "a", sets: [S(.warmup, reps: 12), S()])
+        let empty = WorkoutItem(versionId: "b", sets: [S(weight: nil), S(weight: nil)])
+        let w = Workout(name: "Shoulders", startedAt: nowMs(), items: [warm, empty])
+        s.put(w)
+        #expect(s.unlogged(w).map(\.id) == [empty.id])   // what the Are you sure? counts
+        s.finishWorkout(w.id)
+        #expect(s.workout(w.id)?.items.map(\.id) == [warm.id])
+    }
+
     @Test func dropSetsCountAsDoneWorkButWarmupsDoNot() {
         #expect(S(.drop, reps: 6).isDone)
         #expect(!S(.warmup, reps: 15).isDone)
