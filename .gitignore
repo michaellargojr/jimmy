@@ -7,3 +7,10 @@ tsconfig.tsbuildinfo
 ios/**/xcuserdata/
 ios/**/*.xcworkspace/xcuserdata/
 ios/DerivedData/
+
+# Local secrets: never commit
+Claude_API_key.md
+*API_key*
+*api_key*
+*.env
+.env*

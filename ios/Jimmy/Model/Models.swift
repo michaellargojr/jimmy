@@ -485,6 +485,10 @@ struct Split: Codable, Identifiable, Hashable {
     var id: String
     var name: String
     var routineIds: [String]
+    /// What the person wants to look like (see Coverage.swift). Absent on web exports.
+    var goals: SplitGoals?
+    /// The last coverage report, kept so the cards never wait for the network.
+    var coverage: CoverageReport?
 
     init(id: String = uid(), name: String, routineIds: [String] = []) {
         self.id = id; self.name = name; self.routineIds = routineIds

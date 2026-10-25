@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var confirmReset = false
     @State private var importError: String? = nil
     @State private var newIdea = ""
+    @State private var apiKey = Keychain.apiKey ?? ""
 
     var body: some View {
         @Bindable var store = store
@@ -76,6 +77,23 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                        .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                    }
+                    Group {
+                        SectionLabel("Assistant").padding(.top, 4)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Claude API key").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                            SecureField("sk-ant-…", text: $apiKey)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(12)
+                                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                                .foregroundStyle(p.text)
+                                .onChange(of: apiKey) { _, v in Keychain.set(v, for: Keychain.apiKeyAccount) }
+                            Text(apiKey.isEmpty ? "Coverage uses the built-in rules until a key is set." : "Coverage asks Claude when a split or its goals change.")
+                                .font(.system(size: 13)).foregroundStyle(p.muted)
+                        }
+                        .padding(16)
                         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     }
                     Group {

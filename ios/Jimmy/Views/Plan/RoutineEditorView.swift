@@ -4,6 +4,7 @@ struct RoutineEditorView: View {
     @Environment(AppStore.self) private var store
     @Environment(AppNav.self) private var nav
     @Environment(\.palette) private var p
+    @Environment(\.dismiss) private var dismiss
     let routineId: String
     @State private var adding = false
     @State private var renaming = false
@@ -20,6 +21,9 @@ struct RoutineEditorView: View {
                     MusclesLine(primary: muscles(r).primary, secondary: muscles(r).secondary)
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
+                }
+                if let s = store.split(containing: r.id) {
+                    Section { CoverageCard(splitId: s.id, routineId: r.id).rowCard(p, radius: Radius.card) }
                 }
                 Section {
                     ForEach(Array(r.items.enumerated()), id: \.offset) { i, item in
@@ -62,7 +66,7 @@ struct RoutineEditorView: View {
                             Button("Group…") { selecting = true }
                             Menu {
                                 Button { name = r.name; renaming = true } label: { Label("Rename", systemImage: "pencil") }
-                                Button(role: .destructive) { store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
+                                Button(role: .destructive) { dismiss(); store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
                             } label: { Image(systemName: "ellipsis") }
                         }
                     }
@@ -155,6 +159,10 @@ struct SplitEditorView: View {
     let splitId: String
     @State private var renaming = false
     @State private var name = ""
+    @State private var goals = false
+    @State private var naming = false
+    @State private var newName = ""
+    @State private var created: Routine? = nil
 
     private var split: Split? { store.splits.first { $0.id == splitId } }
 
@@ -162,6 +170,18 @@ struct SplitEditorView: View {
         if let s = split {
             let inSplit = Set(s.routineIds)
             List {
+                Section {
+                    Button { goals = true } label: { GoalsRow(goals: s.goals ?? SplitGoals()) }
+                        .buttonStyle(.plain)
+                        .rowCard(p, radius: Radius.card)
+                }
+                Section {
+                    CoverageCard(splitId: s.id).rowCard(p, radius: Radius.card)
+                }
+                Section {
+                    PillButton(title: "New routine", icon: "plus", full: true) { newName = ""; naming = true }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
                 Section {
                     ForEach(Array(s.routineIds.enumerated()), id: \.offset) { i, rid in
                         HStack(spacing: 12) {
@@ -218,6 +238,23 @@ struct SplitEditorView: View {
                 TextField("Name", text: $name)
                 Button("Save") { var ss = s; ss.name = name.trimmingCharacters(in: .whitespaces); if !ss.name.isEmpty { store.put(ss) } }
                 Button("Cancel", role: .cancel) {}
+            }
+            .alert("New routine", isPresented: $naming) {
+                TextField("Name", text: $newName)
+                Button("Create") {
+                    let n = newName.trimmingCharacters(in: .whitespaces)
+                    let r = Routine(name: n.isEmpty ? "New routine" : n)
+                    store.put(r)
+                    var ss = s; ss.routineIds.append(r.id); store.put(ss)
+                    created = r
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .navigationDestination(item: $created) { r in RoutineEditorView(routineId: r.id) }
+            .sheet(isPresented: $goals) {
+                GoalsSheet(splitId: s.id)
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
             }
         }
     }

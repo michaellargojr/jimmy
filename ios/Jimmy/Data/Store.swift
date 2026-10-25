@@ -56,6 +56,11 @@ final class AppStore {
 
     var activeWorkout: Workout? { workouts.first { $0.isActive } }
     var finishedWorkouts: [Workout] { sortedNewestFirst(workouts.filter { $0.isFinished }) }
+    /// The split a routine's coverage is judged on: the active split when it holds the routine, else the first that does.
+    func split(containing routineId: String) -> Split? {
+        if let a = activeSplit, a.routineIds.contains(routineId) { return a }
+        return splits.first { $0.routineIds.contains(routineId) }
+    }
     var activeSplit: Split? {
         if let id = settings.activeSplitId, let s = splits.first(where: { $0.id == id }) { return s }
         return splits.first
