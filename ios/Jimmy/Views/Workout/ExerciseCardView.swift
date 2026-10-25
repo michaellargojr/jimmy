@@ -124,9 +124,9 @@ struct ExerciseCardView: View {
         .accessibilityLabel("Rep range \(v.repMin) to \(v.repMax)")
     }
 
-    /// A tappable badge under last time, in the same style as "Go up next time": accent
-    /// text on a soft accent fill, with the play button in a circle. Shows the count when
-    /// the variation has form cues; with none it still shows, so a clip can be added mid-workout.
+    /// A tappable badge under last time, modelled on "Go up next time", with the play button
+    /// in a circle. It lights up (accent on soft accent, with the count) when the variation
+    /// has form cues, and stays grey when it has none, still tappable to add one mid-workout.
     private func formCuesLine(_ v: Version) -> some View {
         let n = store.formCueCount(v.id)
         return Button { showFormCues = true } label: {
@@ -134,10 +134,10 @@ struct ExerciseCardView: View {
                 Image(systemName: "play.circle.fill").font(.system(size: 17, weight: .bold))
                 Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 15, weight: .bold))
             }
-            .foregroundStyle(p.accent)
+            .foregroundStyle(n > 0 ? p.accent : p.muted)
             .frame(height: 36)
             .padding(.horizontal, 12)
-            .background(p.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(n > 0 ? p.accentSoft : p.elevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
