@@ -26,7 +26,7 @@ struct MyClipsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("My clips").font(.system(size: 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
+                    Text("Jimmy library").font(.system(size: 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
                     Text("\(store.clips.count) clips · \(byteLabel(ClipFiles.totalBytes(store.clips)))")
                         .font(.system(size: 14, weight: .semibold)).foregroundStyle(p.secondary)
                 }

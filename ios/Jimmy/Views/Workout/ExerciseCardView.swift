@@ -124,21 +124,24 @@ struct ExerciseCardView: View {
         .accessibilityLabel("Rep range \(v.repMin) to \(v.repMax)")
     }
 
-    /// One small line under last time. Accent colored with a count when the variation has
-    /// form cues, grey when it has none yet (tap to add one mid-workout).
+    /// A tappable badge under last time, in the same style as "Go up next time": accent
+    /// text on a soft accent fill, with the play button in a circle. Shows the count when
+    /// the variation has form cues; with none it still shows, so a clip can be added mid-workout.
     private func formCuesLine(_ v: Version) -> some View {
         let n = store.formCueCount(v.id)
         return Button { showFormCues = true } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "play.fill").font(.system(size: 10, weight: .bold))
-                Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 7) {
+                Image(systemName: "play.circle.fill").font(.system(size: 17, weight: .bold))
+                Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 15, weight: .bold))
             }
-            .foregroundStyle(n > 0 ? p.accent : p.muted)
-            .frame(minHeight: 28)
-            .padding(.horizontal, 4)
-            .contentShape(Rectangle())
+            .foregroundStyle(p.accent)
+            .frame(height: 36)
+            .padding(.horizontal, 12)
+            .background(p.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(n > 0 ? "Form cues, \(n)" : "Form cues")
     }
 
     /// The style, written out. The chevron opens the list to switch style or make one.
