@@ -12,6 +12,7 @@ struct MyClipsView: View {
 
     @State private var selected: [String] = []
     @State private var playing: FormCuesView.PlayerStart? = nil
+    @State private var deleting: String? = nil
 
     private var pickingFor: String? { if case .pick(let id) = mode { return id } else { return nil } }
 
@@ -41,6 +42,10 @@ struct MyClipsView: View {
                             ClipTile(clip: c, selected: selected.contains(c.id), count: used.count)
                         }
                         .buttonStyle(.plain)
+                        .overlay(alignment: .topTrailing) {
+                            // In the library, only clips no exercise uses can be deleted.
+                            if pickingFor == nil, used.isEmpty { RemoveX { deleting = c.id } }
+                        }
                         .contextMenu { menu(c, used: used, index: i, list: list) }
                     }
                 }
@@ -63,6 +68,13 @@ struct MyClipsView: View {
             }
         }
         .fullScreenCover(item: $playing) { s in ClipPlayerView(clips: s.clips, start: s.index) }
+        .confirmationDialog("Delete this clip?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            titleVisibility: .visible, presenting: deleting) { id in
+            Button("Delete", role: .destructive) { store.deleteClip(id) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("It is removed from this phone.")
+        }
     }
 
     private func tap(_ c: Clip, index: Int, list: [Clip]) {

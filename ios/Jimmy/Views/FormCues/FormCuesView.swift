@@ -20,6 +20,17 @@ struct FormCuesView: View {
     @State private var pending = 0
     @State private var importError: String? = nil
     @State private var playing: PlayerStart? = nil
+    @State private var removing: Removal? = nil
+
+    private var removalTitle: String {
+        if case .link = removing { return "Remove this link?" }
+        return "Remove this clip?"
+    }
+
+    enum Removal: Identifiable {
+        case clip(String), link(String)
+        var id: String { switch self { case .clip(let c): return "c" + c; case .link(let u): return "l" + u } }
+    }
 
     struct PlayerStart: Identifiable { let id = UUID(); let clips: [Clip]; let index: Int }
 
@@ -37,6 +48,7 @@ struct FormCuesView: View {
                             ForEach(Array(clips.enumerated()), id: \.element.id) { i, c in
                                 Button { playing = PlayerStart(clips: clips, index: i) } label: { ClipTile(clip: c) }
                                     .buttonStyle(.plain)
+                                    .overlay(alignment: .topTrailing) { RemoveX { removing = .clip(c.id) } }
                                     .contextMenu {
                                         Button(role: .destructive) { store.detach(c.id, from: v.id) } label: {
                                             Label("Remove from this exercise", systemImage: "minus.square")
@@ -101,6 +113,19 @@ struct FormCuesView: View {
                 Button("Cancel", role: .cancel) {}
             }
             .fullScreenCover(item: $playing) { s in ClipPlayerView(clips: s.clips, start: s.index) }
+            .confirmationDialog(removalTitle,
+                                isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                                titleVisibility: .visible, presenting: removing) { r in
+                Button("Remove", role: .destructive) {
+                    switch r {
+                    case .clip(let id): store.detach(id, from: v.id)
+                    case .link(let url): store.removeLink(url, from: v.id)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { r in
+                if case .clip = r { Text("It stays in your Jimmy library.") }
+            }
         }
     }
 
@@ -121,16 +146,24 @@ struct FormCuesView: View {
     @ViewBuilder
     private func linkRow(_ m: Media, versionId: String) -> some View {
         if let url = URL(string: m.url) {
-            Link(destination: url) {
-                HStack {
-                    Text(linkLabel(m.url)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text).lineLimit(1)
-                    Spacer()
-                    Image(systemName: "arrow.up.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
+            HStack(spacing: 0) {
+                Link(destination: url) {
+                    HStack {
+                        Text(linkLabel(m.url)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text).lineLimit(1)
+                        Spacer()
+                        Image(systemName: "arrow.up.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
+                    }
+                    .padding(.leading, 16).frame(height: 50)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 16).frame(height: 50)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                Button { removing = .link(m.url) } label: {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted)
+                        .frame(width: 48, height: 50).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove link")
             }
-            .buttonStyle(.plain)
             .contextMenu {
                 Button(role: .destructive) { store.removeLink(m.url, from: versionId) } label: { Label("Remove link", systemImage: "trash") }
             }
@@ -267,6 +300,23 @@ struct ClipTile: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .task(id: clip.id) { image = await ClipFiles.thumbnail(clip) }
+    }
+}
+
+/// The small X in a clip's top-right corner. Its tap area is bigger than it looks.
+struct RemoveX: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .padding(6)
+                .frame(width: 44, height: 44, alignment: .topTrailing)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Remove")
     }
 }
 
