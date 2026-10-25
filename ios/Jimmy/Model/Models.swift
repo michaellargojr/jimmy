@@ -589,3 +589,6 @@ func capitalized(_ s: String) -> String {
     guard let f = s.first else { return s }
     return f.uppercased() + s.dropFirst()
 }
+
+/// Dashes between items on the Workout screen ("Wrist cuff - hip height"). Stored names keep their dots.
+func dashed(_ s: String) -> String { s.replacingOccurrences(of: " · ", with: " - ") }

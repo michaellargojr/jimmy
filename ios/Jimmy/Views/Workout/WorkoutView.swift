@@ -92,7 +92,7 @@ struct WorkoutView: View {
             Spacer()
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
-                Text("\(w.name) · \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount) · \(elapsedString(ms: ms))")
+                Text("\(w.name) - \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount) - \(elapsedString(ms: ms))")
                     .font(.system(size: 13)).monospacedDigit().foregroundStyle(p.secondary)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
@@ -267,7 +267,7 @@ struct OverviewSheet: View {
                 HStack(spacing: 6) {
                     if let g { Text(g.type.label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
                     if let v { Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.secondary).lineLimit(1) }
-                    Text(item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " · "))
+                    Text(item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " - "))
                         .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                 }
             }

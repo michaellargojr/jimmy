@@ -67,13 +67,13 @@ final class AppStore {
         words.append(baseName(v))
         return words.joined(separator: " ") + (namedMachine ? " (\(tag))" : "")
     }
-    /// The Workout subtitle: "Two arms", "One arm · seated", "One leg".
+    /// The Workout subtitle: "Two arms", "One arm - seated", "One leg".
     func armsText(_ v: Version) -> String {
         let legs = base(of: v)?.isLegs ?? false
         var parts: [String] = []
         if v.arms == .one || v.family != .body { parts.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { parts.append(parts.isEmpty ? capitalized(pos.label) : pos.label) }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: " - ")
     }
     func routine(_ id: String) -> Routine? { routines.first { $0.id == id } }
     func workout(_ id: String) -> Workout? { workouts.first { $0.id == id } }

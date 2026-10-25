@@ -135,7 +135,7 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(s.workoutName(bar) == "Barbell Shoulder Press")
         #expect(s.workoutName(cable) == "Cable Overhead Tricep Extension")
         #expect(s.workoutName(dStars) == "Machine Calf Raise (D Stars)")
-        #expect(s.armsText(db) == "Two arms · seated")
+        #expect(s.armsText(db) == "Two arms - seated")
         #expect(s.armsText(cable) == "One arm")
         #expect(s.armsText(dStars) == "Two legs")
     }
