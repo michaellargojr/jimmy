@@ -4,7 +4,7 @@ import SwiftUI
 // then suggestions. The same card sits inside each routine, tagged with the split name,
 // because coverage is always judged on the whole split.
 
-/// The goals row on the split screen: tapped goals as lime chips and the first words of the text.
+/// The goals row on the split screen: tapped goals as accent chips and the first words of the text.
 struct GoalsRow: View {
     @Environment(\.palette) private var p
     let goals: SplitGoals
@@ -163,7 +163,7 @@ struct CoverageCard: View {
     }
 }
 
-/// The mark beside a finding: lime touches a goal, dim is low, hollow is untrained.
+/// The mark beside a finding: accent touches a goal, dim is low, hollow is untrained.
 struct Mark: View {
     @Environment(\.palette) private var p
     let mark: FindingMark
