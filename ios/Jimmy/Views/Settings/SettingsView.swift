@@ -273,7 +273,7 @@ struct HomeBlocksView: View {
                 Section {
                     Picker("Exercise to watch", selection: Binding(get: { store.settings.watchVersionId ?? "" }, set: { v in store.update { $0.watchVersionId = v.isEmpty ? nil : v } })) {
                         Text("None").tag("")
-                        ForEach(store.versions.sorted { $0.name < $1.name }) { v in Text(v.name).tag(v.id) }
+                        ForEach(store.versions.sorted { store.fullName($0) < store.fullName($1) }) { v in Text(store.fullName(v)).tag(v.id) }
                     }
                     .foregroundStyle(p.text)
                     .padding(.horizontal, 14).frame(minHeight: 52)

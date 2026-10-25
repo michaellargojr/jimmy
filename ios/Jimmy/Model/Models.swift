@@ -7,7 +7,89 @@ enum Equipment: String, Codable, CaseIterable, Hashable {
     case cable, machine, dumbbell, barbell, ezbar, smith, bodyweight
     var label: String { self == .ezbar ? "EZ bar" : rawValue }
 }
-enum Arms: String, Codable, CaseIterable, Hashable { case two, one }
+enum Arms: String, Codable, CaseIterable, Hashable {
+    case two, one
+    /// "two arms" / "one arm", or legs for leg bases.
+    func label(legs: Bool = false) -> String {
+        switch (self, legs) {
+        case (.two, false): return "two arms"
+        case (.one, false): return "one arm"
+        case (.two, true): return "two legs"
+        case (.one, true): return "one leg"
+        }
+    }
+}
+
+/// The five equipment families a variation is grouped by. Barbell, EZ bar and Smith are
+/// one family; which bar is a style.
+enum EquipmentFamily: String, Codable, CaseIterable, Hashable {
+    case dumbbell, cable, machine, bar, body
+    var label: String {
+        switch self {
+        case .dumbbell: return "Dumbbell"
+        case .cable: return "Cable"
+        case .machine: return "Machine"
+        case .bar: return "Bar"
+        case .body: return "Body"
+        }
+    }
+    /// The equipment value stored on a variation of this family (keeps the web JSON shape).
+    var equipment: Equipment {
+        switch self {
+        case .dumbbell: return .dumbbell
+        case .cable: return .cable
+        case .machine: return .machine
+        case .bar: return .barbell
+        case .body: return .bodyweight
+        }
+    }
+}
+
+extension Equipment {
+    var family: EquipmentFamily {
+        switch self {
+        case .dumbbell: return .dumbbell
+        case .cable: return .cable
+        case .machine: return .machine
+        case .barbell, .ezbar, .smith: return .bar
+        case .bodyweight: return .body
+        }
+    }
+}
+
+/// Body position of a variation. Optional: wrist curls carry none.
+enum Position: String, Codable, CaseIterable, Hashable {
+    case standing, seated, kneeling, lying
+    case chestSupported = "chest-supported"
+    case armsBehind = "arms-behind"
+    case armOnPad = "arm-on-pad"
+    var label: String {
+        switch self {
+        case .standing: return "standing"
+        case .seated: return "seated"
+        case .kneeling: return "kneeling"
+        case .lying: return "lying"
+        case .chestSupported: return "chest supported"
+        case .armsBehind: return "arms behind"
+        case .armOnPad: return "arm on pad"
+        }
+    }
+    /// Seated and lying positions can sit on a bench, so bench angle applies.
+    var usesBench: Bool { self == .seated || self == .lying || self == .armsBehind || self == .chestSupported }
+}
+
+/// Which bar: a style, never a variation.
+enum BarType: String, Codable, CaseIterable, Hashable {
+    case barbell, ez, smith
+    var label: String {
+        switch self {
+        case .barbell: return "Barbell"
+        case .ez: return "EZ bar"
+        case .smith: return "Smith"
+        }
+    }
+    var equipment: Equipment { self == .ez ? .ezbar : (self == .smith ? .smith : .barbell) }
+}
 enum WeightUnit: String, Codable, CaseIterable, Hashable {
     case kg, lbs
     var label: String { self == .lbs ? "lb" : "kg" }
@@ -28,14 +110,24 @@ struct Gym: Codable, Identifiable, Hashable {
     var name: String
 }
 
+/// A base exercise (Lateral Raise). Variations hang off it and carry the history.
 struct Exercise: Codable, Identifiable, Hashable {
     var id: String
     var name: String
     var muscleGroup: MuscleGroup
     var aliases: [String] = []
+    /// Other groups this base also shows under (Dip: Chest and Triceps).
+    var alsoGroups: [MuscleGroup] = []
+    /// Muscle regions, from the encyclopedia (see MuscleRegion).
+    var primary: [String] = []
+    var secondary: [String] = []
+    /// Set on a base Michael added himself, one the library does not know.
+    var custom: Bool?
 
-    init(id: String = uid(), name: String, muscleGroup: MuscleGroup, aliases: [String] = []) {
-        self.id = id; self.name = name; self.muscleGroup = muscleGroup; self.aliases = aliases
+    init(id: String = uid(), name: String, muscleGroup: MuscleGroup, aliases: [String] = [], alsoGroups: [MuscleGroup] = [],
+         primary: [String] = [], secondary: [String] = [], custom: Bool? = nil) {
+        self.id = id; self.name = name; self.muscleGroup = muscleGroup; self.aliases = aliases; self.alsoGroups = alsoGroups
+        self.primary = primary; self.secondary = secondary; self.custom = custom
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -43,7 +135,15 @@ struct Exercise: Codable, Identifiable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         muscleGroup = (try? c.decode(MuscleGroup.self, forKey: .muscleGroup)) ?? .Back
         aliases = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
+        alsoGroups = (try? c.decodeIfPresent([MuscleGroup].self, forKey: .alsoGroups)) ?? []
+        primary = try c.decodeIfPresent([String].self, forKey: .primary) ?? []
+        secondary = try c.decodeIfPresent([String].self, forKey: .secondary) ?? []
+        custom = try c.decodeIfPresent(Bool.self, forKey: .custom)
     }
+
+    /// Leg bases say "one leg" instead of "one arm".
+    var isLegs: Bool { muscleGroup == .Legs || muscleGroup == .Glutes || muscleGroup == .Calves }
+    var groups: [MuscleGroup] { [muscleGroup] + alsoGroups.filter { $0 != muscleGroup } }
 }
 
 /// A loose JSON value, used for the version change log the web app writes.
@@ -95,13 +195,18 @@ struct Media: Codable, Hashable {
     var url: String
 }
 
-/// A Version is what carries history (Cable Shrug vs Dumbbell Shrug).
+/// A Version is a variation of a base: equipment family, arms, position. It carries the
+/// weight and rep history and the rep range. Styles (attachment, bar, bench notch) share it.
 struct Version: Codable, Identifiable, Hashable {
     var id: String
     var exerciseId: String
     var name: String
     var equipment: Equipment
     var arms: Arms
+    var position: Position?
+    /// Short qualifier when equipment, arms and position do not say enough: "overhead",
+    /// "goblet", "high row", or a machine Michael flipped to its own history ("D Stars").
+    var tag: String?
     var attachment: String?
     var machine: String?
     var cableHeight: Double?
@@ -116,10 +221,10 @@ struct Version: Codable, Identifiable, Hashable {
     var changes: [VersionChange] = []
 
     init(id: String = uid(), exerciseId: String, name: String, equipment: Equipment, arms: Arms,
-         machine: String? = nil, repMin: Int = 5, repMax: Int = 8, defaultWarmup: Bool = true,
-         defaultSets: Int = 2, notes: String? = nil) {
+         position: Position? = nil, tag: String? = nil, machine: String? = nil, repMin: Int = 5, repMax: Int = 8,
+         defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
         self.id = id; self.exerciseId = exerciseId; self.name = name; self.equipment = equipment
-        self.arms = arms; self.machine = machine; self.repMin = repMin; self.repMax = repMax
+        self.arms = arms; self.position = position; self.tag = tag; self.machine = machine; self.repMin = repMin; self.repMax = repMax
         self.defaultWarmup = defaultWarmup; self.defaultSets = defaultSets; self.notes = notes
     }
 
@@ -130,6 +235,8 @@ struct Version: Codable, Identifiable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         equipment = (try? c.decode(Equipment.self, forKey: .equipment)) ?? .machine
         arms = (try? c.decode(Arms.self, forKey: .arms)) ?? .two
+        position = try? c.decodeIfPresent(Position.self, forKey: .position)
+        tag = try c.decodeIfPresent(String.self, forKey: .tag)
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         cableHeight = try c.decodeIfPresent(Double.self, forKey: .cableHeight)
@@ -144,8 +251,97 @@ struct Version: Codable, Identifiable, Hashable {
         changes = try c.decodeIfPresent([VersionChange].self, forKey: .changes) ?? []
     }
 
-    var isBarbell: Bool { equipment == .barbell || equipment == .ezbar }
+    var family: EquipmentFamily { equipment.family }
+    var isBarbell: Bool { family == .bar }
     var repRange: String { "\(repMin) to \(repMax)" }
+    /// The fields that make two variations the same one.
+    var key: VariationKey { VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased()) }
+}
+
+struct VariationKey: Hashable {
+    var family: EquipmentFamily
+    var arms: Arms
+    var position: Position?
+    var tag: String?
+}
+
+/// A Style is a way of doing a variation that shares its history: attachment, cable height,
+/// bench notch, which bar, grip, or a named machine. Recorded on each set of a workout item.
+struct Style: Codable, Identifiable, Hashable {
+    var id: String
+    var versionId: String
+    var name: String?
+    var attachment: String?
+    var cableHeight: String?
+    var benchAngle: Int?
+    var barType: BarType?
+    var grip: String?
+    var machine: String?
+    var notes: String?
+
+    init(id: String = uid(), versionId: String, name: String? = nil, attachment: String? = nil, cableHeight: String? = nil,
+         benchAngle: Int? = nil, barType: BarType? = nil, grip: String? = nil, machine: String? = nil, notes: String? = nil) {
+        self.id = id; self.versionId = versionId; self.name = name; self.attachment = attachment; self.cableHeight = cableHeight
+        self.benchAngle = benchAngle; self.barType = barType; self.grip = grip; self.machine = machine; self.notes = notes
+    }
+
+    var key: StyleKey {
+        StyleKey(attachment: attachment?.lowercased(), cableHeight: cableHeight, benchAngle: benchAngle, barType: barType,
+                 grip: grip?.lowercased(), machine: machine?.lowercased())
+    }
+    var isEmpty: Bool { key == StyleKey() && (name ?? "").isEmpty }
+
+    /// "Rope · Chest height", "EZ bar", "45°", "D Stars".
+    var label: String {
+        if let name, !name.isEmpty { return name }
+        var parts: [String] = []
+        if let machine, !machine.isEmpty { parts.append(machine) }
+        if let barType { parts.append(barType.label) }
+        if let attachment, !attachment.isEmpty { parts.append(capitalized(attachment)) }
+        if let grip, !grip.isEmpty { parts.append(capitalized(grip)) }
+        if let cableHeight, let h = CableHeight(rawValue: cableHeight) { parts.append(h.label) }
+        if let benchAngle { parts.append(benchAngleLabel(benchAngle)) }
+        return parts.joined(separator: " · ")
+    }
+}
+
+struct StyleKey: Hashable {
+    var attachment: String? = nil
+    var cableHeight: String? = nil
+    var benchAngle: Int? = nil
+    var barType: BarType? = nil
+    var grip: String? = nil
+    var machine: String? = nil
+}
+
+/// Where the cable pulley sits, picked on the silhouette.
+enum CableHeight: String, Codable, CaseIterable, Hashable {
+    case overhead, head, shoulder, chest, waist, hip, thigh, knee, shin, ankle
+    var label: String {
+        switch self {
+        case .overhead: return "Overhead"
+        case .head: return "Head height"
+        case .shoulder: return "Shoulder height"
+        case .chest: return "Chest height"
+        case .waist: return "Waist height"
+        case .hip: return "Hip height"
+        case .thigh: return "Thigh height"
+        case .knee: return "Knee height"
+        case .shin: return "Shin height"
+        case .ankle: return "Ankle height"
+        }
+    }
+}
+
+let BENCH_ANGLES: [Int] = [-15, 0, 15, 30, 45, 60, 75, 90]
+
+func benchAngleLabel(_ a: Int) -> String {
+    switch a {
+    case ..<0: return "Decline"
+    case 0: return "Flat"
+    case 90...: return "Upright"
+    default: return "\(a)°"
+    }
 }
 
 struct SetEntry: Codable, Identifiable, Hashable {
@@ -197,13 +393,14 @@ struct SetEntry: Codable, Identifiable, Hashable {
 struct WorkoutItem: Codable, Identifiable, Hashable {
     var id: String
     var versionId: String
+    var styleId: String?
     var groupId: String?
     var sets: [SetEntry]
     var skipped: Bool?
     var note: String?
 
-    init(id: String = uid(), versionId: String, groupId: String? = nil, sets: [SetEntry], skipped: Bool? = nil, note: String? = nil) {
-        self.id = id; self.versionId = versionId; self.groupId = groupId; self.sets = sets; self.skipped = skipped; self.note = note
+    init(id: String = uid(), versionId: String, styleId: String? = nil, groupId: String? = nil, sets: [SetEntry], skipped: Bool? = nil, note: String? = nil) {
+        self.id = id; self.versionId = versionId; self.styleId = styleId; self.groupId = groupId; self.sets = sets; self.skipped = skipped; self.note = note
     }
 
     var isDone: Bool { skipped == true || sets.contains { $0.isDone } }
@@ -254,9 +451,15 @@ struct Workout: Codable, Identifiable, Hashable {
     }
 }
 
+/// Routines hold the exact variation and style so a workout is prepped ahead.
 struct RoutineItem: Codable, Hashable {
     var versionId: String
+    var styleId: String?
     var groupId: String?
+
+    init(versionId: String, styleId: String? = nil, groupId: String? = nil) {
+        self.versionId = versionId; self.styleId = styleId; self.groupId = groupId
+    }
 }
 
 struct Routine: Codable, Identifiable, Hashable {
@@ -326,3 +529,9 @@ func fmtWeight(_ w: Double) -> String {
 }
 
 func nowMs() -> Double { Date().timeIntervalSince1970 * 1000 }
+
+/// First letter up, rest untouched ("rope" to "Rope", "D handle" stays).
+func capitalized(_ s: String) -> String {
+    guard let f = s.first else { return s }
+    return f.uppercased() + s.dropFirst()
+}

@@ -17,6 +17,11 @@ struct RoutineEditorView: View {
         if let r = routine {
             List {
                 Section {
+                    MusclesLine(primary: muscles(r).primary, secondary: muscles(r).secondary)
+                        .padding(.horizontal, 16).padding(.vertical, 14)
+                        .rowCard(p, radius: Radius.card)
+                }
+                Section {
                     ForEach(Array(r.items.enumerated()), id: \.offset) { i, item in
                         row(r, index: i, item: item)
                     }
@@ -69,7 +74,7 @@ struct RoutineEditorView: View {
                 Button("Cancel", role: .cancel) {}
             }
             .sheet(isPresented: $adding) {
-                AddExerciseSheet { v in var rr = r; rr.items.append(RoutineItem(versionId: v.id)); store.put(rr) }
+                AddExerciseSheet { v, st in var rr = r; rr.items.append(RoutineItem(versionId: v.id, styleId: st?.id)); store.put(rr) }
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
@@ -97,15 +102,28 @@ struct RoutineEditorView: View {
             if selecting { RectCheck(on: selected.contains(index), size: 26) }
             else { Text("\(index + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 24) }
             VStack(alignment: .leading, spacing: 2) {
-                Text(v?.name ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                 HStack(spacing: 6) {
                     if let g { Text(g.type.label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
-                    if let v { Text("\(v.equipment.label) · \(v.repRange) reps · \(v.defaultSets) sets").font(.system(size: 12)).foregroundStyle(p.muted) }
+                    if let v { Text("\(store.subtitle(v, styleId: item.styleId)) · \(v.repRange) reps").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(2) }
                 }
             }
             Spacer()
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
+    }
+
+    /// Every muscle the routine works, primary first, each named once.
+    private func muscles(_ r: Routine) -> (primary: [String], secondary: [String]) {
+        var prim: [String] = [], sec: [String] = []
+        for item in r.items {
+            guard let v = store.version(item.versionId), let e = store.base(of: v) else { continue }
+            let o = regionOverrides(base: e.name, variation: v)
+            for m in o?.primary ?? e.primary where !prim.contains(m) { prim.append(m) }
+            for m in o?.secondary ?? e.secondary where !sec.contains(m) { sec.append(m) }
+        }
+        sec.removeAll { prim.contains($0) }
+        return (prim, sec)
     }
 
     private func group(_ r: Routine, as type: GroupType) {
@@ -201,54 +219,6 @@ struct SplitEditorView: View {
                 Button("Save") { var ss = s; ss.name = name.trimmingCharacters(in: .whitespaces); if !ss.name.isEmpty { store.put(ss) } }
                 Button("Cancel", role: .cancel) {}
             }
-        }
-    }
-}
-
-struct VersionEditorView: View {
-    @Environment(AppStore.self) private var store
-    @Environment(\.palette) private var p
-    @Environment(\.dismiss) private var dismiss
-    let versionId: String
-
-    private var version: Version? { store.version(versionId) }
-
-    var body: some View {
-        if let v = version {
-            let b = Binding(get: { store.version(versionId) ?? v }, set: { store.put($0) })
-            Form {
-                Section {
-                    TextField("Name", text: b.name)
-                    Picker("Muscle", selection: Binding(get: { store.muscle(of: v) ?? .Back }, set: { m in
-                        if var e = store.exercise(v.exerciseId) { e.muscleGroup = m; store.put(e) }
-                    })) { ForEach(MuscleGroup.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                    Picker("Equipment", selection: b.equipment) { ForEach(Equipment.allCases, id: \.self) { Text($0.label).tag($0) } }
-                    Picker("Arms", selection: b.arms) { Text("Two").tag(Arms.two); Text("One at a time").tag(Arms.one) }
-                    TextField("Machine (optional)", text: Binding(get: { v.machine ?? "" }, set: { t in var vv = v; vv.machine = t.isEmpty ? nil : t; store.put(vv) }))
-                }
-                Section("Rep range") {
-                    Stepper("Min \(v.repMin)", value: b.repMin, in: 1...50)
-                    Stepper("Max \(v.repMax)", value: b.repMax, in: 1...60)
-                    Text("Go up when set 1 reaches \(v.repMax + UP_FIRST_OFFSET) and set 2 reaches \(v.repMax + UP_SECOND_OFFSET). Go down when set 1 is under \(v.repMin).")
-                        .font(.system(size: 13)).foregroundStyle(p.muted)
-                }
-                Section("Defaults") {
-                    Stepper("Working sets \(v.defaultSets)", value: b.defaultSets, in: 1...8)
-                    Toggle("Warm-up set", isOn: b.defaultWarmup)
-                }
-                Section("Notes") {
-                    TextField("Setup, grip, what to watch", text: Binding(get: { v.notes ?? "" }, set: { t in var vv = v; vv.notes = t.isEmpty ? nil : t; store.put(vv) }), axis: .vertical).lineLimit(2...5)
-                }
-                Section {
-                    NavigationLink { ExerciseProgressView(versionId: v.id) } label: { Label("Progress over time", systemImage: "chart.xyaxis.line") }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(p.bg.ignoresSafeArea())
-            .tint(p.accent)
-            .navigationTitle(v.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(p.bg, for: .navigationBar)
         }
     }
 }

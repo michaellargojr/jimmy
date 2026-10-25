@@ -2,8 +2,9 @@ import Foundation
 
 // Building workouts from routines, ported from src/workout.ts.
 
-func defaultSets(for v: Version, unit: WeightUnit, workouts: [Workout]) -> [SetEntry] {
-    let bar: Bar? = v.isBarbell ? (lastBar(versionId: v.id, workouts: workouts) ?? (v.equipment == .ezbar ? .ez : .straight)) : nil
+func defaultSets(for v: Version, style: Style? = nil, unit: WeightUnit, workouts: [Workout]) -> [SetEntry] {
+    var bar: Bar? = v.isBarbell ? (lastBar(versionId: v.id, workouts: workouts) ?? (v.equipment == .ezbar ? .ez : .straight)) : nil
+    if let bt = style?.barType { bar = bt == .ez ? .ez : .straight }
     var sets: [SetEntry] = []
     if v.defaultWarmup { sets.append(SetEntry(kind: .warmup, unit: unit, bar: bar)) }
     for _ in 0..<max(0, v.defaultSets) {
@@ -17,15 +18,16 @@ func defaultSets(for v: Version, unit: WeightUnit, workouts: [Workout]) -> [SetE
     return sets
 }
 
-func newItem(for v: Version, unit: WeightUnit, workouts: [Workout], groupId: String? = nil) -> WorkoutItem {
-    WorkoutItem(versionId: v.id, groupId: groupId, sets: defaultSets(for: v, unit: unit, workouts: workouts))
+func newItem(for v: Version, style: Style? = nil, unit: WeightUnit, workouts: [Workout], groupId: String? = nil) -> WorkoutItem {
+    WorkoutItem(versionId: v.id, styleId: style?.id, groupId: groupId, sets: defaultSets(for: v, style: style, unit: unit, workouts: workouts))
 }
 
-func workoutFromRoutine(_ r: Routine, versions: [Version], unit: WeightUnit, workouts: [Workout], gymId: String? = nil) -> Workout {
-    let vmap = Dictionary(uniqueKeysWithValues: versions.map { ($0.id, $0) })
+func workoutFromRoutine(_ r: Routine, versions: [Version], styles: [Style] = [], unit: WeightUnit, workouts: [Workout], gymId: String? = nil) -> Workout {
+    let vmap = Dictionary(versions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    let smap = Dictionary(styles.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     let items = r.items.compactMap { ri -> WorkoutItem? in
         guard let v = vmap[ri.versionId] else { return nil }
-        return newItem(for: v, unit: unit, workouts: workouts, groupId: ri.groupId)
+        return newItem(for: v, style: ri.styleId.flatMap { smap[$0] }, unit: unit, workouts: workouts, groupId: ri.groupId)
     }
     return Workout(name: r.name, date: today(), gymId: gymId, routineId: r.id, startedAt: nowMs(), items: items, groups: r.groups)
 }

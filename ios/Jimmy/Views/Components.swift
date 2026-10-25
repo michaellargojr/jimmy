@@ -215,6 +215,37 @@ struct ScreenBackground: ViewModifier {
 extension View { func screen() -> some View { modifier(ScreenBackground()) } }
 
 /// Style for the plain Lists used on Plan, History and Settings.
+/// A search box that lives above a List, never inside it. A text field inside a List row is a
+/// reusable cell: when the filtered rows below it change shape, the List rebuilds and the field
+/// resigns the keyboard after the first letter.
+struct SearchField: View {
+    @Environment(\.palette) private var p
+    var placeholder = "Search"
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .semibold)).foregroundStyle(p.muted)
+            TextField(placeholder, text: $text)
+                .focused($focused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .foregroundStyle(p.text)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted).frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12).frame(height: 44)
+        .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+        .padding(.horizontal, 16).padding(.bottom, 4)
+    }
+}
+
 struct ListCardStyle: ViewModifier {
     @Environment(\.palette) private var p
     func body(content: Content) -> some View {

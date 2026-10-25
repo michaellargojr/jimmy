@@ -35,6 +35,7 @@ struct PlanView: View {
             .navigationDestination(for: Routine.self) { r in RoutineEditorView(routineId: r.id) }
             .navigationDestination(for: Split.self) { s in SplitEditorView(splitId: s.id) }
             .navigationDestination(for: Version.self) { v in VersionEditorView(versionId: v.id) }
+            .navigationDestination(for: Exercise.self) { e in BasePageView(exerciseId: e.id) }
             .alert(naming == .splits ? "New split" : "New routine", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
                 TextField("Name", text: $newName)
                 Button("Create") {
@@ -51,7 +52,7 @@ struct PlanView: View {
                 Button("Cancel", role: .cancel) { naming = nil }
             }
             .sheet(isPresented: $newVersion) {
-                AddExerciseSheet { _ in }
+                AddExerciseSheet { _, _ in }
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
@@ -137,7 +138,7 @@ struct RoutinesList: View {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(r.name).font(.system(size: 18, weight: .bold)).foregroundStyle(p.text)
-                            Text(r.items.compactMap { store.version($0.versionId)?.name }.joined(separator: " · "))
+                            Text(r.items.compactMap { store.version($0.versionId).map { store.baseName($0) } }.joined(separator: " · "))
                                 .font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(2)
                         }
                         Spacer()
@@ -157,64 +158,5 @@ struct RoutinesList: View {
             }
         }
         .cardList()
-    }
-}
-
-struct ExercisesList: View {
-    @Environment(AppStore.self) private var store
-    @Environment(\.palette) private var p
-    @State private var query = ""
-
-    private struct MuscleSection: Identifiable { var id: String { muscle.rawValue }; var muscle: MuscleGroup; var list: [Version] }
-
-    private var grouped: [MuscleSection] {
-        let q = query.lowercased()
-        let vs = store.versions.filter { q.isEmpty || $0.name.lowercased().contains(q) }
-        return MuscleGroup.allCases.compactMap { m in
-            let list = vs.filter { store.muscle(of: $0) == m }.sorted { $0.name < $1.name }
-            return list.isEmpty ? nil : MuscleSection(muscle: m, list: list)
-        }
-    }
-
-    var body: some View {
-        List {
-            Section {
-                TextField("Search", text: $query)
-                    .padding(12)
-                    .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                    .foregroundStyle(p.text)
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
-            }
-            ForEach(grouped) { sec in
-                Section {
-                    ForEach(sec.list) { v in
-                        NavigationLink(value: v) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(v.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                                    Text("\(v.equipment.label)\(v.arms == .one ? " · one arm" : "") · \(v.repRange) reps · \(sessions(v)) sessions").font(.system(size: 12)).foregroundStyle(p.muted)
-                                }
-                                Spacer()
-                            }
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                        }
-                        .rowCard(p)
-                        .swipeActions {
-                            if sessions(v) == 0 {
-                                Button(role: .destructive) { store.deleteVersion(v.id) } label: { Label("Delete", systemImage: "trash") }
-                            }
-                        }
-                    }
-                } header: {
-                    SectionLabel(sec.muscle.rawValue).padding(.leading, 16)
-                }
-            }
-        }
-        .cardList()
-    }
-
-    private func sessions(_ v: Version) -> Int {
-        store.workouts.filter { w in w.isFinished && w.items.contains { $0.versionId == v.id && $0.sets.contains { $0.hasData } } }.count
     }
 }

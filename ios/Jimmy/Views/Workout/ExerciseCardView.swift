@@ -16,6 +16,7 @@ struct ExerciseCardView: View {
     @State private var lastLogged: Double = 0
     @State private var showNote = false
     @State private var editVersion = false
+    @State private var newStyle = false
 
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
     enum SetField: String { case weight, reps }
@@ -25,11 +26,11 @@ struct ExerciseCardView: View {
 
     var body: some View {
         if let w = workout, let item, let v = store.version(item.versionId) {
-            let last = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
-            let other = last == nil ? otherVersionLast(version: v, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id) : nil
+            let last = lastSession(versionId: v.id, styleId: item.styleId, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
+            let other = otherVersionLast(version: v, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
             let verdictNow = verdict(item.sets, v)
             VStack(alignment: .leading, spacing: 12) {
-                if !compact { illustration(v) }
+                if !compact { illustration(v, styleId: item.styleId) }
                 titleRow(v, verdictNow: verdictNow, item: item)
                 lastLine(last: last, other: other)
                 setGrid(w: w, item: item, v: v, last: last)
@@ -46,6 +47,10 @@ struct ExerciseCardView: View {
             .sheet(isPresented: $editVersion) {
                 NavigationStack { VersionEditorView(versionId: v.id) }.presentationBackground(p.bg)
             }
+            .sheet(isPresented: $newStyle) {
+                StyleEditorSheet(version: v, style: nil) { s in update { $0.styleId = s.id } }
+                    .presentationDetents([.large]).presentationBackground(p.card)
+            }
             .sensoryFeedback(.success, trigger: upTrigger)
             .sensoryFeedback(.impact(weight: .medium), trigger: logTrigger)
             .preference(key: SetLoggedKey.self, value: lastLogged)
@@ -57,15 +62,15 @@ struct ExerciseCardView: View {
 
     // MARK: Pieces
 
-    private func illustration(_ v: Version) -> some View {
+    private func illustration(_ v: Version, styleId: String?) -> some View {
         ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(p.card)
             Image(systemName: symbol(for: v))
                 .font(.system(size: 64, weight: .light))
                 .foregroundStyle(p.border)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Text([store.muscle(of: v)?.rawValue, v.equipment.label, v.machine].compactMap { $0 }.joined(separator: " · "))
-                .font(.system(size: 12)).foregroundStyle(p.secondary).padding(14)
+            Text([store.muscle(of: v)?.label, store.subtitle(v, styleId: styleId)].compactMap { $0 }.joined(separator: " · "))
+                .font(.system(size: 12)).foregroundStyle(p.secondary).padding(14).lineLimit(1)
         }
         .frame(height: 150)
         .contextMenu { cardMenu(v) }
@@ -82,10 +87,11 @@ struct ExerciseCardView: View {
 
     private func titleRow(_ v: Version, verdictNow: Verdict, item: WorkoutItem) -> some View {
         HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(v.name).font(.system(size: compact ? 22 : 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
-                if compact {
-                    Text([store.muscle(of: v)?.rawValue, v.equipment.label].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 12)).foregroundStyle(p.muted)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(store.baseName(v)).font(.system(size: compact ? 22 : 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
+                HStack(spacing: 6) {
+                    Text(store.variationText(v)).font(.system(size: 13, weight: .semibold)).foregroundStyle(p.secondary).lineLimit(1)
+                    styleMenu(v, item: item)
                 }
             }
             Spacer()
@@ -96,6 +102,31 @@ struct ExerciseCardView: View {
                 Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(p.secondary)
                     .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             }
+        }
+    }
+
+    /// The style this item is in. Tap to switch to another style of the variation or make one.
+    private func styleMenu(_ v: Version, item: WorkoutItem) -> some View {
+        let styles = store.styles(of: v.id)
+        let current = store.style(item.styleId)
+        return Menu {
+            ForEach(styles) { s in
+                Button { update { $0.styleId = s.id } } label: {
+                    if s.id == item.styleId { Label(s.label, systemImage: "checkmark") } else { Text(s.label) }
+                }
+            }
+            if item.styleId != nil { Button("No style") { update { $0.styleId = nil } } }
+            Divider()
+            Button { newStyle = true } label: { Label("New style", systemImage: "plus") }
+        } label: {
+            HStack(spacing: 4) {
+                Text(current?.label ?? (styles.isEmpty ? "Style" : "Switch style"))
+                    .font(.system(size: 12, weight: .bold))
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(current == nil ? p.muted : p.accent)
+            .frame(height: 24).padding(.horizontal, 8)
+            .background(current == nil ? p.elevated : p.accentSoft, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
     }
 
@@ -113,21 +144,24 @@ struct ExerciseCardView: View {
     }
 
     private func lastLine(last: LastSession?, other: LastSession?) -> some View {
-        Group {
+        VStack(alignment: .leading, spacing: 2) {
             if let last {
                 let sets = last.item.sets.filter { $0.hasData }
-                let line = "Last time · \(last.daysAgo == 0 ? "today" : "\(last.daysAgo)d ago") · " + sets.map { ($0.kind == .warmup ? "W " : "") + $0.formatted }.joined(separator: ", ")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(line).font(.system(size: 14)).italic().foregroundStyle(p.muted)
-                    if let n = last.item.note, !n.isEmpty { Text(n).font(.system(size: 13)).foregroundStyle(p.muted) }
-                    let notes = last.item.sets.filter { $0.note?.isEmpty == false }.map { "\($0.side?.rawValue ?? "")\($0.kind == .warmup ? "W" : "") \($0.note!)".trimmingCharacters(in: .whitespaces) }
-                    if !notes.isEmpty { Text(notes.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(p.muted) }
-                }
-            } else if let other {
-                Text("\(other.version.name) \(other.daysAgo)d ago · " + other.item.sets.filter { $0.reps != nil }.map { $0.formatted }.joined(separator: ", "))
-                    .font(.system(size: 14)).italic().foregroundStyle(p.muted)
+                // When the last time was a different style, say which, so the ghosts make sense.
+                let styleNote = last.sameStyle ? nil : (store.style(last.item.styleId)?.label ?? "no style")
+                let line = ["Last time", last.daysAgo == 0 ? "today" : "\(last.daysAgo)d ago", styleNote,
+                            sets.map { ($0.kind == .warmup ? "W " : "") + $0.formatted }.joined(separator: ", ")].compactMap { $0 }.joined(separator: " · ")
+                Text(line).font(.system(size: 14)).italic().foregroundStyle(p.muted)
+                if let n = last.item.note, !n.isEmpty { Text(n).font(.system(size: 13)).foregroundStyle(p.muted) }
+                let notes = last.item.sets.filter { $0.note?.isEmpty == false }.map { "\($0.side?.rawValue ?? "")\($0.kind == .warmup ? "W" : "") \($0.note!)".trimmingCharacters(in: .whitespaces) }
+                if !notes.isEmpty { Text(notes.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(p.muted) }
             } else {
                 Text("First time").font(.system(size: 14)).italic().foregroundStyle(p.muted)
+            }
+            // Sibling variations of the same base, quieter.
+            if let other {
+                Text("\(store.variationText(other.version)) · \(other.daysAgo)d ago · " + other.item.sets.filter { $0.reps != nil }.prefix(3).map { $0.formatted }.joined(separator: ", "))
+                    .font(.system(size: 12)).foregroundStyle(p.muted).opacity(0.75).lineLimit(1)
             }
         }
         .padding(.horizontal, 2)

@@ -63,11 +63,11 @@ private func W(_ reps: Int?, _ weight: Double = 30, _ kind: SetKind = .working, 
     @Test func seedBuildsEverything() {
         let s = buildSeed()
         #expect(s.gyms.count == 2)
-        #expect(s.versions.count == 40)
+        #expect(s.versions.count == 39)   // 40 logged names; Extended and One-Arm pulldown share one variation
         #expect(s.routines.count == 4)
         #expect(s.workouts.count == 10)
         #expect(s.splits.first?.routineIds.count == 4)
-        #expect(s.exercises.count > 100)
+        #expect(s.exercises.count == 60)  // the encyclopedia bases
     }
     @Test func snapshotRoundTrips() throws {
         let store = AppStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("jimmy-test-\(uid()).json"))
