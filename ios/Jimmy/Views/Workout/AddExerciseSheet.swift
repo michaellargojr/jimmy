@@ -45,16 +45,23 @@ struct AddExerciseSheet: View {
 
     private struct Hit: Identifiable { var id: String { base.id }; var base: Exercise; var mine: Bool }
 
+    /// Yours first, then the library when typing; within each, best match first (see searchRank).
     private var hits: [Hit] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         let used = store.usedExerciseIds
-        func matches(_ e: Exercise) -> Bool {
-            q.isEmpty || e.name.lowercased().contains(q) || e.aliases.contains { $0.lowercased().contains(q) }
-                || (libraryBase(named: e.name)?.variations.contains { $0.nick?.lowercased().contains(q) == true } ?? false)
+        func rank(_ e: Exercise) -> Int? {
+            if let r = searchRank(e, q) { return r }
+            let nick = libraryBase(named: e.name)?.variations.contains { $0.nick?.lowercased().contains(q) == true } ?? false
+            return nick ? 2 : nil
         }
-        let all = store.exercises.filter(matches).map { Hit(base: $0, mine: used.contains($0.id)) }
-        let mine = all.filter { $0.mine }.sorted { $0.base.name < $1.base.name }
-        let rest = q.isEmpty ? [] : all.filter { !$0.mine }.sorted { $0.base.name < $1.base.name }
+        let ranked: [(hit: Hit, rank: Int)] = store.exercises.compactMap { e in
+            rank(e).map { (Hit(base: e, mine: used.contains(e.id)), $0) }
+        }
+        let order: ((hit: Hit, rank: Int), (hit: Hit, rank: Int)) -> Bool = { a, b in
+            a.rank != b.rank ? a.rank < b.rank : a.hit.base.name < b.hit.base.name
+        }
+        let mine = ranked.filter { $0.hit.mine }.sorted(by: order).map { $0.hit }
+        let rest = q.isEmpty ? [] : ranked.filter { !$0.hit.mine }.sorted(by: order).map { $0.hit }
         return mine + rest
     }
 
@@ -74,7 +81,7 @@ struct AddExerciseSheet: View {
                         Button { open(h.base) } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(h.base.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(h.mine ? p.text : p.secondary)
+                                    Text(h.base.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(h.mine ? p.accent : p.text)
                                     Text(h.mine ? variationsLine(h.base) : h.base.muscleGroup.label).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                                 }
                                 Spacer()

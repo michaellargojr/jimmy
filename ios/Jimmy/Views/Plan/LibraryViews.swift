@@ -7,17 +7,15 @@ struct ExercisesList: View {
     @Environment(\.palette) private var p
     @State private var query = ""
     @State private var muscle: MuscleGroup? = nil
-    @State private var all = false
+    @State private var all = true
 
     private struct MuscleSection: Identifiable { var id: String { muscle.rawValue }; var muscle: MuscleGroup; var list: [Exercise] }
 
+    private var trimmed: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
+
     private var grouped: [MuscleSection] {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         let used = store.usedExerciseIds
-        let pool = store.exercises.filter { e in
-            (all || !q.isEmpty || used.contains(e.id))
-            && (q.isEmpty || e.name.lowercased().contains(q) || e.aliases.contains { $0.lowercased().contains(q) })
-        }
+        let pool = store.exercises.filter { all || used.contains($0.id) }
         let groups = muscle.map { [$0] } ?? MuscleGroup.chipOrder
         return groups.compactMap { m in
             let list = pool.filter { muscle == nil ? $0.muscleGroup == m : $0.groups.contains(m) }.sorted { $0.name < $1.name }
@@ -25,13 +23,24 @@ struct ExercisesList: View {
         }
     }
 
+    /// Search results, best first: names with the word, then the muscle group or main muscle, then other names it goes by.
+    private var results: [Exercise] {
+        let q = trimmed
+        let ranked: [(Exercise, Int)] = store.exercises.compactMap { e in
+            if let m = muscle, !e.groups.contains(m) { return nil }
+            guard let r = searchRank(e, q) else { return nil }
+            return (e, r)
+        }
+        return ranked.sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.name < $1.0.name }.map { $0.0 }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SearchField(placeholder: "Search exercises", text: $query)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    Chip(text: "Mine", on: !all, small: true) { all = false }
                     Chip(text: "All", on: all, small: true) { all = true }
+                    Chip(text: "Mine", on: !all, small: true) { all = false }
                     Rectangle().fill(p.border).frame(width: 1, height: 20)
                     ForEach(MuscleGroup.chipOrder, id: \.self) { m in
                         Chip(text: m.label, on: muscle == m, small: true) { muscle = muscle == m ? nil : m }
@@ -41,18 +50,28 @@ struct ExercisesList: View {
             }
             .padding(.bottom, 6)
             List {
-                ForEach(grouped) { sec in
-                    Section {
-                        ForEach(sec.list) { e in
-                            NavigationLink(value: e) { baseRow(e) }.rowCard(p)
+                if trimmed.isEmpty {
+                    ForEach(grouped) { sec in
+                        Section {
+                            ForEach(sec.list) { e in
+                                NavigationLink(value: e) { baseRow(e) }.rowCard(p)
+                            }
+                        } header: {
+                            SectionLabel(sec.muscle.label).padding(.leading, 16)
                         }
-                    } header: {
-                        SectionLabel(sec.muscle.label).padding(.leading, 16)
                     }
-                }
-                if grouped.isEmpty {
-                    Text(query.isEmpty ? (all ? "Nothing here." : "Nothing yet. Tap New or All.") : "Nothing matches \"\(query)\".")
-                        .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    if grouped.isEmpty {
+                        Text(all ? "Nothing here." : "Nothing yet. Tap All.")
+                            .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    }
+                } else {
+                    ForEach(results) { e in
+                        NavigationLink(value: e) { baseRow(e) }.rowCard(p)
+                    }
+                    if results.isEmpty {
+                        Text("Nothing matches \"\(query)\".")
+                            .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    }
                 }
             }
             .cardList()
@@ -60,20 +79,57 @@ struct ExercisesList: View {
         .background(p.bg.ignoresSafeArea())
     }
 
+    /// Yours show in the accent colour with how many variations you have. Under the name: the main muscles.
     private func baseRow(_ e: Exercise) -> some View {
-        let vs = store.variations(of: e.id)
+        let count = store.variations(of: e.id).count
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(e.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(vs.isEmpty ? p.secondary : p.text)
-                Text(vs.isEmpty ? e.primary.joined(separator: ", ") : vs.map { store.variationText($0) }.joined(separator: ",  "))
-                    .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(2)
+                Text(e.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(count > 0 ? p.accent : p.text)
+                if !e.primary.isEmpty {
+                    Text(capitalizedFirst(e.primary.joined(separator: ", ")))
+                        .font(.system(size: 13)).foregroundStyle(p.text.opacity(0.86)).lineLimit(1)
+                }
             }
             Spacer()
-            if !vs.isEmpty { Text("\(vs.count)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted) }
+            if count > 0 { Text("\(count)").font(.system(size: 14, weight: .heavy)).foregroundStyle(p.accent) }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
     }
 }
+
+/// How well an exercise matches a search, lower is better, nil for no match.
+/// 0: the name has the words. 1: its muscle group or a main muscle matches. 2: another name it goes by matches.
+func searchRank(_ e: Exercise, _ q: String) -> Int? {
+    guard !q.isEmpty else { return 0 }
+    if e.name.lowercased().contains(q) { return 0 }
+    if q.count >= 3 {
+        if e.groups.contains(where: { g in g.searchWords.contains { $0.hasPrefix(q) || q.hasPrefix($0) } }) { return 1 }
+        if e.primary.contains(where: { $0.lowercased().contains(q) }) { return 1 }
+    }
+    if e.aliases.contains(where: { $0.lowercased().contains(q) }) { return 2 }
+    return nil
+}
+
+extension MuscleGroup {
+    /// Words someone might type to mean this group.
+    var searchWords: [String] {
+        switch self {
+        case .Chest: return ["chest", "pecs"]
+        case .Back: return ["back", "lats"]
+        case .Shoulders: return ["shoulders", "delts"]
+        case .Biceps: return ["biceps"]
+        case .Triceps: return ["triceps"]
+        case .Forearms: return ["forearms"]
+        case .Legs: return ["legs", "quads", "hamstrings"]
+        case .Glutes: return ["glutes"]
+        case .Calves: return ["calves", "calf"]
+        case .Abs: return ["abs", "core"]
+        }
+    }
+}
+
+/// "middle and lower chest, lats" becomes "Middle and lower chest, lats".
+func capitalizedFirst(_ s: String) -> String { s.prefix(1).uppercased() + s.dropFirst() }
 
 /// One base: the muscles in words, your variations, and more you could add.
 struct BasePageView: View {

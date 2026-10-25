@@ -128,3 +128,19 @@ import Testing
         #expect(store.base(named: "Cable Hammer Curl") == nil)
     }
 }
+
+@Suite struct SearchTests {
+    private func base(_ name: String) -> Exercise { LIBRARY.first { $0.name == name }!.exercise }
+
+    @Test func muscleGroupFindsTheWholeGroupWithNamesFirst() {
+        #expect(searchRank(base("Chest Fly"), "chest") == 0)
+        #expect(searchRank(base("Dip"), "chest") == 1)
+        #expect(searchRank(base("Push-Up"), "chest") == 1)
+        #expect(searchRank(base("Row"), "chest") == 2)          // only via "Chest-Supported Row"
+        #expect(searchRank(base("Curl"), "chest") == nil)
+        #expect(searchRank(base("Squat"), "quads") == 1)
+        #expect(searchRank(base("Lateral Raise"), "delt") == 1)
+        #expect(searchRank(base("Chest Press"), "bench press") == 2)
+        #expect(searchRank(base("Crunch"), "core") == 1)
+    }
+}
