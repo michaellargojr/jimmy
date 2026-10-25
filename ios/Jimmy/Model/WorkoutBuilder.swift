@@ -106,6 +106,17 @@ func cycleSetKind(_ sets: [SetEntry], at index: Int) -> [SetEntry] {
     return out
 }
 
+/// One-arm sets always carry a side. A row without one (from a workout started on an older build,
+/// or a variation switched to one arm mid-workout) becomes L, with an empty R partner after it.
+func pairSides(_ sets: [SetEntry]) -> [SetEntry] {
+    sets.flatMap { s -> [SetEntry] in
+        guard s.side == nil else { return [s] }
+        var l = s
+        l.side = .L
+        return [l, SetEntry(kind: s.kind, unit: s.unit, side: .R, bar: s.bar)]
+    }
+}
+
 /// Every set has its numbers in. Only then does the card show its verdict.
 func setsComplete(_ sets: [SetEntry], bodyweight: Bool) -> Bool {
     !sets.isEmpty && sets.allSatisfy { $0.reps != nil && ($0.weight != nil || bodyweight) }

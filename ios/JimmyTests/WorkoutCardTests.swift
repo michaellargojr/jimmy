@@ -60,6 +60,16 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(sets.count == 4)
     }
 
+    @Test func oneArmRowsWithoutASideGetPaired() {
+        let old = [S(.warmup, reps: 12), S(side: .L), S(side: .R)]
+        let sets = pairSides(old)
+        #expect(setLabels(sets) == ["WL", "WR", "1L", "1R"])
+        #expect(sets[0].id == old[0].id && sets[0].reps == 12)   // the logged row keeps its numbers as L
+        #expect(sets[1].reps == nil && sets[1].weight == nil)    // its new R partner starts empty
+        #expect(setLabels(cycleSetKind(sets, at: 0)) == ["DL", "DR", "1L", "1R"])
+        #expect(pairSides(sets) == sets)                           // already sided: unchanged
+    }
+
     @Test func outOfRangeChangesNothing() {
         let sets = [S()]
         #expect(cycleSetKind(sets, at: 5) == sets)

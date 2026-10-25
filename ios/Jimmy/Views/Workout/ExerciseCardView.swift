@@ -75,6 +75,9 @@ struct ExerciseCardView: View {
             .onChange(of: complete && verdictNow == .up) { _, isUp in
                 if isUp { upTrigger += 1 }
             }
+            .task(id: v.arms) {
+                if v.arms == .one, item.sets.contains(where: { $0.side == nil }) { update { $0.sets = pairSides($0.sets) } }
+            }
         }
     }
 
