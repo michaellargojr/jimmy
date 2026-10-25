@@ -28,7 +28,9 @@ struct SetPickerSheet: View {
     private var version: Version? { item.flatMap { store.version($0.versionId) } }
 
     var body: some View {
-        Group {
+        // A ZStack, not a Group: a Group hands its modifiers to its children, so the detents
+        // below would be lost on any pass where the set can't be found.
+        ZStack {
             if let item, let s = set, let v = version {
                 if writingNote {
                     noteEditor
