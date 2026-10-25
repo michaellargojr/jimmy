@@ -124,7 +124,7 @@ struct ExerciseCardView: View {
         .accessibilityLabel("Rep range \(v.repMin) to \(v.repMax)")
     }
 
-    /// Small play button beside the menu. Lime when the variation has form cues, grey when
+    /// Small play button beside the menu. Accent colored when the variation has form cues, grey when
     /// it has none yet (tap to add one mid-workout).
     private func formCuesButton(_ v: Version) -> some View {
         let has = store.formCueCount(v.id) > 0
