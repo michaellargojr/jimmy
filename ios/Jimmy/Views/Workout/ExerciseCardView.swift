@@ -19,6 +19,7 @@ struct ExerciseCardView: View {
     @State private var newStyle = false
     @State private var showFormCues = false
     @State private var customRange = false
+    @State private var showHistory = false
     /// The set a full swipe asked to delete, waiting on the "are you sure".
     @State private var pendingDelete: String? = nil
 
@@ -64,6 +65,10 @@ struct ExerciseCardView: View {
             }
             .sheet(isPresented: $customRange) {
                 RepRangeSheet(version: v).presentationBackground(p.card)
+            }
+            .sheet(isPresented: $showHistory) {
+                NavigationStack { ExerciseProgressView(versionId: v.id) }
+                    .presentationDetents([.large]).presentationBackground(p.bg)
             }
             .alert(deleteTitle(item), isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
                 Button("Delete", role: .destructive) { if let id = pendingDelete { deleteSet(id) }; pendingDelete = nil }
@@ -229,14 +234,19 @@ struct ExerciseCardView: View {
             } else {
                 Text("First time").font(.system(size: 15, weight: .semibold)).foregroundStyle(p.muted).padding(.horizontal, 4)
             }
-            // The other variation of the same exercise: quieter, still readable.
-            if let other {
-                let sets: [String] = other.item.sets.filter { $0.kind != .warmup && $0.reps != nil }.prefix(3).map { $0.formatted }
-                let parts: [String] = [store.variationText(other.version), relativeDays(other.workout.date).lowercased()] + (sets.isEmpty ? [] : [sets.joined(separator: ", ")])
-                Text(parts.joined(separator: " - "))
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
-                    .lineLimit(2)
+            // Everything older, and the other variations, live on the full history page.
+            if last != nil || other != nil {
+                Button { showHistory = true } label: {
+                    HStack(spacing: 6) {
+                        Text("See full history").font(.system(size: 16, weight: .bold))
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(p.accent)
+                    .frame(minHeight: 32)
                     .padding(.horizontal, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
     }

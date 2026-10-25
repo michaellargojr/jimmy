@@ -16,7 +16,7 @@ func progressPoints(versionId: String, workouts: [Workout], version: Version? = 
     for w in sortedNewestFirst(workouts).reversed() where w.isFinished {
         guard let item = w.items.first(where: { $0.versionId == versionId }), let t = topSet(item) else { continue }
         let v = version.map { verdict(item.sets, $0) } ?? Verdict.none
-        out.append(ProgressPoint(date: w.date, weight: t.weight!, reps: t.reps!, verdict: v, sets: item.sets.filter { $0.kind == .working && $0.hasData }))
+        out.append(ProgressPoint(date: w.date, weight: t.weight!, reps: t.reps!, verdict: v, sets: item.sets.filter { $0.kind != .warmup && $0.hasData }))
     }
     return out
 }
@@ -58,11 +58,13 @@ struct ProgressChart: View {
     }
 }
 
+/// A variation's full history: its progression, every session, then the other variations of
+/// the same exercise. Opened from History, Home, the library, and "See full history" on a Workout card.
 struct ExerciseProgressView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
     let versionId: String
-    @State private var range: Int = 90 // days; 0 = all
+    @State private var range: Int = 0 // days; 0 = all
 
     var body: some View {
         if let v = store.version(versionId) {
@@ -71,13 +73,12 @@ struct ExerciseProgressView: View {
             let pts = all.filter { $0.date >= cutoff }
             let unit = pts.last?.sets.first?.unit.label ?? store.settings.unit.label
             let best = all.max { a, b in a.weight != b.weight ? a.weight < b.weight : a.reps < b.reps }
-            let routineName = store.routines.first { $0.items.contains { $0.versionId == v.id } }?.name
+            let others = otherVariations(v)
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(store.baseName(v)).font(.system(size: 26, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
-                        Text(store.variationText(v)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
-                        Text([routineName, "\(v.repRange) reps"].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(p.muted)
+                        Text(store.workoutName(v)).font(.system(size: 26, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
+                        Text(store.armsText(v)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
                     }
                     HStack(spacing: 8) {
                         Chip(text: "1 month", on: range == 30, small: true) { range = 30 }
@@ -87,7 +88,7 @@ struct ExerciseProgressView: View {
                     Card {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .firstTextBaseline) {
-                                SectionLabel("Top set weight")
+                                SectionLabel("Top set")
                                 Spacer()
                                 if let last = pts.last {
                                     Text(fmtWeight(last.weight)).font(.system(size: 28, weight: .heavy)).monospacedDigit().foregroundStyle(p.text)
@@ -102,25 +103,23 @@ struct ExerciseProgressView: View {
                         stat(pts.first.map { "Since \(monthDay($0.date))" } ?? "Change", delta(pts), accent: true)
                         stat("Sessions", "\(pts.count)")
                     }
-                    SectionLabel("Last sessions").padding(.top, 6)
-                    VStack(spacing: 0) {
-                        ForEach(Array(all.reversed().prefix(8).enumerated()), id: \.element.id) { i, pt in
-                            HStack(spacing: 10) {
-                                Text(monthDay(pt.date)).font(.system(size: 14)).foregroundStyle(p.muted).frame(width: 64, alignment: .leading)
-                                Text("\(fmtWeight(pt.weight)) \(unit) · " + pt.sets.map { "\($0.reps.map(String.init) ?? "–")\($0.plus ? "+" : "")" }.joined(separator: ", "))
-                                    .font(.system(size: 16, weight: .semibold)).monospacedDigit().foregroundStyle(p.text).lineLimit(1)
-                                Spacer()
-                                switch pt.verdict {
-                                case .up: Badge(text: "up", kind: .up)
-                                case .down: Badge(text: "down", kind: .down)
-                                case .none: Badge(text: "held")
-                                }
+                    if !all.isEmpty {
+                        SectionLabel("Every session").padding(.top, 6)
+                        VStack(spacing: 0) {
+                            ForEach(Array(all.reversed().enumerated()), id: \.offset) { i, pt in
+                                if i > 0 { Divider1() }
+                                sessionRow(pt)
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 12)
-                            if i < min(all.count, 8) - 1 { Divider1() }
+                        }
+                        .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                    }
+                    if !others.isEmpty {
+                        SectionLabel("Other variations").padding(.top, 6)
+                        ForEach(others, id: \.version.id) { o in
+                            NavigationLink { ExerciseProgressView(versionId: o.version.id) } label: { otherCard(o) }
+                                .buttonStyle(.plain)
                         }
                     }
-                    .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     if store.settings.watchVersionId != v.id {
                         PillButton(title: "Watch on Home", icon: "eye", full: true) {
                             store.update { s in
@@ -136,6 +135,65 @@ struct ExerciseProgressView: View {
             .screen()
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+
+    /// One session: the date, then each working and drop set. A ✅ marks a "Time to ascend" day.
+    private func sessionRow(_ pt: ProgressPoint) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(monthDay(pt.date)).font(.system(size: 15)).foregroundStyle(p.muted).frame(width: 58, alignment: .leading)
+            FlowRow(spacing: 14, lineSpacing: 4) {
+                ForEach(pt.sets) { s in
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if let side = s.side { Text(side.rawValue).font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted) }
+                        if s.kind == .drop { Text("D").font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted) }
+                        Text(s.valueText).font(.system(size: 18, weight: .bold)).monospacedDigit().foregroundStyle(p.text)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if pt.verdict == .up { Text("✅").font(.system(size: 16)) }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    private struct Other { var version: Version; var points: [ProgressPoint] }
+
+    /// The other variations of this exercise that have finished sessions, most recent first.
+    private func otherVariations(_ v: Version) -> [Other] {
+        store.versions
+            .filter { $0.exerciseId == v.exerciseId && $0.id != v.id }
+            .map { Other(version: $0, points: progressPoints(versionId: $0.id, workouts: store.workouts, version: $0)) }
+            .filter { !$0.points.isEmpty }
+            .sorted { ($0.points.last?.date ?? "") > ($1.points.last?.date ?? "") }
+    }
+
+    private func otherCard(_ o: Other) -> some View {
+        let last = o.points.last
+        let lastText = last.map { pt in ([monthDay(pt.date)] + [pt.sets.prefix(3).map { $0.valueText }.joined(separator: ", ")]).joined(separator: " - ") } ?? ""
+        let n = o.points.count
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(store.workoutName(o.version)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).multilineTextAlignment(.leading)
+                Text("\(store.armsText(o.version)) - \(n) \(n == 1 ? "session" : "sessions")").font(.system(size: 13)).foregroundStyle(p.muted)
+                Text(lastText).font(.system(size: 16, weight: .bold)).monospacedDigit().foregroundStyle(p.secondary).padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if o.points.count > 1 {
+                Chart(o.points) { pt in
+                    LineMark(x: .value("Date", dayDate(pt.date)), y: .value("Weight", pt.weight))
+                        .foregroundStyle(p.secondary)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    PointMark(x: .value("Date", dayDate(pt.date)), y: .value("Weight", pt.weight))
+                        .symbol(.square).symbolSize(24).foregroundStyle(p.secondary)
+                }
+                .chartYScale(domain: .automatic(includesZero: false))
+                .chartXAxis(.hidden).chartYAxis(.hidden)
+                .frame(width: 90, height: 44)
+            }
+            Chevron()
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 
     private func stat(_ label: String, _ value: String, accent: Bool = false) -> some View {
