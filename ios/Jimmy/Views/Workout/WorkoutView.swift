@@ -25,7 +25,6 @@ struct WorkoutView: View {
             VStack(spacing: 0) {
                 header(w, paneCount: ps.count)
                 ScrollView(.vertical) {
-                    // Not lazy: every pane is laid out, so jumping from Overview lands exactly on a pane.
                     VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
                             paneView(w, pane: pane, index: idx, total: ps.count)
@@ -36,7 +35,9 @@ struct WorkoutView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .scrollTargetBehavior(.paging)
+                // Snap to each pane's own frame, one per swipe. Paging snapped to multiples of the
+                // screen height, which drifted from the panes, so an Overview jump landed mid-card.
+                .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
                 .scrollPosition(id: $current, anchor: .top)
                 .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
