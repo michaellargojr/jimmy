@@ -25,7 +25,8 @@ struct WorkoutView: View {
             VStack(spacing: 0) {
                 header(w, paneCount: ps.count)
                 ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
+                    // Not lazy: every pane is laid out, so jumping from Overview lands exactly on a pane.
+                    VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
                             paneView(w, pane: pane, index: idx, total: ps.count)
                                 .containerRelativeFrame(.vertical)
@@ -36,7 +37,7 @@ struct WorkoutView: View {
                     .scrollTargetLayout()
                 }
                 .scrollTargetBehavior(.paging)
-                .scrollPosition(id: $current)
+                .scrollPosition(id: $current, anchor: .top)
                 .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
             }

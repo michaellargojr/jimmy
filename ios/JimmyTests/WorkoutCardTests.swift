@@ -39,15 +39,15 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(setLabels(sets) == ["1", "2"])
     }
 
-    @Test func oneArmPairSwapsSidesThenWarmupThenDrop() {
+    @Test func oneArmPairSwapsSidesThenWarmupThenDropLeftFirst() {
         var sets = [S(side: .L), S(side: .R), S(side: .L), S(side: .R)]
         let ids = sets.map(\.id)
         sets = cycleSetKind(sets, at: 0)
         #expect(setLabels(sets) == ["1R", "1L", "2L", "2R"])
         sets = cycleSetKind(sets, at: 1)            // either row of the pair moves both
-        #expect(setLabels(sets) == ["WR", "WL", "1L", "1R"])
+        #expect(setLabels(sets) == ["WL", "WR", "1L", "1R"])
         sets = cycleSetKind(sets, at: 0)
-        #expect(setLabels(sets) == ["DR", "DL", "1L", "1R"])
+        #expect(setLabels(sets) == ["DL", "DR", "1L", "1R"])
         sets = cycleSetKind(sets, at: 0)
         #expect(setLabels(sets) == ["1L", "1R", "2L", "2R"])
         #expect(sets.map(\.id) == ids)               // same rows, nothing added or lost
@@ -56,7 +56,7 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
     @Test func loneOneArmRowGetsItsPartnerAsAWarmup() {
         var sets = [S(side: .L), S(side: .R), S(side: .R)]
         sets = cycleSetKind(sets, at: 2)
-        #expect(setLabels(sets) == ["1L", "1R", "WR", "WL"])
+        #expect(setLabels(sets) == ["1L", "1R", "WL", "WR"])
         #expect(sets.count == 4)
     }
 

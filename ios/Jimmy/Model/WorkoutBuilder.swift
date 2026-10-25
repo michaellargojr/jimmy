@@ -77,7 +77,8 @@ func setGroup(_ sets: [SetEntry], at index: Int) -> [Int] {
 }
 
 /// Tapping a set label. Two arms: 1 > W > D > 1. One arm, the L/R pair moves together:
-/// 1L 1R > 1R 1L (you started with the other arm) > WR WL > DR DL > 1L 1R.
+/// 1L 1R > 1R 1L (you started with the other arm) > WL WR > DL DR > 1L 1R. Only the first tap
+/// swaps sides; warm-up and drop pairs always read left then right, like the warm-ups up top.
 /// A lone one-arm row that becomes a warm-up gets its other side added, so warm-ups come in pairs.
 func cycleSetKind(_ sets: [SetEntry], at index: Int) -> [SetEntry] {
     let group = setGroup(sets, at: index)
@@ -93,9 +94,9 @@ func cycleSetKind(_ sets: [SetEntry], at index: Int) -> [SetEntry] {
     case .working where head.side == .L:
         for i in group { out[i].side = out[i].side.map(flip) }
     case .working:
-        for i in group { out[i].kind = .warmup }
-        if group.count == 1, let sd = head.side {
-            out.insert(SetEntry(kind: .warmup, unit: head.unit, side: flip(sd), bar: head.bar), at: first + 1)
+        for (k, i) in group.enumerated() { out[i].kind = .warmup; out[i].side = k == 0 ? .L : .R }
+        if group.count == 1 {
+            out.insert(SetEntry(kind: .warmup, unit: head.unit, side: .R, bar: head.bar), at: first + 1)
         }
     case .warmup:
         for i in group { out[i].kind = .drop }

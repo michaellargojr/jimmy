@@ -71,6 +71,7 @@ struct SettingsView: View {
                                         Chip(text: r.title, on: store.settings.rating == r, small: true) { store.update { $0.rating = r } }
                                     }
                                 }
+                                .fixedSize()
                             }
                             Divider1()
                             SettingsRow(title: "Units") {
