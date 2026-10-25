@@ -34,6 +34,7 @@ struct ExerciseCardView: View {
                 if !compact { illustration(v, styleId: item.styleId) }
                 titleRow(v, verdictNow: verdictNow, item: item)
                 lastLine(last: last, other: other)
+                formCuesLine(v)
                 setGrid(w: w, item: item, v: v, last: last)
                 if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 13)).foregroundStyle(p.secondary).padding(.horizontal, 2) }
                 statusRow(verdictNow, item: item)
@@ -101,7 +102,6 @@ struct ExerciseCardView: View {
             }
             Spacer()
             Chip(text: v.repRange, small: true)
-            formCuesButton(v)
             Menu {
                 cardMenu(v)
             } label: {
@@ -111,18 +111,21 @@ struct ExerciseCardView: View {
         }
     }
 
-    /// Small play button beside the menu. Accent colored when the variation has form cues, grey when
-    /// it has none yet (tap to add one mid-workout).
-    private func formCuesButton(_ v: Version) -> some View {
-        let has = store.formCueCount(v.id) > 0
+    /// One small line under last time. Accent colored with a count when the variation has
+    /// form cues, grey when it has none yet (tap to add one mid-workout).
+    private func formCuesLine(_ v: Version) -> some View {
+        let n = store.formCueCount(v.id)
         return Button { showFormCues = true } label: {
-            Image(systemName: "play.fill").font(.system(size: 14, weight: .bold))
-                .foregroundStyle(has ? p.accent : p.muted)
-                .frame(width: 36, height: 36)
-                .background(has ? p.accentSoft : p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+            HStack(spacing: 5) {
+                Image(systemName: "play.fill").font(.system(size: 10, weight: .bold))
+                Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(n > 0 ? p.accent : p.muted)
+            .frame(minHeight: 28)
+            .padding(.horizontal, 2)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Form cues")
     }
 
     /// The style this item is in. Tap to switch to another style of the variation or make one.
