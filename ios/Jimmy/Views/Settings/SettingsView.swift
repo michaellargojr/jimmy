@@ -65,6 +65,14 @@ struct SettingsView: View {
                                 }
                             }
                             Divider1()
+                            SettingsRow(title: "Set rating", subtitle: capitalized(store.settings.rating.words.map { $0.lowercased() }.joined(separator: ", "))) {
+                                HStack(spacing: 6) {
+                                    ForEach(SetRating.allCases, id: \.self) { r in
+                                        Chip(text: r.title, on: store.settings.rating == r, small: true) { store.update { $0.rating = r } }
+                                    }
+                                }
+                            }
+                            Divider1()
                             SettingsRow(title: "Units") {
                                 HStack(spacing: 6) {
                                     Chip(text: "kg", on: store.settings.unit == .kg, small: true) { store.update { $0.unit = .kg } }

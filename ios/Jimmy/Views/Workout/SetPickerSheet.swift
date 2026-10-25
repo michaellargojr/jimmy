@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The set entry sheet: three big tabs (Weight, Reps, Intensity), one big control under them,
+/// The set entry sheet: three big tabs (Weight, Reps, and Activation or Intensity), one big control under them,
 /// a big Add note button, then Next set and Done. Every change saves as it is made.
 struct SetPickerSheet: View {
     @Environment(AppStore.self) private var store
@@ -33,13 +33,13 @@ struct SetPickerSheet: View {
                 } else {
                     let idx = item.sets.firstIndex { $0.id == setId } ?? 0
                     VStack(spacing: 14) {
-                        tabs(s)
+                        tabs
                         Group {
                             if loadedFor == setId {
                                 switch field {
                                 case .weight: weightPane(s, v)
                                 case .reps: repsPane(s)
-                                case .intensity: intensityPane(s)
+                                case .rating: ratingPane(s)
                                 }
                             }
                         }
@@ -66,28 +66,24 @@ struct SetPickerSheet: View {
 
     // MARK: Tabs
 
-    private func tabs(_ s: SetEntry) -> some View {
-        let repsText = s.reps.map { "\($0)\(s.plus ? "+" : "")" + ((s.partials ?? 0) > 0 ? " · \(s.partials!)p" : "") }
-        return HStack(spacing: 8) {
-            tab(.weight, "Weight", s.weight.map { "\(fmtWeight($0)) \(s.unit.label)" } ?? "–")
-            tab(.reps, "Reps", repsText ?? "–")
-            tab(.intensity, "Intensity", s.intensity.map(String.init) ?? "–")
+    private var tabs: some View {
+        HStack(spacing: 8) {
+            tab(.weight, "Weight")
+            tab(.reps, "Reps")
+            tab(.rating, store.settings.rating.title)
         }
     }
 
-    private func tab(_ f: ExerciseCardView.SetField, _ title: String, _ value: String) -> some View {
+    private func tab(_ f: ExerciseCardView.SetField, _ title: String) -> some View {
         let on = field == f
         return Button { select(f) } label: {
-            VStack(spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .bold)).foregroundStyle(on ? p.onAccent : p.secondary)
-                Text(value).font(.system(size: 20, weight: .heavy)).monospacedDigit()
-                    .foregroundStyle(on ? p.onAccent : p.text)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-            }
-            .padding(.horizontal, 4)
-            .frame(maxWidth: .infinity).frame(height: 68)
-            .background(on ? p.accent : p.elevated, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-            .contentShape(Rectangle())
+            Text(title).font(.system(size: 18, weight: .heavy))
+                .foregroundStyle(on ? p.onAccent : p.text)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .padding(.horizontal, 4)
+                .frame(maxWidth: .infinity).frame(height: 60)
+                .background(on ? p.accent : p.elevated, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -140,24 +136,33 @@ struct SetPickerSheet: View {
         .accessibilityAddTraits(s.plus ? .isSelected : [])
     }
 
-    private func intensityPane(_ s: SetEntry) -> some View {
-        HStack(spacing: 8) {
+    /// Activation (or Intensity, per Settings): three big buttons, the number with its word.
+    /// Tapping the lit one clears it.
+    private func ratingPane(_ s: SetEntry) -> some View {
+        let r = store.settings.rating
+        let current = s.rating(r)
+        return HStack(spacing: 8) {
             ForEach(1...3, id: \.self) { n in
-                let on = s.intensity == n
-                Button { patch { $0.intensity = on ? nil : n } } label: {
-                    Text("\(n)").font(.system(size: 56, weight: .heavy)).monospacedDigit()
-                        .foregroundStyle(on ? p.onAccent : p.text)
-                        .frame(maxWidth: .infinity).frame(height: 168)
-                        .background(on ? p.accent : p.elevated, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .contentShape(Rectangle())
+                let on = current == n
+                Button { patch { $0.setRating(r, on ? nil : n) } } label: {
+                    VStack(spacing: 8) {
+                        Text("\(n)").font(.system(size: 52, weight: .heavy)).monospacedDigit()
+                        Text(r.words[n - 1]).font(.system(size: 16, weight: .bold))
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(on ? p.onAccent : p.text)
+                    .padding(.horizontal, 6)
+                    .frame(maxWidth: .infinity).frame(height: 168)
+                    .background(on ? p.accent : p.elevated, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Intensity \(n)")
+                .accessibilityLabel("\(r.title) \(n), \(r.words[n - 1])")
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
         .frame(maxHeight: .infinity)
-        .sensoryFeedback(.selection, trigger: s.intensity)
+        .sensoryFeedback(.selection, trigger: current)
     }
 
     // MARK: Note

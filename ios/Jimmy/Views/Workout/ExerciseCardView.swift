@@ -23,7 +23,7 @@ struct ExerciseCardView: View {
     @State private var pendingDelete: String? = nil
 
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
-    enum SetField: String { case weight, reps, intensity }
+    enum SetField: String { case weight, reps, rating }
 
     static let repRanges: [(Int, Int)] = [(3, 5), (5, 8), (6, 10), (8, 12), (10, 15), (12, 15), (15, 20)]
 
@@ -40,7 +40,7 @@ struct ExerciseCardView: View {
             VStack(alignment: .leading, spacing: 14) {
                 titleBlock(v, item: item)
                 lastTime(last: last, other: other)
-                setGrid(item: item, v: v, last: last, up: complete && verdictNow == .up)
+                setGrid(item: item, v: v, last: last, done: complete)
                 if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 14)).foregroundStyle(p.secondary).padding(.horizontal, 4) }
                 if complete { statusBox(verdictNow) }
             }
@@ -196,19 +196,11 @@ struct ExerciseCardView: View {
                 }, uniquingKeysWith: { a, _ in a })
                 // When the last time was a different style, say which, so the ghosts make sense.
                 let styleNote = last.sameStyle ? nil : (store.style(last.item.styleId)?.label ?? "no style")
+                let when = ([relativeDays(last.workout.date).lowercased(), styleNote] as [String?]).compactMap { $0 }.joined(separator: " · ")
                 VStack(alignment: .leading, spacing: 8) {
-                    Text((["Last time", relativeDays(last.workout.date).lowercased(), styleNote] as [String?]).compactMap { $0 }.joined(separator: " · "))
-                        .font(.system(size: 14, weight: .bold)).foregroundStyle(p.secondary)
-                    FlowRow(spacing: 18, lineSpacing: 6) {
-                        ForEach(sets) { s in
-                            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                                if let tag = tags[s.id], !tag.isEmpty {
-                                    Text(tag).font(.system(size: 14, weight: .bold)).foregroundStyle(p.muted)
-                                }
-                                Text(s.valueText).font(.system(size: 22, weight: .heavy)).monospacedDigit().foregroundStyle(p.text)
-                            }
-                        }
-                    }
+                    (Text("Last time").foregroundStyle(p.accent) + Text(" · " + when).foregroundStyle(p.secondary))
+                        .font(.system(size: 15, weight: .bold))
+                    lastSets(sets, tags: tags)
                     let setNotes: [String] = last.item.sets.compactMap { s in
                         guard let n = s.note, !n.isEmpty else { return nil }
                         let tag = tags[s.id] ?? ""
@@ -222,6 +214,8 @@ struct ExerciseCardView: View {
                 .padding(.horizontal, 16).padding(.vertical, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(p.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                // Outlined like a finished set grid: an outline means done.
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(p.accent, lineWidth: 2))
             } else {
                 Text("First time").font(.system(size: 15, weight: .semibold)).foregroundStyle(p.muted).padding(.horizontal, 4)
             }
@@ -237,28 +231,68 @@ struct ExerciseCardView: View {
         }
     }
 
+    /// Last time's sets, big. One arm reads as two rows, left arm on top: WL 1L 2L over WR 1R 2R.
+    @ViewBuilder
+    private func lastSets(_ sets: [SetEntry], tags: [String: String]) -> some View {
+        if sets.contains(where: { $0.side != nil }) {
+            let rows = [sets.filter { $0.side != .R }, sets.filter { $0.side == .R }]
+            ViewThatFits(in: .horizontal) {
+                sideGrid(rows, tags: tags, size: 22)
+                sideGrid(rows, tags: tags, size: 18)
+                sideGrid(rows, tags: tags, size: 15)
+            }
+        } else {
+            FlowRow(spacing: 18, lineSpacing: 6) {
+                ForEach(sets) { s in lastValue(s, tag: tags[s.id], size: 22) }
+            }
+        }
+    }
+
+    private func sideGrid(_ rows: [[SetEntry]], tags: [String: String], size: CGFloat) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: size * 0.75, verticalSpacing: 6) {
+            ForEach(rows.indices, id: \.self) { r in
+                GridRow {
+                    ForEach(rows[r]) { s in lastValue(s, tag: tags[s.id], size: size) }
+                }
+            }
+        }
+        .fixedSize()
+    }
+
+    private func lastValue(_ s: SetEntry, tag: String?, size: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            if let tag, !tag.isEmpty {
+                Text(tag).font(.system(size: (size * 0.64).rounded(), weight: .bold)).foregroundStyle(p.muted)
+            }
+            Text(s.valueText).font(.system(size: size, weight: .heavy)).monospacedDigit().foregroundStyle(p.text)
+        }
+    }
+
     // MARK: Sets
 
-    private func setGrid(item: WorkoutItem, v: Version, last: LastSession?, up: Bool) -> some View {
+    private func setGrid(item: WorkoutItem, v: Version, last: LastSession?, done: Bool) -> some View {
         let labels = setLabels(item.sets)
         let firstOpen = item.sets.firstIndex { $0.reps == nil }
         let bodyweight = v.family == .body
+        let rating = store.settings.rating
         return VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Text("Set").frame(width: 48)
+            HStack(spacing: 6) {
+                Text("Set").frame(width: 44)
                 Text("Weight").frame(maxWidth: .infinity)
                 Text("Reps").frame(maxWidth: .infinity)
-                Text("").frame(width: 52)
+                Text(rating.title).fixedSize().frame(width: 48)
+                Text("").frame(width: 48)
             }
             .font(.system(size: 13)).foregroundStyle(p.muted)
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
             ForEach(Array(item.sets.enumerated()), id: \.element.id) { i, s in
                 let lastMatch = last.map { matchLast(now: s, nowAll: item.sets, lastAll: $0.item.sets) } ?? nil
                 SetRowView(entry: s, label: labels[i], ghost: lastMatch, isCurrent: i == firstOpen,
-                           improved: improved(now: s, last: lastMatch), bodyweight: bodyweight,
+                           improved: improved(now: s, last: lastMatch), bodyweight: bodyweight, rating: rating,
                            pendingDelete: pendingDelete == s.id,
                            onWeight: { editing = SetEdit(setId: s.id, field: .weight) },
                            onReps: { editing = SetEdit(setId: s.id, field: .reps) },
+                           onRating: { editing = SetEdit(setId: s.id, field: .rating) },
                            onCheck: { check(s, ghost: lastMatch, prev: i > 0 ? item.sets[i - 1] : nil, v: v) },
                            onLabel: { update { $0.sets = cycleSetKind($0.sets, at: i) } },
                            onDelete: { pendingDelete = s.id })
@@ -273,29 +307,32 @@ struct ExerciseCardView: View {
         }
         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(up ? p.accent : .clear, lineWidth: 2))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(done ? p.accent : .clear, lineWidth: 2))
     }
 
-    /// Shown once every set is in. Going up gets the filled box.
+    /// Shown once every set is in. Going up gets the filled box; the other two are grey with the
+    /// completion outline. Emoji, not arrows, so nothing reads as a way to scroll.
     @ViewBuilder
     private func statusBox(_ verdictNow: Verdict) -> some View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         switch verdictNow {
         case .up:
-            Label("Time to ascend", systemImage: "arrow.up")
+            Text("✅  Time to ascend")
                 .font(.system(size: 18, weight: .heavy)).foregroundStyle(p.onAccent)
                 .frame(maxWidth: .infinity).frame(height: 54)
                 .background(p.accent, in: shape)
         case .down:
-            Label("Lower the weight next time", systemImage: "arrow.down")
-                .font(.system(size: 17, weight: .bold)).foregroundStyle(p.danger)
-                .frame(maxWidth: .infinity).frame(height: 54)
-                .overlay(shape.stroke(p.danger, lineWidth: 2))
-        case .none:
-            Text("Keep working")
+            Text("🙏  Lower the weight next time")
                 .font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
                 .frame(maxWidth: .infinity).frame(height: 54)
                 .background(p.elevated, in: shape)
+                .overlay(shape.stroke(p.accent, lineWidth: 2))
+        case .none:
+            Text("💪  Keep working")
+                .font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                .frame(maxWidth: .infinity).frame(height: 54)
+                .background(p.elevated, in: shape)
+                .overlay(shape.stroke(p.accent, lineWidth: 2))
         }
     }
 
@@ -387,10 +424,13 @@ struct SetRowView: View {
     let isCurrent: Bool
     let improved: Bool
     var bodyweight: Bool = false
+    /// Activation or Intensity, whichever Settings picked; it gets its own column.
+    var rating: SetRating = .activation
     /// True while the "Delete set?" question is up for this row, so it stays swiped open.
     var pendingDelete: Bool = false
     let onWeight: () -> Void
     let onReps: () -> Void
+    var onRating: () -> Void = {}
     let onCheck: () -> Void
     let onLabel: () -> Void
     var onDelete: () -> Void = {}
@@ -404,12 +444,12 @@ struct SetRowView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button(action: onLabel) {
                     Text(label)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(isCurrent ? p.accent : entry.kind == .working ? p.secondary : p.muted)
-                        .frame(width: 48, height: 50)
+                        .frame(width: 44, height: 50)
                         .background(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(isCurrent ? p.accent : p.border, lineWidth: 2))
                         .contentShape(Rectangle())
                 }
@@ -419,7 +459,10 @@ struct SetRowView: View {
 
                 field(value: entry.weight.map { fmtWeight($0) }, ghost: ghost?.weight.map { fmtWeight($0) }, suffix: entry.unit.label, action: onWeight)
                 field(value: entry.reps.map { "\($0)\(entry.plus ? "+" : "")" }, ghost: ghost?.reps.map { "\($0)\(ghost!.plus ? "+" : "")" },
-                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, bars: entry.intensity, action: onReps)
+                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, action: onReps)
+                field(value: entry.rating(rating).map { "\($0)" }, ghost: ghost?.rating(rating).map { "\($0)" }, suffix: nil, action: onRating)
+                    .frame(width: 48)
+                    .accessibilityLabel("\(rating.title) for set \(label)")
 
                 Button(action: onCheck) {
                     ZStack {
@@ -427,7 +470,7 @@ struct SetRowView: View {
                         RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(done ? .clear : p.border, lineWidth: 2)
                         if done { Image(systemName: "checkmark").font(.system(size: 18, weight: .heavy)).foregroundStyle(p.onAccent) }
                     }
-                    .frame(width: 52, height: 50)
+                    .frame(width: 48, height: 50)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(done ? "Set \(label) done" : "Mark set \(label) done")
@@ -438,7 +481,7 @@ struct SetRowView: View {
                 if let n = entry.note, !n.isEmpty { Text(n).font(.system(size: 11)).foregroundStyle(p.muted).lineLimit(1) }
                 Spacer()
             }
-            .padding(.leading, 56)
+            .padding(.leading, 50)
             .frame(minHeight: (entry.bar != nil || improved || entry.note?.isEmpty == false) ? 14 : 0)
         }
         .padding(.horizontal, 14).padding(.vertical, 5)
@@ -485,44 +528,25 @@ struct SetRowView: View {
             }
     }
 
-    private func field(value: String?, ghost: String?, suffix: String?, bars: Int? = nil, action: @escaping () -> Void) -> some View {
+    private func field(value: String?, ghost: String?, suffix: String?, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    if let value {
-                        Text(value).font(.system(size: 24, weight: .bold)).monospacedDigit().foregroundStyle(p.text)
-                        if let suffix { Text(suffix).font(.system(size: 12, weight: .semibold)).foregroundStyle(p.muted) }
-                    } else if let ghost {
-                        Text(ghost).font(.system(size: 20, weight: .semibold)).monospacedDigit().foregroundStyle(p.muted)
-                    } else {
-                        Text("–").font(.system(size: 20, weight: .semibold)).foregroundStyle(p.border)
-                    }
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                if let value {
+                    Text(value).font(.system(size: 24, weight: .bold)).monospacedDigit().foregroundStyle(p.text)
+                    if let suffix { Text(suffix).font(.system(size: 12, weight: .semibold)).foregroundStyle(p.muted) }
+                } else if let ghost {
+                    Text(ghost).font(.system(size: 20, weight: .semibold)).monospacedDigit().foregroundStyle(p.muted)
+                } else {
+                    Text("–").font(.system(size: 20, weight: .semibold)).foregroundStyle(p.border)
                 }
-                if let bars, value != nil { IntensityBars(level: bars) }
             }
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity).frame(height: 50)
             .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Intensity 1 to 3 as three rising bars, lit up to the level.
-struct IntensityBars: View {
-    @Environment(\.palette) private var p
-    let level: Int
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(1...3, id: \.self) { n in
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(n <= level ? p.accent : p.border)
-                    .frame(width: 4, height: CGFloat(6 + n * 4))
-            }
-        }
-        .frame(height: 18, alignment: .bottom)
-        .accessibilityElement()
-        .accessibilityLabel("Intensity \(level)")
     }
 }
 

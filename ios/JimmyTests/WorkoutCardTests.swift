@@ -3,7 +3,7 @@ import Testing
 @testable import Jimmy
 
 // The Workout card: set labels and the label tap cycle, when the verdict shows, full names,
-// and the per-set intensity.
+// and the per-set rating (Activation or Intensity).
 
 private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 20, reps: Int? = nil) -> SetEntry {
     SetEntry(kind: kind, unit: .kg, weight: weight, reps: reps, side: side)
@@ -120,16 +120,33 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
     }
 }
 
-@Suite struct IntensityTests {
+@Suite struct RatingTests {
     @Test func decodesWhenPresentAndOldSetsStillLoad() throws {
-        let new = #"{"id":"a","kind":"drop","unit":"kg","weight":20,"reps":8,"intensity":3}"#
+        let new = #"{"id":"a","kind":"drop","unit":"kg","weight":20,"reps":8,"activation":2,"intensity":3}"#
         let old = #"{"id":"b","kind":"working","unit":"kg","weight":20,"reps":8}"#
         let a = try JSONDecoder().decode(SetEntry.self, from: Data(new.utf8))
         let b = try JSONDecoder().decode(SetEntry.self, from: Data(old.utf8))
-        #expect(a.intensity == 3 && a.kind == .drop)
-        #expect(b.intensity == nil && b.kind == .working)
+        #expect(a.activation == 2 && a.intensity == 3 && a.kind == .drop)
+        #expect(b.activation == nil && b.intensity == nil && b.kind == .working)
         let round = try JSONDecoder().decode(SetEntry.self, from: JSONEncoder().encode(a))
         #expect(round == a)
+    }
+
+    @Test func eachRatingKeepsItsOwnValue() {
+        var s = SetEntry(kind: .working, unit: .kg)
+        s.setRating(.activation, 3)
+        s.setRating(.intensity, 1)
+        #expect(s.rating(.activation) == 3 && s.rating(.intensity) == 1)
+        s.setRating(.activation, nil)
+        #expect(s.activation == nil && s.intensity == 1)
+    }
+
+    @Test func activationIsTheDefaultRating() throws {
+        #expect(Settings().rating == .activation)
+        let old = try JSONDecoder().decode(Settings.self, from: Data(#"{"unit":"kg"}"#.utf8))
+        #expect(old.rating == .activation)
+        #expect(SetRating.activation.words == ["Barely felt", "Felt", "Really felt"])
+        #expect(SetRating.intensity.words == ["Easy", "Effort", "Max"])
     }
 
     @Test func valueTextLeavesOutSideAndBar() {

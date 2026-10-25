@@ -381,15 +381,18 @@ struct SetEntry: Codable, Identifiable, Hashable {
     var reps: Int?
     var plus: Bool
     var partials: Int?
-    var intensity: Int? // 1 to 3, per set
+    /// The 1 to 3 rating, per set. Only the one picked in Settings is logged (see SetRating).
+    var activation: Int?
+    var intensity: Int?
     var side: Side?
     var bar: Bar?
     var note: String?
 
     init(id: String = uid(), kind: SetKind, unit: WeightUnit, weight: Double? = nil, reps: Int? = nil,
-         plus: Bool = false, partials: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil) {
+         plus: Bool = false, partials: Int? = nil, activation: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil) {
         self.id = id; self.kind = kind; self.unit = unit; self.weight = weight; self.reps = reps
-        self.plus = plus; self.partials = partials; self.intensity = intensity; self.side = side; self.bar = bar; self.note = note
+        self.plus = plus; self.partials = partials; self.activation = activation; self.intensity = intensity
+        self.side = side; self.bar = bar; self.note = note
     }
 
     init(from decoder: Decoder) throws {
@@ -401,6 +404,7 @@ struct SetEntry: Codable, Identifiable, Hashable {
         reps = try c.decodeIfPresent(Int.self, forKey: .reps)
         plus = try c.decodeIfPresent(Bool.self, forKey: .plus) ?? false
         partials = try c.decodeIfPresent(Int.self, forKey: .partials)
+        activation = try c.decodeIfPresent(Int.self, forKey: .activation)
         intensity = try c.decodeIfPresent(Int.self, forKey: .intensity)
         side = try c.decodeIfPresent(Side.self, forKey: .side)
         bar = try c.decodeIfPresent(Bar.self, forKey: .bar)
@@ -408,6 +412,11 @@ struct SetEntry: Codable, Identifiable, Hashable {
     }
 
     var hasData: Bool { reps != nil || weight != nil }
+
+    func rating(_ r: SetRating) -> Int? { r == .activation ? activation : intensity }
+    mutating func setRating(_ r: SetRating, _ value: Int?) {
+        if r == .activation { activation = value } else { intensity = value }
+    }
     /// A logged working or drop set. Warm-ups never count as done work.
     var isDone: Bool { kind != .warmup && reps != nil }
 
