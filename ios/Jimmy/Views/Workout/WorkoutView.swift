@@ -111,7 +111,7 @@ struct WorkoutView: View {
     private func footer(index: Int, total: Int, panesOf w: Workout) -> some View {
         HStack {
             if index + 1 < total, let next = panes(w.items)[index + 1].first, let v = store.version(next.versionId) {
-                Text("Swipe up for \(store.baseName(v))").font(.system(size: 13)).foregroundStyle(p.muted)
+                Text("Swipe up for \(store.workoutName(v))").font(.system(size: 13)).foregroundStyle(p.muted)
             } else {
                 Text("Last one. Tap Done when you finish.").font(.system(size: 13)).foregroundStyle(p.muted)
             }
@@ -146,7 +146,7 @@ struct WorkoutView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(p.elevated)
-            .onChange(of: left) { _, v in if v == 0 { Feedback.ding(sound: store.settings.sound) } }
+            .sensoryFeedback(.success, trigger: left == 0) { _, done in done }
         }
     }
 
@@ -245,11 +245,11 @@ struct OverviewSheet: View {
                 RectCheck(on: item.isDone, size: 26)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(v.map { store.baseName($0) } ?? "?").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                 HStack(spacing: 6) {
                     if let g { Text(g.type.label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
                     if let v { Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.secondary).lineLimit(1) }
-                    Text(item.sets.filter { $0.isDone }.map { $0.formatted }.joined(separator: " · "))
+                    Text(item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " · "))
                         .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                 }
             }

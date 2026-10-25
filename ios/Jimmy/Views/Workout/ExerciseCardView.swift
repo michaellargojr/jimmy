@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One exercise inside the live workout: illustration slot, name, last time, the set grid.
+/// One exercise inside the live workout: full name, arms and rep range, style, last time, the set grid.
 struct ExerciseCardView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -18,9 +18,14 @@ struct ExerciseCardView: View {
     @State private var editVersion = false
     @State private var newStyle = false
     @State private var showFormCues = false
+    @State private var customRange = false
+    /// The set a full swipe asked to delete, waiting on the "are you sure".
+    @State private var pendingDelete: String? = nil
 
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
-    enum SetField: String { case weight, reps }
+    enum SetField: String { case weight, reps, intensity }
+
+    static let repRanges: [(Int, Int)] = [(3, 5), (5, 8), (6, 10), (8, 12), (10, 15), (12, 15), (15, 20)]
 
     private var workout: Workout? { store.workout(workoutId) }
     private var item: WorkoutItem? { workout?.items.first { $0.id == itemId } }
@@ -29,19 +34,19 @@ struct ExerciseCardView: View {
         if let w = workout, let item, let v = store.version(item.versionId) {
             let last = lastSession(versionId: v.id, styleId: item.styleId, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
             let other = otherVersionLast(version: v, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
-            let verdictNow = verdict(item.sets, v)
-            VStack(alignment: .leading, spacing: 12) {
-                if !compact { illustration(v, styleId: item.styleId) }
-                titleRow(v, verdictNow: verdictNow, item: item)
-                lastLine(last: last, other: other)
-                setGrid(w: w, item: item, v: v, last: last)
-                if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 13)).foregroundStyle(p.secondary).padding(.horizontal, 2) }
-                statusRow(verdictNow, item: item)
+            // The verdict waits until every set has its numbers, so a blank added set hides it.
+            let complete = setsComplete(item.sets, bodyweight: v.family == .body)
+            let verdictNow = complete ? verdict(item.sets, v) : Verdict.none
+            VStack(alignment: .leading, spacing: 14) {
+                titleBlock(v, item: item)
+                lastTime(last: last, other: other)
+                setGrid(item: item, v: v, last: last, up: complete && verdictNow == .up)
+                if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 14)).foregroundStyle(p.secondary).padding(.horizontal, 4) }
+                if complete { statusBox(verdictNow) }
             }
             .opacity(item.skipped == true ? 0.45 : 1)
             .sheet(item: $editing) { e in
-                SetPickerSheet(workoutId: workoutId, itemId: itemId, setId: e.setId, field: e.field) { next in editing = next }
-                    .presentationDetents([.medium, .large])
+                SetPickerSheet(workoutId: workoutId, itemId: itemId, setId: e.setId, field: e.field)
                     .presentationBackground(p.card)
             }
             .sheet(isPresented: $showNote) { noteSheet(item) }
@@ -56,59 +61,67 @@ struct ExerciseCardView: View {
                 StyleEditorSheet(version: v, style: nil) { s in update { $0.styleId = s.id } }
                     .presentationDetents([.large]).presentationBackground(p.card)
             }
+            .sheet(isPresented: $customRange) {
+                RepRangeSheet(version: v).presentationBackground(p.card)
+            }
+            .alert(deleteTitle(item), isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
+                Button("Delete", role: .destructive) { if let id = pendingDelete { deleteSet(id) }; pendingDelete = nil }
+                Button("Cancel", role: .cancel) { pendingDelete = nil }
+            }
             .sensoryFeedback(.success, trigger: upTrigger)
             .sensoryFeedback(.impact(weight: .medium), trigger: logTrigger)
             .preference(key: SetLoggedKey.self, value: lastLogged)
-            .onChange(of: verdictNow == .up) { _, isUp in
-                if isUp { upTrigger += 1; Feedback.ding(sound: store.settings.sound) }
+            .onChange(of: complete && verdictNow == .up) { _, isUp in
+                if isUp { upTrigger += 1 }
             }
         }
     }
 
-    // MARK: Pieces
+    // MARK: Title
 
-    private func illustration(_ v: Version, styleId: String?) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(p.card)
-            Image(systemName: symbol(for: v))
-                .font(.system(size: 64, weight: .light))
-                .foregroundStyle(p.border)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Text([store.muscle(of: v)?.label, store.subtitle(v, styleId: styleId)].compactMap { $0 }.joined(separator: " · "))
-                .font(.system(size: 12)).foregroundStyle(p.secondary).padding(14).lineLimit(1)
+    /// "Dumbbell Shoulder Press", then "Two arms" with the rep range, then the style.
+    private func titleBlock(_ v: Version, item: WorkoutItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(store.workoutName(v))
+                .font(.system(size: compact ? 23 : 28, weight: .heavy)).tracking(-0.5)
+                .foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
+                .contextMenu { cardMenu(v) }
+            HStack(spacing: 6) {
+                Text(store.armsText(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.secondary).lineLimit(1)
+                Spacer(minLength: 4)
+                repRangeMenu(v)
+                formCuesButton(v)
+                Menu { cardMenu(v) } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(p.secondary)
+                        .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                }
+                .menuOrder(.fixed)
+                .accessibilityLabel("More")
+            }
+            styleMenu(v, item: item)
         }
-        .frame(height: 150)
-        .contextMenu { cardMenu(v) }
     }
 
-    private func symbol(for v: Version) -> String {
-        switch store.muscle(of: v) {
-        case .Abs: return "figure.core.training"
-        case .Legs, .Glutes, .Calves: return "figure.strengthtraining.functional"
-        case .Back: return "figure.rowing"
-        default: return "figure.strengthtraining.traditional"
-        }
-    }
-
-    private func titleRow(_ v: Version, verdictNow: Verdict, item: WorkoutItem) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(store.baseName(v)).font(.system(size: compact ? 22 : 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
-                HStack(spacing: 6) {
-                    Text(store.variationText(v)).font(.system(size: 13, weight: .semibold)).foregroundStyle(p.secondary).lineLimit(1)
-                    styleMenu(v, item: item)
+    /// The rep range in lime. Picking another one changes the variation for good.
+    private func repRangeMenu(_ v: Version) -> some View {
+        Menu {
+            ForEach(Self.repRanges.indices, id: \.self) { i in
+                let r = Self.repRanges[i]
+                Button { setRange(v.id, r.0, r.1) } label: {
+                    if v.repMin == r.0 && v.repMax == r.1 { Label("\(r.0)-\(r.1)", systemImage: "checkmark") } else { Text("\(r.0)-\(r.1)") }
                 }
             }
-            Spacer()
-            Chip(text: v.repRange, small: true)
-            formCuesButton(v)
-            Menu {
-                cardMenu(v)
-            } label: {
-                Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(p.secondary)
-                    .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-            }
+            Divider()
+            Button("Custom…") { customRange = true }
+        } label: {
+            Text("\(v.repMin)-\(v.repMax)")
+                .font(.system(size: 17, weight: .heavy)).monospacedDigit()
+                .foregroundStyle(p.accent)
+                .frame(height: 36).padding(.horizontal, 12)
+                .background(p.accentSoft, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         }
+        .menuOrder(.fixed)
+        .accessibilityLabel("Rep range \(v.repMin) to \(v.repMax)")
     }
 
     /// Small play button beside the menu. Lime when the variation has form cues, grey when
@@ -125,7 +138,7 @@ struct ExerciseCardView: View {
         .accessibilityLabel("Form cues")
     }
 
-    /// The style this item is in. Tap to switch to another style of the variation or make one.
+    /// The style, written out. The chevron opens the list to switch style or make one.
     private func styleMenu(_ v: Version, item: WorkoutItem) -> some View {
         let styles = store.styles(of: v.id)
         let current = store.style(item.styleId)
@@ -139,57 +152,97 @@ struct ExerciseCardView: View {
             Divider()
             Button { newStyle = true } label: { Label("New style", systemImage: "plus") }
         } label: {
-            HStack(spacing: 4) {
-                Text(current?.label ?? (styles.isEmpty ? "Style" : "Switch style"))
-                    .font(.system(size: 12, weight: .bold))
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            HStack(spacing: 8) {
+                Text(current?.label ?? "No style")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(current == nil ? p.muted : p.text)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(p.secondary)
+                    .frame(width: 30, height: 26)
+                    .background(p.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .foregroundStyle(current == nil ? p.muted : p.accent)
-            .frame(height: 24).padding(.horizontal, 8)
-            .background(current == nil ? p.elevated : p.accentSoft, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .contentShape(Rectangle())
         }
+        .accessibilityLabel("Style \(current?.label ?? "none"), change")
     }
 
+    /// Main actions first, then the editing ones, then removal.
     @ViewBuilder
     private func cardMenu(_ v: Version) -> some View {
-        Button { showNote = true } label: { Label("Note for today", systemImage: "square.and.pencil") }
-        Button { toggleWarmup() } label: { Label(item?.sets.contains { $0.kind == .warmup } == true ? "Remove warm-up" : "Add warm-up", systemImage: "flame") }
-        Button { removeLastSet() } label: { Label("Remove last set", systemImage: "minus.square") }
-        Button { editVersion = true } label: { Label("Edit exercise", systemImage: "slider.horizontal.3") }
-        Divider()
-        Button { toggleSkip() } label: { Label(item?.skipped == true ? "Unskip" : "Skip today", systemImage: "forward") }
-        Button { onSwap() } label: { Label("Swap for another", systemImage: "arrow.left.arrow.right") }
-        Button { onAddAfter() } label: { Label("Add exercise after", systemImage: "plus") }
-        Button(role: .destructive) { remove() } label: { Label("Remove from workout", systemImage: "trash") }
+        Section {
+            Button { toggleSkip() } label: { Label(item?.skipped == true ? "Unskip" : "Skip today", systemImage: "forward") }
+            Button { onSwap() } label: { Label("Swap for another", systemImage: "arrow.left.arrow.right") }
+        }
+        Section {
+            Button { onAddAfter() } label: { Label("Add exercise", systemImage: "plus") }
+            Button { editVersion = true } label: { Label("Edit exercise", systemImage: "slider.horizontal.3") }
+            Button { showNote = true } label: { Label("Note for today", systemImage: "square.and.pencil") }
+        }
+        Section {
+            Button(role: .destructive) { remove() } label: { Label("Remove from workout", systemImage: "trash") }
+        }
     }
 
-    private func lastLine(last: LastSession?, other: LastSession?) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+    // MARK: Last time
+
+    private func lastTime(last: LastSession?, other: LastSession?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             if let last {
                 let sets = last.item.sets.filter { $0.hasData }
+                let labels = setLabels(last.item.sets)
+                // Two-arm working sets need no tag; the rest read W, D, 1L, WR ...
+                let tags: [String: String] = Dictionary(last.item.sets.enumerated().map { i, s in
+                    (s.id, s.kind == .working && s.side == nil ? "" : labels[i])
+                }, uniquingKeysWith: { a, _ in a })
                 // When the last time was a different style, say which, so the ghosts make sense.
                 let styleNote = last.sameStyle ? nil : (store.style(last.item.styleId)?.label ?? "no style")
-                let line = ["Last time", last.daysAgo == 0 ? "today" : "\(last.daysAgo)d ago", styleNote,
-                            sets.map { ($0.kind == .warmup ? "W " : "") + $0.formatted }.joined(separator: ", ")].compactMap { $0 }.joined(separator: " · ")
-                Text(line).font(.system(size: 14)).italic().foregroundStyle(p.muted)
-                if let n = last.item.note, !n.isEmpty { Text(n).font(.system(size: 13)).foregroundStyle(p.muted) }
-                let notes = last.item.sets.filter { $0.note?.isEmpty == false }.map { "\($0.side?.rawValue ?? "")\($0.kind == .warmup ? "W" : "") \($0.note!)".trimmingCharacters(in: .whitespaces) }
-                if !notes.isEmpty { Text(notes.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(p.muted) }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text((["Last time", relativeDays(last.workout.date).lowercased(), styleNote] as [String?]).compactMap { $0 }.joined(separator: " · "))
+                        .font(.system(size: 14, weight: .bold)).foregroundStyle(p.secondary)
+                    FlowRow(spacing: 18, lineSpacing: 6) {
+                        ForEach(sets) { s in
+                            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                if let tag = tags[s.id], !tag.isEmpty {
+                                    Text(tag).font(.system(size: 14, weight: .bold)).foregroundStyle(p.muted)
+                                }
+                                Text(s.valueText).font(.system(size: 22, weight: .heavy)).monospacedDigit().foregroundStyle(p.text)
+                            }
+                        }
+                    }
+                    let setNotes: [String] = last.item.sets.compactMap { s in
+                        guard let n = s.note, !n.isEmpty else { return nil }
+                        let tag = tags[s.id] ?? ""
+                        return tag.isEmpty ? n : "\(tag) \(n)"
+                    }
+                    let notes = ([last.item.note ?? ""] + setNotes).filter { !$0.isEmpty }
+                    if !notes.isEmpty {
+                        Text(notes.joined(separator: " · ")).font(.system(size: 14)).foregroundStyle(p.muted)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(p.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             } else {
-                Text("First time").font(.system(size: 14)).italic().foregroundStyle(p.muted)
+                Text("First time").font(.system(size: 15, weight: .semibold)).foregroundStyle(p.muted).padding(.horizontal, 4)
             }
-            // Sibling variations of the same base, quieter.
+            // The other variation of the same exercise: quieter, still readable.
             if let other {
-                Text("\(store.variationText(other.version)) · \(other.daysAgo)d ago · " + other.item.sets.filter { $0.reps != nil }.prefix(3).map { $0.formatted }.joined(separator: ", "))
-                    .font(.system(size: 12)).foregroundStyle(p.muted).opacity(0.75).lineLimit(1)
+                let sets: [String] = other.item.sets.filter { $0.kind != .warmup && $0.reps != nil }.prefix(3).map { $0.formatted }
+                let parts: [String] = [store.variationText(other.version), relativeDays(other.workout.date).lowercased()] + (sets.isEmpty ? [] : [sets.joined(separator: ", ")])
+                Text(parts.joined(separator: " · "))
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
+                    .lineLimit(2)
+                    .padding(.horizontal, 4)
             }
         }
-        .padding(.horizontal, 2)
     }
 
-    private func setGrid(w: Workout, item: WorkoutItem, v: Version, last: LastSession?) -> some View {
+    // MARK: Sets
+
+    private func setGrid(item: WorkoutItem, v: Version, last: LastSession?, up: Bool) -> some View {
         let labels = setLabels(item.sets)
-        let firstOpen = item.sets.firstIndex { $0.kind == .working && $0.reps == nil }
+        let firstOpen = item.sets.firstIndex { $0.reps == nil }
+        let bodyweight = v.family == .body
         return VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Text("Set").frame(width: 48)
@@ -202,34 +255,48 @@ struct ExerciseCardView: View {
             ForEach(Array(item.sets.enumerated()), id: \.element.id) { i, s in
                 let lastMatch = last.map { matchLast(now: s, nowAll: item.sets, lastAll: $0.item.sets) } ?? nil
                 SetRowView(entry: s, label: labels[i], ghost: lastMatch, isCurrent: i == firstOpen,
-                           improved: improved(now: s, last: lastMatch),
+                           improved: improved(now: s, last: lastMatch), bodyweight: bodyweight,
+                           pendingDelete: pendingDelete == s.id,
                            onWeight: { editing = SetEdit(setId: s.id, field: .weight) },
                            onReps: { editing = SetEdit(setId: s.id, field: .reps) },
                            onCheck: { check(s, ghost: lastMatch, prev: i > 0 ? item.sets[i - 1] : nil, v: v) },
-                           onLabel: { toggleKind(s) })
+                           onLabel: { update { $0.sets = cycleSetKind($0.sets, at: i) } },
+                           onDelete: { pendingDelete = s.id })
             }
             Rectangle().fill(p.line).frame(height: 1).padding(.top, 8)
             Button { addSet(v) } label: {
                 Label("Add set", systemImage: "plus").font(.system(size: 16, weight: .bold)).foregroundStyle(p.accent)
                     .frame(maxWidth: .infinity).frame(height: 52)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(verdict(item.sets, v) == .up ? p.accent : .clear, lineWidth: 2))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(up ? p.accent : .clear, lineWidth: 2))
     }
 
-    private func statusRow(_ verdictNow: Verdict, item: WorkoutItem) -> some View {
-        HStack {
-            switch verdictNow {
-            case .up: Badge(text: "GO UP NEXT TIME", kind: .up)
-            case .down: Badge(text: "UNDER RANGE", kind: .down)
-            case .none:
-                if item.isDone { Badge(text: "IN RANGE") } else { EmptyView() }
-            }
-            Spacer()
+    /// Shown once every set is in. Going up gets the filled box.
+    @ViewBuilder
+    private func statusBox(_ verdictNow: Verdict) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        switch verdictNow {
+        case .up:
+            Label("Time to ascend", systemImage: "arrow.up")
+                .font(.system(size: 18, weight: .heavy)).foregroundStyle(p.onAccent)
+                .frame(maxWidth: .infinity).frame(height: 54)
+                .background(p.accent, in: shape)
+        case .down:
+            Label("Lower the weight next time", systemImage: "arrow.down")
+                .font(.system(size: 17, weight: .bold)).foregroundStyle(p.danger)
+                .frame(maxWidth: .infinity).frame(height: 54)
+                .overlay(shape.stroke(p.danger, lineWidth: 2))
+        case .none:
+            Text("Keep working")
+                .font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                .frame(maxWidth: .infinity).frame(height: 54)
+                .background(p.elevated, in: shape)
         }
-        .padding(.horizontal, 2)
     }
 
     private func noteSheet(_ item: WorkoutItem) -> some View {
@@ -238,6 +305,11 @@ struct ExerciseCardView: View {
         }
         .presentationDetents([.medium])
         .presentationBackground(p.card)
+    }
+
+    private func deleteTitle(_ item: WorkoutItem) -> String {
+        guard let id = pendingDelete, let i = item.sets.firstIndex(where: { $0.id == id }) else { return "Delete set?" }
+        return "Delete set \(setLabels(item.sets)[i])?"
     }
 
     // MARK: Mutations
@@ -254,21 +326,23 @@ struct ExerciseCardView: View {
         }
     }
 
-    /// Tapping the check: confirm the ghost values if the set is empty, or clear the set if it was done.
+    /// Tapping the check: confirm the ghost values if the set is open, or clear the set if it was done.
+    /// With no weight to go on (first time), it opens the weight wheel instead.
     private func check(_ s: SetEntry, ghost: SetEntry?, prev: SetEntry?, v: Version) {
-        if s.reps != nil {
+        let bodyweight = v.family == .body
+        if s.reps != nil && (s.weight != nil || bodyweight) {
             patch(s.id) { $0.reps = nil }
             return
         }
         let weight = s.weight ?? ghost?.weight ?? prev?.weight
-        let reps = ghost?.reps ?? prev?.reps ?? v.repMax
-        patch(s.id) { $0.weight = weight; $0.reps = reps; if let g = ghost, g.plus { $0.plus = g.plus } }
+        if weight == nil && !bodyweight {
+            editing = SetEdit(setId: s.id, field: .weight)
+            return
+        }
+        let reps = s.reps ?? ghost?.reps ?? prev?.reps ?? v.repMax
+        patch(s.id) { $0.weight = weight; $0.reps = reps; if let g = ghost, g.plus, s.reps == nil { $0.plus = g.plus } }
         logTrigger += 1
         lastLogged = nowMs()
-    }
-
-    private func toggleKind(_ s: SetEntry) {
-        patch(s.id) { $0.kind = $0.kind == .warmup ? .working : .warmup }
     }
 
     private func addSet(_ v: Version) {
@@ -285,17 +359,14 @@ struct ExerciseCardView: View {
         }
     }
 
-    private func removeLastSet() {
-        update { item in
-            if let i = item.sets.lastIndex(where: { $0.kind == .working }) { item.sets.remove(at: i) }
-        }
+    private func deleteSet(_ id: String) {
+        update { $0.sets.removeAll { $0.id == id } }
     }
 
-    private func toggleWarmup() {
-        update { item in
-            if item.sets.contains(where: { $0.kind == .warmup }) { item.sets.removeAll { $0.kind == .warmup } }
-            else { item.sets.insert(SetEntry(kind: .warmup, unit: item.sets.first?.unit ?? store.settings.unit, bar: item.sets.first?.bar), at: 0) }
-        }
+    private func setRange(_ versionId: String, _ lo: Int, _ hi: Int) {
+        guard var v = store.version(versionId) else { return }
+        v.repMin = lo; v.repMax = hi
+        store.put(v)
     }
 
     private func toggleSkip() { update { $0.skipped = $0.skipped == true ? nil : true } }
@@ -315,12 +386,21 @@ struct SetRowView: View {
     let ghost: SetEntry?
     let isCurrent: Bool
     let improved: Bool
+    var bodyweight: Bool = false
+    /// True while the "Delete set?" question is up for this row, so it stays swiped open.
+    var pendingDelete: Bool = false
     let onWeight: () -> Void
     let onReps: () -> Void
     let onCheck: () -> Void
     let onLabel: () -> Void
+    var onDelete: () -> Void = {}
 
-    private var done: Bool { entry.kind == .working ? entry.reps != nil : (entry.reps != nil || entry.weight != nil) }
+    @State private var dx: CGFloat = 0
+    @State private var width: CGFloat = 0
+    @State private var horizontal: Bool? = nil
+
+    private static let deleteRed = Color(hex: 0xE5484D)
+    private var done: Bool { entry.reps != nil && (entry.weight != nil || bodyweight) }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -328,15 +408,18 @@ struct SetRowView: View {
                 Button(action: onLabel) {
                     Text(label)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(isCurrent ? p.accent : entry.kind == .warmup ? p.muted : p.secondary)
+                        .foregroundStyle(isCurrent ? p.accent : entry.kind == .working ? p.secondary : p.muted)
                         .frame(width: 48, height: 50)
                         .background(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(isCurrent ? p.accent : p.border, lineWidth: 2))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Set \(label)")
+                .accessibilityHint("Changes the set type")
 
                 field(value: entry.weight.map { fmtWeight($0) }, ghost: ghost?.weight.map { fmtWeight($0) }, suffix: entry.unit.label, action: onWeight)
                 field(value: entry.reps.map { "\($0)\(entry.plus ? "+" : "")" }, ghost: ghost?.reps.map { "\($0)\(ghost!.plus ? "+" : "")" },
-                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, action: onReps)
+                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, bars: entry.intensity, action: onReps)
 
                 Button(action: onCheck) {
                     ZStack {
@@ -359,24 +442,130 @@ struct SetRowView: View {
             .frame(minHeight: (entry.bar != nil || improved || entry.note?.isEmpty == false) ? 14 : 0)
         }
         .padding(.horizontal, 14).padding(.vertical, 5)
+        .background(p.card)
+        .offset(x: dx)
+        .background(alignment: .trailing) {
+            if dx < 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "trash").font(.system(size: 16, weight: .bold))
+                    Text("Delete").font(.system(size: 16, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .background(Self.deleteRed)
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .simultaneousGesture(swipe)
+        .onChange(of: pendingDelete) { _, pending in
+            if !pending { withAnimation(.snappy) { dx = 0 } }
+        }
+        .accessibilityAction(named: "Delete set") { onDelete() }
     }
 
-    private func field(value: String?, ghost: String?, suffix: String?, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                if let value {
-                    Text(value).font(.system(size: 24, weight: .bold)).monospacedDigit().foregroundStyle(p.text)
-                    if let suffix { Text(suffix).font(.system(size: 12, weight: .semibold)).foregroundStyle(p.muted) }
-                } else if let ghost {
-                    Text(ghost).font(.system(size: 20, weight: .semibold)).monospacedDigit().foregroundStyle(p.muted)
+    /// A full swipe left asks to delete. A short one springs back, so a pocket brush does nothing.
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onChanged { g in
+                if horizontal == nil { horizontal = abs(g.translation.width) > abs(g.translation.height) * 1.5 }
+                guard horizontal == true else { return }
+                dx = min(0, g.translation.width)
+            }
+            .onEnded { g in
+                defer { horizontal = nil }
+                guard horizontal == true else { return }
+                let far = width > 0 && (g.translation.width < -width * 0.55 || g.predictedEndTranslation.width < -width * 0.9)
+                if far {
+                    withAnimation(.snappy) { dx = -width }
+                    onDelete()
                 } else {
-                    Text("–").font(.system(size: 20, weight: .semibold)).foregroundStyle(p.border)
+                    withAnimation(.snappy) { dx = 0 }
                 }
+            }
+    }
+
+    private func field(value: String?, ghost: String?, suffix: String?, bars: Int? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    if let value {
+                        Text(value).font(.system(size: 24, weight: .bold)).monospacedDigit().foregroundStyle(p.text)
+                        if let suffix { Text(suffix).font(.system(size: 12, weight: .semibold)).foregroundStyle(p.muted) }
+                    } else if let ghost {
+                        Text(ghost).font(.system(size: 20, weight: .semibold)).monospacedDigit().foregroundStyle(p.muted)
+                    } else {
+                        Text("–").font(.system(size: 20, weight: .semibold)).foregroundStyle(p.border)
+                    }
+                }
+                if let bars, value != nil { IntensityBars(level: bars) }
             }
             .frame(maxWidth: .infinity).frame(height: 50)
             .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Intensity 1 to 3 as three rising bars, lit up to the level.
+struct IntensityBars: View {
+    @Environment(\.palette) private var p
+    let level: Int
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(1...3, id: \.self) { n in
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(n <= level ? p.accent : p.border)
+                    .frame(width: 4, height: CGFloat(6 + n * 4))
+            }
+        }
+        .frame(height: 18, alignment: .bottom)
+        .accessibilityElement()
+        .accessibilityLabel("Intensity \(level)")
+    }
+}
+
+/// Any rep range, for when the presets do not fit. Saves to the variation.
+struct RepRangeSheet: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.palette) private var p
+    @Environment(\.dismiss) private var dismiss
+    let versionId: String
+    @State private var lo: Int
+    @State private var hi: Int
+
+    init(version v: Version) {
+        versionId = v.id
+        _lo = State(initialValue: v.repMin)
+        _hi = State(initialValue: v.repMax)
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
+                column("Min", $lo)
+                column("Max", $hi)
+            }
+            PillButton(title: "Save", style: .primary, full: true, height: 56) {
+                guard var v = store.version(versionId) else { return }
+                v.repMin = min(lo, hi); v.repMax = max(lo, hi)
+                store.put(v)
+                dismiss()
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 24)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(340)])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func column(_ title: String, _ value: Binding<Int>) -> some View {
+        VStack(spacing: 8) {
+            Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(p.secondary)
+            WheelPicker(values: Array(1...40), selection: value) { "\($0)" }
+        }
     }
 }
 

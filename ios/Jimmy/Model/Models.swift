@@ -103,7 +103,11 @@ enum GroupType: String, Codable, CaseIterable, Hashable {
 enum MuscleGroup: String, Codable, CaseIterable, Hashable {
     case Back, Abs, Chest, Shoulders, Triceps, Biceps, Forearms, Calves, Legs, Glutes
 }
-enum SetKind: String, Codable, Hashable { case warmup, working }
+enum SetKind: String, Codable, Hashable {
+    case warmup, working, drop
+    /// "W " or "D " in front of a set in one-line summaries.
+    var prefix: String { self == .warmup ? "W " : self == .drop ? "D " : "" }
+}
 
 struct Gym: Codable, Identifiable, Hashable {
     var id: String
@@ -377,14 +381,15 @@ struct SetEntry: Codable, Identifiable, Hashable {
     var reps: Int?
     var plus: Bool
     var partials: Int?
+    var intensity: Int? // 1 to 3, per set
     var side: Side?
     var bar: Bar?
     var note: String?
 
     init(id: String = uid(), kind: SetKind, unit: WeightUnit, weight: Double? = nil, reps: Int? = nil,
-         plus: Bool = false, partials: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil) {
+         plus: Bool = false, partials: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil) {
         self.id = id; self.kind = kind; self.unit = unit; self.weight = weight; self.reps = reps
-        self.plus = plus; self.partials = partials; self.side = side; self.bar = bar; self.note = note
+        self.plus = plus; self.partials = partials; self.intensity = intensity; self.side = side; self.bar = bar; self.note = note
     }
 
     init(from decoder: Decoder) throws {
@@ -396,13 +401,15 @@ struct SetEntry: Codable, Identifiable, Hashable {
         reps = try c.decodeIfPresent(Int.self, forKey: .reps)
         plus = try c.decodeIfPresent(Bool.self, forKey: .plus) ?? false
         partials = try c.decodeIfPresent(Int.self, forKey: .partials)
+        intensity = try c.decodeIfPresent(Int.self, forKey: .intensity)
         side = try c.decodeIfPresent(Side.self, forKey: .side)
         bar = try c.decodeIfPresent(Bar.self, forKey: .bar)
         note = try c.decodeIfPresent(String.self, forKey: .note)
     }
 
     var hasData: Bool { reps != nil || weight != nil }
-    var isDone: Bool { kind == .working && reps != nil }
+    /// A logged working or drop set. Warm-ups never count as done work.
+    var isDone: Bool { kind != .warmup && reps != nil }
 
     /// "L EZ 30×12+ (2p)"
     var formatted: String {
@@ -412,6 +419,15 @@ struct SetEntry: Codable, Identifiable, Hashable {
         let s = side.map { "\($0.rawValue) " } ?? ""
         let b = bar == .ez ? "EZ " : ""
         return "\(s)\(b)\(w)×\(r)\(p)"
+    }
+
+    /// "30×12+ (2p)" with no side or bar, for places that show the side as its own tag.
+    /// Bodyweight sets with no weight read as just the reps.
+    var valueText: String {
+        let r = reps.map { "\($0)\(plus ? "+" : "")" } ?? "–"
+        let p = (partials ?? 0) > 0 ? " (\(partials!)p)" : ""
+        guard let weight else { return r + p }
+        return fmtWeight(weight) + (unit == .lbs ? "lb" : "") + "×" + r + p
     }
 }
 

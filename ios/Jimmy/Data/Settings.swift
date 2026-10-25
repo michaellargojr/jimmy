@@ -63,7 +63,7 @@ struct Settings: Codable, Hashable {
     var id: String = "settings"
     var unit: WeightUnit = .kg
     var theme: String = "dark" // kept for web compatibility
-    var sound: Bool = true
+    var sound: Bool = true // unused since sounds were shelved; kept so web exports still decode
     var seeded: Bool? = true
     var appearance: Appearance = .dark
     var scheme: AccentScheme = .lime

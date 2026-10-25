@@ -65,10 +65,6 @@ struct SettingsView: View {
                                 }
                             }
                             Divider1()
-                            SettingsRow(title: "Go-up sound", subtitle: "Short chime when you beat the range.") {
-                                RectToggle(on: Binding(get: { store.settings.sound }, set: { v in store.update { $0.sound = v } }))
-                            }
-                            Divider1()
                             SettingsRow(title: "Units") {
                                 HStack(spacing: 6) {
                                     Chip(text: "kg", on: store.settings.unit == .kg, small: true) { store.update { $0.unit = .kg } }

@@ -198,7 +198,7 @@ struct WorkoutDetailView: View {
                                                     case .none: Chevron()
                                                     }
                                                 }
-                                                Text(item.sets.filter { $0.hasData }.map { ($0.kind == .warmup ? "W " : "") + $0.formatted }.joined(separator: " · "))
+                                                Text(item.sets.filter { $0.hasData }.map { $0.kind.prefix + $0.formatted }.joined(separator: " · "))
                                                     .font(.system(size: 14)).monospacedDigit().foregroundStyle(p.secondary)
                                                 if let n = item.note, !n.isEmpty { Text(n).font(.system(size: 13)).foregroundStyle(p.muted) }
                                                 let notes = item.sets.compactMap { $0.note }.filter { !$0.isEmpty }
