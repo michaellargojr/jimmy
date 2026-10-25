@@ -17,6 +17,7 @@ struct ExerciseCardView: View {
     @State private var showNote = false
     @State private var editVersion = false
     @State private var newStyle = false
+    @State private var showFormCues = false
 
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
     enum SetField: String { case weight, reps }
@@ -33,6 +34,7 @@ struct ExerciseCardView: View {
                 if !compact { illustration(v, styleId: item.styleId) }
                 titleRow(v, verdictNow: verdictNow, item: item)
                 lastLine(last: last, other: other)
+                formCuesLine(v)
                 setGrid(w: w, item: item, v: v, last: last)
                 if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 13)).foregroundStyle(p.secondary).padding(.horizontal, 2) }
                 statusRow(verdictNow, item: item)
@@ -46,6 +48,10 @@ struct ExerciseCardView: View {
             .sheet(isPresented: $showNote) { noteSheet(item) }
             .sheet(isPresented: $editVersion) {
                 NavigationStack { VersionEditorView(versionId: v.id) }.presentationBackground(p.bg)
+            }
+            .sheet(isPresented: $showFormCues) {
+                NavigationStack { FormCuesView(versionId: v.id, showsClose: true) }
+                    .presentationDetents([.large]).presentationBackground(p.bg)
             }
             .sheet(isPresented: $newStyle) {
                 StyleEditorSheet(version: v, style: nil) { s in update { $0.styleId = s.id } }
@@ -103,6 +109,26 @@ struct ExerciseCardView: View {
                     .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             }
         }
+    }
+
+    /// A tappable badge under last time, modelled on "Go up next time", with the play button
+    /// in a circle. It lights up (accent on soft accent, with the count) when the variation
+    /// has form cues, and stays grey when it has none, still tappable to add one mid-workout.
+    private func formCuesLine(_ v: Version) -> some View {
+        let n = store.formCueCount(v.id)
+        return Button { showFormCues = true } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "play.circle.fill").font(.system(size: 17, weight: .bold))
+                Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 15, weight: .bold))
+            }
+            .foregroundStyle(n > 0 ? p.accent : p.muted)
+            .frame(height: 36)
+            .padding(.horizontal, 12)
+            .background(n > 0 ? p.accentSoft : p.elevated, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(n > 0 ? "Form cues, \(n)" : "Form cues")
     }
 
     /// The style this item is in. Tap to switch to another style of the variation or make one.

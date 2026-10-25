@@ -314,6 +314,16 @@ struct VersionEditorView: View {
                     Text("Go up when set 1 reaches \(v.repMax + UP_FIRST_OFFSET) and set 2 reaches \(v.repMax + UP_SECOND_OFFSET). Go down when set 1 is under \(v.repMin).")
                         .font(.system(size: 13)).foregroundStyle(p.muted)
                 }
+                Section {
+                    NavigationLink { FormCuesView(versionId: v.id) } label: {
+                        HStack {
+                            Label("Form cues", systemImage: "play.rectangle")
+                            Spacer()
+                            let n = store.formCueCount(v.id)
+                            if n > 0 { Text("\(n)").font(.system(size: 15, weight: .bold)).foregroundStyle(p.accent) }
+                        }
+                    }
+                }
                 Section("Defaults") {
                     Stepper("Working sets \(v.defaultSets)", value: b.defaultSets, in: 1...8)
                     Toggle("Warm-up set", isOn: b.defaultWarmup)
