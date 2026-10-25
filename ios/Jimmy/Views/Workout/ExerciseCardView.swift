@@ -245,10 +245,22 @@ struct ExerciseCardView: View {
                 sideGrid(rows, tags: tags, size: 15)
             }
         } else {
-            FlowRow(spacing: 18, lineSpacing: 6) {
-                ForEach(sets) { s in lastValue(s, tag: tags[s.id], size: 22) }
+            // One line when it fits, shrinking a little first; wrap only when it really can't.
+            ViewThatFits(in: .horizontal) {
+                lastLine(sets, tags: tags, size: 22)
+                lastLine(sets, tags: tags, size: 19)
+                FlowRow(spacing: 18, lineSpacing: 6) {
+                    ForEach(sets) { s in lastValue(s, tag: tags[s.id], size: 22) }
+                }
             }
         }
+    }
+
+    private func lastLine(_ sets: [SetEntry], tags: [String: String], size: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: size * 0.75) {
+            ForEach(sets) { s in lastValue(s, tag: tags[s.id], size: size) }
+        }
+        .fixedSize()
     }
 
     private func sideGrid(_ rows: [[SetEntry]], tags: [String: String], size: CGFloat) -> some View {
@@ -448,12 +460,15 @@ struct SetRowView: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
+                // An accent outline means done, as everywhere on the card. The set you're on next
+                // gets accent text on a soft fill instead.
                 Button(action: onLabel) {
                     Text(label)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(isCurrent ? p.accent : entry.kind == .working ? p.secondary : p.muted)
+                        .foregroundStyle(done ? p.text : isCurrent ? p.accent : entry.kind == .working ? p.secondary : p.muted)
                         .frame(width: 44, height: 50)
-                        .background(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(isCurrent ? p.accent : p.border, lineWidth: 2))
+                        .background(isCurrent && !done ? p.accentSoft : .clear, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(done ? p.accent : p.border, lineWidth: 2))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The set entry sheet: three big tabs (Weight, Reps, and Activation or Intensity), one big control under them,
-/// a big Add note button, then Next set and Done. Every change saves as it is made.
+/// a big Add note button, then Next set and Done. Every change saves as it is made, and Next set
+/// or Done logs the set with what the wheels show.
 struct SetPickerSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -17,6 +18,7 @@ struct SetPickerSheet: View {
     @State private var loadedFor: String? = nil
     @State private var writingNote = false
     @State private var draft = ""
+    @State private var logged = 0
     @FocusState private var noteFocused: Bool
 
     private static let height: CGFloat = 520
@@ -48,9 +50,9 @@ struct SetPickerSheet: View {
                         noteButton(s)
                         HStack(spacing: 10) {
                             if idx + 1 < item.sets.count {
-                                PillButton(title: "Next set →", full: true, height: 56) { go(to: item.sets[idx + 1].id) }
+                                PillButton(title: "Next set →", full: true, height: 56) { logShown(); go(to: item.sets[idx + 1].id) }
                             }
-                            PillButton(title: "Done", style: .primary, full: true, height: 56) { dismiss() }
+                            PillButton(title: "Done", style: .primary, full: true, height: 56) { logShown(); dismiss() }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -61,6 +63,7 @@ struct SetPickerSheet: View {
         }
         .presentationDetents(writingNote ? [.large] : [.height(Self.height)])
         .presentationDragIndicator(.visible)
+        .sensoryFeedback(.impact(weight: .medium), trigger: logged)
         .onAppear { if loadedFor == nil { load() } }
     }
 
@@ -227,19 +230,24 @@ struct SetPickerSheet: View {
         reps = s.reps ?? ghost?.reps ?? v.repMax
         partials = s.partials ?? 0
         loadedFor = setId
-        commit(field)
     }
 
-    /// Opening the weight or reps tab counts the number the wheel shows, so a quick Done logs it.
-    private func commit(_ f: ExerciseCardView.SetField) {
-        guard let s = set else { return }
-        if f == .weight, s.weight == nil { patch { $0.weight = weight } }
-        if f == .reps, s.reps == nil { patch { $0.reps = reps } }
+    /// Next set and Done log the set: any number still blank takes what its wheel shows,
+    /// so a quick Done after a glance at the wheels is enough. Bodyweight never logs a 0 kg.
+    private func logShown() {
+        guard let s = set, let v = version else { return }
+        let w = weight, r = reps
+        let addWeight = s.weight == nil && !(v.family == .body && w == 0)
+        guard addWeight || s.reps == nil else { return }
+        patch {
+            if addWeight { $0.weight = w }
+            if $0.reps == nil { $0.reps = r }
+        }
+        logged += 1
     }
 
     private func select(_ f: ExerciseCardView.SetField) {
         field = f
-        commit(f)
     }
 
     private func go(to id: String) {
@@ -274,6 +282,9 @@ struct WheelPicker<V: Hashable>: View {
     var rowHeight: CGFloat
     let label: (V) -> String
     @State private var scrolled: V?
+    /// Off until the wheel has scrolled to the starting value, so the first layout (which sits at
+    /// the top of the list) never writes the top value back.
+    @State private var ready = false
 
     init(values: [V], selection: Binding<V>, rowHeight: CGFloat = 40, label: @escaping (V) -> String) {
         self.values = values
@@ -285,35 +296,45 @@ struct WheelPicker<V: Hashable>: View {
 
     var body: some View {
         let rh = rowHeight
-        let mid = rh * 2.5
-        ScrollView(.vertical) {
-            VStack(spacing: 0) {
-                ForEach(values, id: \.self) { v in
-                    Text(label(v))
-                        .font(.system(size: 26, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(p.text)
-                        .frame(maxWidth: .infinity).frame(height: rh)
-                        .contentShape(Rectangle())
-                        .onTapGesture { withAnimation(.snappy) { scrolled = v } }
-                        .visualEffect { content, proxy in
-                            let d = abs(proxy.frame(in: .scrollView).midY - mid) / rh
-                            return content.opacity(max(0.25, 1 - d * 0.32)).scaleEffect(max(0.76, 1 - d * 0.1))
-                        }
+        // Rows fade and shrink by their distance from the one in the band.
+        let at = values.firstIndex(of: scrolled ?? selection) ?? 0
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                VStack(spacing: 0) {
+                    ForEach(Array(values.enumerated()), id: \.element) { i, v in
+                        let d = CGFloat(abs(i - at))
+                        Text(label(v))
+                            .font(.system(size: 26, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(p.text)
+                            .frame(maxWidth: .infinity).frame(height: rh)
+                            .opacity(max(0.25, 1 - d * 0.32))
+                            .scaleEffect(max(0.76, 1 - d * 0.1))
+                            .contentShape(Rectangle())
+                            .onTapGesture { withAnimation(.snappy) { scrolled = v } }
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollIndicators(.hidden)
+            .contentMargins(.vertical, rh * 2, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $scrolled, anchor: .center)
+            .frame(height: rh * 5)
+            .background {
+                RoundedRectangle(cornerRadius: Radius.field, style: .continuous).fill(p.elevated).frame(height: rh + 6)
+            }
+            .clipped()
+            .onAppear {
+                proxy.scrollTo(selection, anchor: .center)
+                DispatchQueue.main.async {
+                    proxy.scrollTo(selection, anchor: .center)
+                    scrolled = selection
+                    ready = true
                 }
             }
-            .scrollTargetLayout()
+            .onChange(of: scrolled) { _, v in if ready, let v, v != selection { selection = v } }
+            .onChange(of: selection) { _, v in if v != scrolled { scrolled = v } }
+            .sensoryFeedback(.selection, trigger: scrolled) { _, _ in ready }
         }
-        .scrollIndicators(.hidden)
-        .contentMargins(.vertical, rh * 2, for: .scrollContent)
-        .scrollTargetBehavior(.viewAligned)
-        .scrollPosition(id: $scrolled, anchor: .center)
-        .frame(height: rh * 5)
-        .background {
-            RoundedRectangle(cornerRadius: Radius.field, style: .continuous).fill(p.elevated).frame(height: rh + 6)
-        }
-        .clipped()
-        .onChange(of: scrolled) { _, v in if let v, v != selection { selection = v } }
-        .onChange(of: selection) { _, v in if v != scrolled { scrolled = v } }
-        .sensoryFeedback(.selection, trigger: scrolled)
     }
 }
