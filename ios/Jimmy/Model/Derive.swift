@@ -29,7 +29,7 @@ func lastSession(versionId: String, styleId: String? = nil, workouts: [Workout],
     func find(_ match: (WorkoutItem) -> Bool) -> LastSession? {
         for w in ordered {
             if let item = w.items.first(where: { $0.versionId == versionId && hasData($0) && match($0) }) {
-                return LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, v), version: v)
+                return LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, item.doneRange(v)), version: v)
             }
         }
         return nil
@@ -48,7 +48,7 @@ func recentSessions(versionId: String, workouts: [Workout], versions: [Version],
     var out: [LastSession] = []
     for w in sortedNewestFirst(workouts) where w.id != excludeWorkoutId {
         guard let item = w.items.first(where: { $0.versionId == versionId && hasData($0) }) else { continue }
-        out.append(LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, v), version: v))
+        out.append(LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, item.doneRange(v)), version: v))
         if out.count == limit { break }
     }
     return out

@@ -90,6 +90,8 @@ struct Settings: Codable, Hashable {
     var restTimer: Bool = false
     var restSeconds: Int = 90
     var rating: SetRating = .activation
+    /// Where every new workout starts: Default, Lower, Mid or High.
+    var repTemplate: RepTemplate = .standard
     var activeSplitId: String?
     var watchVersionId: String?
 
@@ -114,6 +116,7 @@ struct Settings: Codable, Hashable {
         restTimer = try c.decodeIfPresent(Bool.self, forKey: .restTimer) ?? false
         restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 90
         rating = (try? c.decode(SetRating.self, forKey: .rating)) ?? .activation
+        repTemplate = (try? c.decode(RepTemplate.self, forKey: .repTemplate)) ?? .standard
         activeSplitId = try c.decodeIfPresent(String.self, forKey: .activeSplitId)
         watchVersionId = try c.decodeIfPresent(String.self, forKey: .watchVersionId)
     }
