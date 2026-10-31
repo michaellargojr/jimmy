@@ -2,21 +2,24 @@ import SwiftUI
 import Testing
 @testable import Jimmy
 
-// The Workout circle's J: the stem on the right, the hook curling under it to the left.
+// The Workout tile's J: the app icon's shape, fitted into whatever frame it gets.
 
 @Suite struct TabBarTests {
-    @Test func theHookCurlsDownNotUp() {
-        let r = JMark().path(in: CGRect(x: 0, y: 0, width: 24, height: 24)).boundingRect
-        #expect(abs(r.minY - 4.2) < 0.05)
-        #expect(abs(r.maxY - 18.8) < 0.05)
-        #expect(abs(r.minX - 4.6) < 0.05)
-        #expect(abs(r.maxX - 15) < 0.05)
+    @Test func theJFillsAFrameOfItsOwnShape() {
+        let r = JLogo().path(in: CGRect(x: 0, y: 0, width: 58.4, height: 73)).boundingRect
+        #expect(abs(r.minX) < 0.5 && abs(r.minY) < 0.5)
+        #expect(abs(r.maxX - 58.4) < 0.5 && abs(r.maxY - 73) < 0.5)
     }
 
     @Test func theJStaysCenteredInAWideFrame() {
-        let r = JMark().path(in: CGRect(x: 0, y: 0, width: 48, height: 24)).boundingRect
-        // Same size as in a square, moved over by half the extra width.
-        #expect(abs(r.minX - 16.6) < 0.05)
-        #expect(abs(r.maxY - 18.8) < 0.05)
+        let r = JLogo().path(in: CGRect(x: 0, y: 0, width: 100, height: 73)).boundingRect
+        // Same height, moved over by half the extra width.
+        #expect(abs(r.minX - 20.8) < 0.5 && abs(r.maxX - 79.2) < 0.5)
+        #expect(abs(r.maxY - 73) < 0.5)
+    }
+
+    @Test func theTileIsTallerThanTheBar() {
+        #expect(WorkoutTile.size > 64 && WorkoutTile.size < 80)
+        #expect(WorkoutTile.slot > WorkoutTile.size)
     }
 }

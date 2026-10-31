@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The floating bar: Home and Plan, the Workout circle in the middle, then History and Settings.
-/// The circle is the one thing in the bar with color, so it's the one that calls you.
+/// The floating bar: Home and Plan, the Workout tile in the middle, then History and Settings.
+/// The tile is the one thing in the bar with color, so it's the one that calls you.
 struct JimmyTabBar: View {
     @Environment(\.palette) private var p
     @Binding var tab: AppTab
@@ -11,7 +11,7 @@ struct JimmyTabBar: View {
         HStack(spacing: 0) {
             item(.home, "Home", "house")
             item(.plan, "Plan", "square.text.square")
-            WorkoutCircle { select(.workout) }
+            WorkoutTile { select(.workout) }
             item(.history, "History", "chart.xyaxis.line")
             item(.settings, "Settings", "slider.horizontal.3")
         }
@@ -60,7 +60,7 @@ private struct FloatingGlass: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26, *) {
-            content.glassEffect(.regular, in: Capsule())
+            content.background { Color.clear.glassEffect(.regular, in: Capsule()) }
         } else {
             frosted(content)
         }
@@ -77,37 +77,37 @@ private struct FloatingGlass: ViewModifier {
     }
 }
 
-/// The Workout button: a J on a circle in the theme color. During a workout it shows the time,
-/// so it's also the way back in.
-struct WorkoutCircle: View {
+/// The Workout button: the app's J on a tile in the theme color, a little taller than the bar so it
+/// pokes out above and below. It glows. During a workout it shows the time, so it's also the way back in.
+struct WorkoutTile: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
     let action: () -> Void
 
-    static let size: CGFloat = 50
+    static let size: CGFloat = 72
+    /// The width the bar keeps for it.
+    static let slot: CGFloat = 84
 
     var body: some View {
         let live = store.activeWorkout
         Button(action: action) {
-            ZStack {
-                Circle().fill(p.accent)
+            VStack(spacing: live == nil ? 4 : 3) {
+                JLogo().fill(p.onAccent).aspectRatio(JLogo.aspect, contentMode: .fit).frame(height: live == nil ? 30 : 24)
                 if let live {
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         Text(elapsedString(ms: ctx.date.timeIntervalSince1970 * 1000 - (live.startedAt ?? nowMs())))
-                            .font(.system(size: 13, weight: .black)).monospacedDigit()
-                            .foregroundStyle(p.onAccent)
+                            .font(.system(size: 14, weight: .black)).monospacedDigit()
                             .lineLimit(1).minimumScaleFactor(0.6)
-                            .padding(.horizontal, 5)
                     }
                 } else {
-                    JMark()
-                        .stroke(p.onAccent, style: StrokeStyle(lineWidth: JMark.weight * 28, lineCap: .round, lineJoin: .round))
-                        .frame(width: 28, height: 28)
+                    Text("Workout").font(.system(size: 10, weight: .heavy))
                 }
             }
+            .foregroundStyle(p.onAccent)
             .frame(width: Self.size, height: Self.size)
-            .shadow(color: p.accent.opacity(0.35), radius: 8, y: 4)
-            .frame(width: 64, height: 64)
+            .background(RoundedRectangle(cornerRadius: 21, style: .continuous).fill(p.accent))
+            .shadow(color: p.accent.opacity(0.5), radius: 13, y: 6)
+            .frame(width: Self.slot, height: Self.size)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -116,21 +116,27 @@ struct WorkoutCircle: View {
     }
 }
 
-/// A plain, bold J drawn as one stroke: the letter in the theme, not the app icon.
-/// Drawn on a 24 by 24 grid: the stem comes down the right, then the hook curls under to the left.
-struct JMark: Shape {
-    /// Stroke width as a share of the frame's width.
-    static let weight: CGFloat = 3.4 / 24
+/// The app icon's flexing J, still. On the icon's grid its own bounds run x 206...790 and y 150...880;
+/// the path is fitted into the frame, keeping its shape, centered.
+struct JLogo: Shape {
+    static let aspect: CGFloat = 584.0 / 730.0
 
     func path(in r: CGRect) -> Path {
-        let s = min(r.width, r.height) / 24
-        let x0 = r.midX - 12 * s, y0 = r.midY - 12 * s
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x0 + x * s, y: y0 + y * s) }
+        let s = min(r.width / 584, r.height / 730)
+        let x0 = r.midX - 292 * s, y0 = r.midY - 365 * s
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x0 + (x - 206) * s, y: y0 + (y - 150) * s) }
         var path = Path()
-        path.move(to: pt(15, 4.2))
-        path.addLine(to: pt(15, 13.6))
-        // From the right of the hook, down under and back up on the left (angles grow downward on screen).
-        path.addArc(center: pt(9.8, 13.6), radius: 5.2 * s, startAngle: .degrees(0), endAngle: .degrees(180), clockwise: false)
+        path.move(to: pt(606, 150))
+        path.addLine(to: pt(760, 150))
+        path.addCurve(to: pt(790, 180), control1: pt(778, 150), control2: pt(790, 162))
+        path.addLine(to: pt(790, 600))
+        path.addCurve(to: pt(506, 880), control1: pt(790, 774), control2: pt(676, 880))
+        path.addCurve(to: pt(206, 690), control1: pt(330, 880), control2: pt(206, 800))
+        path.addCurve(to: pt(410, 462), control1: pt(206, 560), control2: pt(300, 462))
+        path.addCurve(to: pt(576, 610), control1: pt(500, 462), control2: pt(562, 520))
+        path.addLine(to: pt(576, 180))
+        path.addCurve(to: pt(606, 150), control1: pt(576, 162), control2: pt(588, 150))
+        path.closeSubpath()
         return path
     }
 }
