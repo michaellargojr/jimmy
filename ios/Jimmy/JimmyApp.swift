@@ -15,7 +15,8 @@ struct JimmyApp: App {
     }
 }
 
-enum AppTab: Hashable { case home, workout, plan, history, settings }
+/// In the order the bar shows them: Workout sits in the middle.
+enum AppTab: Hashable { case home, plan, workout, history, settings }
 
 @Observable
 final class AppNav {
@@ -26,6 +27,8 @@ struct RootView: View {
     @Environment(AppStore.self) private var store
     @Environment(AppNav.self) private var nav
     @Environment(\.colorScheme) private var systemScheme
+    @State private var visited: Set<AppTab> = [.home]
+    @State private var keyboardUp = false
 
     private var isDark: Bool {
         switch store.settings.appearance {
@@ -38,16 +41,41 @@ struct RootView: View {
     var body: some View {
         @Bindable var nav = nav
         let p = Palette.make(scheme: store.settings.scheme, dark: isDark)
-        TabView(selection: $nav.tab) {
-            HomeView().tabItem { Label("Home", systemImage: "house.fill") }.tag(AppTab.home)
-            WorkoutTab().tabItem { Label("Workout", systemImage: "dumbbell.fill") }.tag(AppTab.workout)
-            PlanView().tabItem { Label("Plan", systemImage: "square.text.square.fill") }.tag(AppTab.plan)
-            HistoryView().tabItem { Label("History", systemImage: "chart.xyaxis.line") }.tag(AppTab.history)
-            SettingsView().tabItem { Label("Settings", systemImage: "slider.horizontal.3") }.tag(AppTab.settings)
+        // Each tab is built the first time it's opened and then kept, so it stays where you left it.
+        GeometryReader { geo in
+            ZStack {
+                page(.home) { HomeView() }
+                page(.plan) { PlanView() }
+                page(.workout) { WorkoutTab() }
+                page(.history) { HistoryView() }
+                page(.settings) { SettingsView() }
+            }
+            .background(p.bg.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom, spacing: 6) {
+                // Out of the way while typing, like the system bar.
+                if !keyboardUp {
+                    // Floats low, a little into the home indicator's space, like the system's bar.
+                    JimmyTabBar(tab: $nav.tab)
+                        .padding(.bottom, geo.safeAreaInsets.bottom > 0 ? -10 : 8)
+                }
+            }
         }
+        .onChange(of: nav.tab, initial: true) { _, t in visited.insert(t) }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardUp = true }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardUp = false }
         .tint(p.accent)
         .environment(\.palette, p)
         .onChange(of: store.settings.scheme) { _, s in AppIcon.match(s) }
         .preferredColorScheme(store.settings.appearance == .system ? nil : (isDark ? .dark : .light))
+    }
+
+    @ViewBuilder
+    private func page<Content: View>(_ t: AppTab, @ViewBuilder _ content: () -> Content) -> some View {
+        if visited.contains(t) || nav.tab == t {
+            content()
+                .opacity(nav.tab == t ? 1 : 0)
+                .allowsHitTesting(nav.tab == t)
+                .accessibilityHidden(nav.tab != t)
+        }
     }
 }
