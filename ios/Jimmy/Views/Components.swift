@@ -321,8 +321,6 @@ struct SearchField: View {
     @Environment(\.palette) private var p
     var placeholder = "Search"
     @Binding var text: String
-    /// False when the field sits in a row with something beside it that sets the margins.
-    var inset = true
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -343,7 +341,7 @@ struct SearchField: View {
         }
         .padding(.horizontal, 12).frame(height: 44)
         .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-        .padding(.horizontal, inset ? 16 : 0).padding(.bottom, inset ? 4 : 0)
+        .padding(.horizontal, 16).padding(.bottom, 4)
     }
 }
 

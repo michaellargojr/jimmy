@@ -108,7 +108,7 @@ struct WorkoutRow: View {
 }
 
 /// History > Exercises. Sort by muscle group (a tree: muscle group > exercise > variation) or by
-/// most recent (every variation, newest first). The sort is remembered.
+/// most recent (every variation, newest first), from a "Sort by" line under the search. The sort is remembered.
 struct ExercisesHistoryList: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -123,11 +123,8 @@ struct ExercisesHistoryList: View {
     var body: some View {
         let list = variationHistories(versions: store.versions, workouts: store.workouts)
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                SearchField(placeholder: "Search exercises", text: $query, inset: false)
-                sortMenu
-            }
-            .padding(.horizontal, 16).padding(.bottom, 4)
+            SearchField(placeholder: "Search exercises", text: $query)
+            sortLine
             List {
                 switch sort {
                 case .muscle: muscleRows(list)
@@ -139,22 +136,27 @@ struct ExercisesHistoryList: View {
         .background(p.bg.ignoresSafeArea())
     }
 
-    /// Shows the sort that is on; tap for the two choices.
-    private var sortMenu: some View {
-        Menu {
-            Picker("Sort", selection: Binding(get: { sort }, set: { sortRaw = $0.rawValue })) {
-                ForEach(HistorySort.allCases) { s in Text(s.label).tag(s) }
+    /// "Sort by Muscle group" under the search. The sort that is on reads in the accent; tap it for the two choices.
+    private var sortLine: some View {
+        HStack(spacing: 8) {
+            Text("Sort by").font(.system(size: 14)).foregroundStyle(p.muted)
+            Menu {
+                Picker("Sort", selection: Binding(get: { sort }, set: { sortRaw = $0.rawValue })) {
+                    ForEach(HistorySort.allCases) { s in Text(s.label).tag(s) }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(sort.label).font(.system(size: 14, weight: .bold))
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(p.accent)
+                .frame(height: 36)
+                .contentShape(Rectangle())
             }
-        } label: {
-            HStack(spacing: 7) {
-                Text(sort.label).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text)
-                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(p.secondary)
-            }
-            .padding(.horizontal, 12).frame(height: 44)
-            .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+            .menuOrder(.fixed)
+            Spacer()
         }
-        .menuOrder(.fixed)
-        .fixedSize()
+        .padding(.horizontal, 16).padding(.bottom, 2)
     }
 
     // MARK: Muscle group
