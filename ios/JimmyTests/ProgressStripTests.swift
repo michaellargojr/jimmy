@@ -24,12 +24,17 @@ private func S(_ weight: Double?, _ reps: Int?, _ kind: SetKind = .working) -> S
         item.sets.append(S(20, nil))
         #expect(!paneFinished([item], versions: [db]))
     }
-    @Test func bodyweightNeedsNoWeightAndSkippedCounts() {
+    @Test func bodyweightNeedsNoWeight() {
         let pull = WorkoutItem(versionId: body.id, sets: [S(nil, 10), S(nil, 8)])
         #expect(paneFinished([pull], versions: [body]))
-        let skipped = WorkoutItem(versionId: db.id, sets: [S(nil, nil)], skipped: true)
-        #expect(paneFinished([skipped], versions: [db]))
         #expect(!paneFinished([WorkoutItem(versionId: db.id, sets: [])], versions: [db]))
+    }
+    @Test func skippingLeavesAGap() {
+        let skipped = WorkoutItem(versionId: db.id, sets: [S(20, 8)], skipped: true)
+        #expect(!paneFinished([skipped], versions: [db]))
+        // In a superset, the exercise you did still fills it.
+        let done = WorkoutItem(versionId: db.id, sets: [S(20, 8)])
+        #expect(paneFinished([done, skipped], versions: [db]))
     }
     @Test func aSupersetFillsWhenBothAreDone() {
         let a = WorkoutItem(versionId: db.id, sets: [S(20, 8)])
