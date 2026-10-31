@@ -8,6 +8,8 @@ struct ProgressPoint: Identifiable {
     var reps: Int
     var verdict: Verdict
     var sets: [SetEntry]
+    /// The rep range it was done at; nil for sessions from before rep range templates.
+    var range: RepRange? = nil
 }
 
 /// Top-set weight per finished session, oldest first.
@@ -15,8 +17,8 @@ func progressPoints(versionId: String, workouts: [Workout], version: Version? = 
     var out: [ProgressPoint] = []
     for w in sortedNewestFirst(workouts).reversed() where w.isFinished {
         guard let item = w.items.first(where: { $0.versionId == versionId }), let t = topSet(item) else { continue }
-        let v = version.map { verdict(item.sets, $0) } ?? Verdict.none
-        out.append(ProgressPoint(date: w.date, weight: t.weight!, reps: t.reps!, verdict: v, sets: item.sets.filter { $0.kind != .warmup && $0.hasData }))
+        let v = version.map { verdict(item.sets, item.doneRange($0)) } ?? Verdict.none
+        out.append(ProgressPoint(date: w.date, weight: t.weight!, reps: t.reps!, verdict: v, sets: item.sets.filter { $0.kind != .warmup && $0.hasData }, range: item.savedRepRange))
     }
     return out
 }
@@ -137,10 +139,15 @@ struct ExerciseProgressView: View {
         }
     }
 
-    /// One session: the date, then each working and drop set. A ✅ marks a "Time to ascend" day.
+    /// One session: the date with the rep range in small print, then each working and drop set.
+    /// A ✅ marks a "Time to ascend" day.
     private func sessionRow(_ pt: ProgressPoint) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(monthDay(pt.date)).font(.system(size: 15)).foregroundStyle(p.muted).frame(width: 58, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(monthDay(pt.date)).font(.system(size: 15)).foregroundStyle(p.muted)
+                if let r = pt.range { Text("\(r.text) reps").font(.system(size: 12)).monospacedDigit().foregroundStyle(p.muted) }
+            }
+            .frame(width: 64, alignment: .leading)
             FlowRow(spacing: 14, lineSpacing: 4) {
                 ForEach(pt.sets) { s in
                     HStack(alignment: .firstTextBaseline, spacing: 4) {

@@ -450,6 +450,11 @@ struct WorkoutItem: Codable, Identifiable, Hashable {
     var sets: [SetEntry]
     var skipped: Bool?
     var note: String?
+    /// A template picked for this exercise in this workout; nil follows the workout's.
+    var repTemplate: RepTemplate?
+    /// Numbers picked for this exercise in this workout. Finish saves the range used here.
+    var repMin: Int?
+    var repMax: Int?
 
     init(id: String = uid(), versionId: String, styleId: String? = nil, groupId: String? = nil, sets: [SetEntry], skipped: Bool? = nil, note: String? = nil) {
         self.id = id; self.versionId = versionId; self.styleId = styleId; self.groupId = groupId; self.sets = sets; self.skipped = skipped; self.note = note
@@ -474,11 +479,15 @@ struct Workout: Codable, Identifiable, Hashable {
     var notes: String?
     var items: [WorkoutItem]
     var groups: [ExerciseGroup]
+    /// The rep range template for the whole workout; nil is Default.
+    var repTemplate: RepTemplate?
 
     init(id: String = uid(), name: String, date: String = today(), gymId: String? = nil, routineId: String? = nil,
-         startedAt: Double? = nil, endedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [], groups: [ExerciseGroup] = []) {
+         startedAt: Double? = nil, endedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [], groups: [ExerciseGroup] = [],
+         repTemplate: RepTemplate? = nil) {
         self.id = id; self.name = name; self.date = date; self.gymId = gymId; self.routineId = routineId
         self.startedAt = startedAt; self.endedAt = endedAt; self.notes = notes; self.items = items; self.groups = groups
+        self.repTemplate = repTemplate
     }
 
     init(from decoder: Decoder) throws {
@@ -493,6 +502,7 @@ struct Workout: Codable, Identifiable, Hashable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         items = try c.decodeIfPresent([WorkoutItem].self, forKey: .items) ?? []
         groups = try c.decodeIfPresent([ExerciseGroup].self, forKey: .groups) ?? []
+        repTemplate = try? c.decodeIfPresent(RepTemplate.self, forKey: .repTemplate)
     }
 
     var isActive: Bool { startedAt != nil && endedAt == nil }

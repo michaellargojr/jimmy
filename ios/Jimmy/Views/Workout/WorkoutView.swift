@@ -8,6 +8,7 @@ struct WorkoutView: View {
 
     @State private var current: Int? = 0
     @State private var showOverview = false
+    @State private var showSettings = false
     @State private var adding: AddTarget? = nil
     /// Set by the Overview sheet; presented only after Overview has finished closing,
     /// because two sheets changing at once leaves the new one unable to take the keyboard.
@@ -54,6 +55,11 @@ struct WorkoutView: View {
                     .presentationDetents([.medium, .large])
                     .presentationBackground(p.card)
             }
+            .sheet(isPresented: $showSettings) {
+                WorkoutRepRangesSheet(workoutId: workoutId)
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(p.card)
+            }
             .sheet(item: $adding) { t in
                 AddExerciseSheet { v, st in addVersion(v, style: st, target: t) }
                     .presentationDetents([.large])
@@ -86,20 +92,44 @@ struct WorkoutView: View {
         }
     }
 
+    /// Done alone on the left, where a stray thumb is least likely to land. The time sits big in
+    /// the middle so it keeps the pace up; the routine gets its own line so long names fit.
     private func header(_ w: Workout, paneCount: Int) -> some View {
-        HStack(spacing: 10) {
-            PillButton(title: "Overview") { showOverview = true }
-            Spacer()
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
-                Text("\(w.name) - \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount) - \(elapsedString(ms: ms))")
-                    .font(.system(size: 13)).monospacedDigit().foregroundStyle(p.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+        VStack(spacing: 6) {
+            ZStack {
+                HStack(spacing: 8) {
+                    PillButton(title: "Done", style: .primary) { askEnd = true }
+                    Spacer()
+                    iconButton("list.bullet", label: "Overview") { showOverview = true }
+                    iconButton("gearshape", label: "Workout settings") { showSettings = true }
+                }
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
+                    Text(elapsedString(ms: ms))
+                        .font(.system(size: 30, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(p.text)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                        .frame(maxWidth: 150)
+                }
             }
-            Spacer()
-            PillButton(title: "Done", style: .primary) { askEnd = true }
+            // Only a very long name gets cut, never where you are.
+            HStack(spacing: 0) {
+                Text(w.name).fontWeight(.bold).foregroundStyle(p.text).lineLimit(1)
+                Text(" - \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount)").foregroundStyle(p.secondary).fixedSize()
+            }
+            .font(.system(size: 14)).monospacedDigit()
+            .padding(.horizontal, 8)
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 18, weight: .bold)).foregroundStyle(p.text)
+                .frame(width: 44, height: 44)
+                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder
