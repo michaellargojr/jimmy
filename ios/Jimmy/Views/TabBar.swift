@@ -31,14 +31,14 @@ struct JimmyTabBar: View {
     private func item(_ t: AppTab, _ title: String, _ icon: String) -> some View {
         let on = tab == t
         return Button { select(t) } label: {
-            VStack(spacing: 2) {
-                // The same symbols and weight the app always had.
-                Image(systemName: icon).font(.system(size: 21, weight: .semibold)).frame(height: 26)
+            VStack(spacing: 3) {
+                // The same symbols the app always had, white, with the open tab in the theme color.
+                Image(systemName: icon).font(.system(size: 24, weight: .medium)).frame(height: 28)
                 Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
             }
-            .foregroundStyle(on ? p.text : p.muted)
+            .foregroundStyle(on ? p.accent : p.text)
             .frame(maxWidth: 64)
-            .frame(height: 52)
+            .frame(height: 56)
             .background {
                 if on {
                     Capsule().fill(p.isDark ? Color.white.opacity(0.09) : Color.black.opacity(0.06))
@@ -78,41 +78,37 @@ private struct FloatingGlass: ViewModifier {
     }
 }
 
-/// The Workout button, as it first was: the app's J on an orange tile that rises above the bar
-/// and glows, with Workout under it. It stays still.
+/// The Workout button, as it first was: the app's J on an orange tile with Workout under it,
+/// standing a little out of the bar. Only the word glows, softly. It stays still.
 struct WorkoutTile: View {
     @Environment(\.palette) private var p
     let action: () -> Void
 
-    static let size: CGFloat = 66
+    static let size: CGFloat = 54
+    /// How far the tile stands above the bar's top edge.
+    static let rise: CGFloat = 11
     /// The width the bar keeps for it.
     static let slot: CGFloat = 84
 
     var body: some View {
-        // Holds its place in the bar; the tile and its label stand up out of it.
         Color.clear
             .frame(width: Self.slot, height: 64)
-            .overlay(alignment: .bottom) {
+            .overlay(alignment: .top) {
                 Button(action: action) {
-                    VStack(spacing: 3) {
-                        JLogo().fill(p.onAccent).aspectRatio(JLogo.aspect, contentMode: .fit).frame(height: 38)
+                    VStack(spacing: 2) {
+                        JLogo().fill(p.onAccent).aspectRatio(JLogo.aspect, contentMode: .fit).frame(height: (Self.size * 0.585).rounded())
                             .frame(width: Self.size, height: Self.size)
-                            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(p.accent))
-                            // A ring in the bar's color lifts the tile off whatever is behind it.
-                            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(ring).padding(-6))
-                            .shadow(color: p.accent.opacity(0.35), radius: 14, y: 10)
+                            .background(RoundedRectangle(cornerRadius: (Self.size * 0.3).rounded(), style: .continuous).fill(p.accent))
                         Text("Workout").font(.system(size: 11, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
+                            .shadow(color: p.accent.opacity(0.55), radius: 3.5)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                // Workout sits on the same line as the other tabs' names.
-                .padding(.bottom, 11)
+                .offset(y: -Self.rise)
                 .accessibilityLabel("Workout")
             }
     }
-
-    private var ring: Color { p.isDark ? Color(hex: 0x1E1F24) : .white }
 }
 
 /// The app icon's flexing J, still. On the icon's grid its own bounds run x 206...790 and y 150...880;

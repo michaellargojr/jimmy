@@ -52,7 +52,7 @@ struct RootView: View {
             }
             .background(p.bg.ignoresSafeArea())
             // The extra spacing lets the last thing on a page scroll clear of the Workout tile.
-            .safeAreaInset(edge: .bottom, spacing: 30) {
+            .safeAreaInset(edge: .bottom, spacing: 16) {
                 // Out of the way while typing, like the system bar.
                 if !keyboardUp {
                     // Floats low, a little into the home indicator's space, like the system's bar.
