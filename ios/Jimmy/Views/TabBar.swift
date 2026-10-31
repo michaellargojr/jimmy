@@ -82,18 +82,17 @@ private struct FloatingGlass: ViewModifier {
 }
 
 /// The Workout button, as it first was: the app's J on an orange tile with Workout under it,
-/// standing out of the top of the bar. Only the word glows, softly. It stays still.
+/// standing a little out of the top of the bar. Only the word glows, softly. It stays still.
 struct WorkoutTile: View {
     @Environment(\.palette) private var p
     let action: () -> Void
 
-    // Michael's pick A (2026-10-31). Kept in reserve until he tries it on the phone:
-    // B, a smaller tile sitting lower, is size 54, rise 11, gap 2.
-    static let size: CGFloat = 62
+    // Option B, after Michael tried A (62, 21, 3) on his phone and found it a bit too big.
+    static let size: CGFloat = 54
     /// How far the tile stands above the bar's top edge.
-    static let rise: CGFloat = 21
+    static let rise: CGFloat = 11
     /// Between the tile and the word Workout.
-    static let gap: CGFloat = 3
+    static let gap: CGFloat = 2
     /// The width the bar keeps for it.
     static let slot: CGFloat = 84
 
