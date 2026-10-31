@@ -78,43 +78,41 @@ private struct FloatingGlass: ViewModifier {
     }
 }
 
-/// The Workout button: the app's J on a tile in the theme color, a little taller than the bar so it
-/// pokes out above and below. It glows. During a workout it shows the time, so it's also the way back in.
+/// The Workout button, as it first was: the app's J on an orange tile that rises above the bar
+/// and glows, with Workout under it. It stays still.
 struct WorkoutTile: View {
-    @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
     let action: () -> Void
 
-    static let size: CGFloat = 72
+    static let size: CGFloat = 66
     /// The width the bar keeps for it.
     static let slot: CGFloat = 84
 
     var body: some View {
-        let live = store.activeWorkout
-        Button(action: action) {
-            VStack(spacing: live == nil ? 4 : 3) {
-                JLogo().fill(p.onAccent).aspectRatio(JLogo.aspect, contentMode: .fit).frame(height: live == nil ? 30 : 24)
-                if let live {
-                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        Text(elapsedString(ms: ctx.date.timeIntervalSince1970 * 1000 - (live.startedAt ?? nowMs())))
-                            .font(.system(size: 14, weight: .black)).monospacedDigit()
-                            .lineLimit(1).minimumScaleFactor(0.6)
+        // Holds its place in the bar; the tile and its label stand up out of it.
+        Color.clear
+            .frame(width: Self.slot, height: 64)
+            .overlay(alignment: .bottom) {
+                Button(action: action) {
+                    VStack(spacing: 3) {
+                        JLogo().fill(p.onAccent).aspectRatio(JLogo.aspect, contentMode: .fit).frame(height: 38)
+                            .frame(width: Self.size, height: Self.size)
+                            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(p.accent))
+                            // A ring in the bar's color lifts the tile off whatever is behind it.
+                            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(ring).padding(-6))
+                            .shadow(color: p.accent.opacity(0.35), radius: 14, y: 10)
+                        Text("Workout").font(.system(size: 11, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
                     }
-                } else {
-                    Text("Workout").font(.system(size: 10, weight: .heavy))
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                // Workout sits on the same line as the other tabs' names.
+                .padding(.bottom, 11)
+                .accessibilityLabel("Workout")
             }
-            .foregroundStyle(p.onAccent)
-            .frame(width: Self.size, height: Self.size)
-            .background(RoundedRectangle(cornerRadius: 21, style: .continuous).fill(p.accent))
-            .shadow(color: p.accent.opacity(0.5), radius: 13, y: 6)
-            .frame(width: Self.slot, height: Self.size)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Workout")
-        .accessibilityValue(live == nil ? "" : "In progress")
     }
+
+    private var ring: Color { p.isDark ? Color(hex: 0x1E1F24) : .white }
 }
 
 /// The app icon's flexing J, still. On the icon's grid its own bounds run x 206...790 and y 150...880;

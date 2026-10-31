@@ -18,8 +18,8 @@ import Testing
         #expect(abs(r.maxY - 73) < 0.5)
     }
 
-    @Test func theTileIsTallerThanTheBar() {
-        #expect(WorkoutTile.size > 64 && WorkoutTile.size < 80)
+    @Test func theTileIsTheOriginalSize() {
+        #expect(WorkoutTile.size == 66)
         #expect(WorkoutTile.slot > WorkoutTile.size)
     }
 }
