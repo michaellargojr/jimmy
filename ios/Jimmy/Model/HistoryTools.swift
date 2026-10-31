@@ -55,7 +55,14 @@ func copyingHistory(_ s: HistoryState, from: String, to: String, styleId: String
                     w.items[k].versionId = to
                     w.items[k].styleId = style
                 } else {
-                    w.items.insert(WorkoutItem(versionId: to, styleId: style, sets: sets, skipped: src.skipped, note: src.note), at: k + 1)
+                    // A copy of the whole entry, so anything saved on it (a note, its rep range) comes along.
+                    var copy = src
+                    copy.id = uid()
+                    copy.versionId = to
+                    copy.styleId = style
+                    copy.groupId = nil
+                    copy.sets = sets
+                    w.items.insert(copy, at: k + 1)
                 }
             }
         }
