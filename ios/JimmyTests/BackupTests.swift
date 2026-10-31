@@ -38,7 +38,7 @@ import Testing
         try Backups.write(data, clips: [], to: dir, at: at("2026-10-31 20.14"), clipSource: { _ in nil })
         let files = Backups.list(dir)
         #expect(files.map(\.id) == ["Jimmy 2026-10-31 20.14.json", "Jimmy 2026-10-30 19.02.json"])
-        #expect(files.allSatisfy(\.downloaded))
+        #expect(files.allSatisfy { $0.downloaded })
         let back = try Backups.read(files[0].url)
         #expect(back.workouts.count == store.workouts.count)
         #expect(back.versions.count == store.versions.count)
