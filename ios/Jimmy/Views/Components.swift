@@ -14,6 +14,61 @@ struct Card<Content: View>: View {
     }
 }
 
+/// A variation as one collectible chip: its words in the theme color inside one outline, with a
+/// thin line between them, because together they make the variation ("Cable | Two arms").
+/// The muscle tags stay grey; color marks what you chose.
+struct VariationPill: View {
+    enum Size { case small, regular, large }
+    @Environment(\.palette) private var p
+    let parts: [String]
+    var size: Size = .regular
+
+    /// Font size, height, side padding and corner radius.
+    private var metrics: (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) {
+        switch size {
+        case .small: return (12.5, 24, 8, 7)
+        case .regular: return (14, 30, 11, 8)
+        case .large: return (15, 32, 12, 9)
+        }
+    }
+
+    var body: some View {
+        let m = metrics
+        let line: CGFloat = size == .small ? 1 : 1.5
+        HStack(spacing: 0) {
+            ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
+                if i > 0 {
+                    Rectangle().fill(p.accent.opacity(0.45)).frame(width: line).padding(.vertical, (m.height * 0.23).rounded())
+                }
+                Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
+                    .padding(.horizontal, m.pad)
+            }
+        }
+        .frame(height: m.height)
+        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(p.accent.opacity(0.7), lineWidth: line))
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(parts.joined(separator: ", "))
+    }
+}
+
+/// A variation's chip with an optional quiet note after it ("Rope", "3 sessions"); the note
+/// drops to the next line when there isn't room.
+struct VariationChips: View {
+    @Environment(\.palette) private var p
+    let tags: [String]
+    var size: VariationPill.Size = .regular
+    var note: String? = nil
+    var body: some View {
+        FlowRow(spacing: 8, lineSpacing: 5) {
+            if !tags.isEmpty { VariationPill(parts: tags, size: size) }
+            if let note, !note.isEmpty {
+                Text(note).font(.system(size: size == .small ? 12.5 : 14, weight: .semibold)).foregroundStyle(p.muted).lineLimit(1)
+            }
+        }
+    }
+}
+
 struct SectionLabel: View {
     @Environment(\.palette) private var p
     let text: String

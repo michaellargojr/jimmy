@@ -23,6 +23,7 @@ struct HistoryView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Workout.self) { w in WorkoutDetailView(workoutId: w.id) }
             .navigationDestination(for: Version.self) { v in ExerciseProgressView(versionId: v.id) }
+            .navigationDestination(for: BaseHistoryRoute.self) { r in BaseHistoryView(exerciseId: r.exerciseId) }
         }
     }
 }
@@ -106,53 +107,126 @@ struct WorkoutRow: View {
     }
 }
 
+/// History > Exercises. Sort by muscle group (a tree: muscle group > exercise > variation) or by
+/// most recent (every variation, newest first), from a "Sort by" line under the search. The sort is remembered.
 struct ExercisesHistoryList: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
     @State private var query = ""
+    @AppStorage("historyExerciseSort") private var sortRaw = HistorySort.muscle.rawValue
 
-    private struct Entry: Identifiable { var id: String { version.id }; var version: Version; var count: Int; var last: String? }
+    private var sort: HistorySort { HistorySort(rawValue: sortRaw) ?? .muscle }
+    private var trimmed: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
 
-    private var list: [Entry] {
-        let q = query.lowercased()
-        return store.versions.compactMap { v -> Entry? in
-            if !q.isEmpty && !store.fullName(v).lowercased().contains(q) { return nil }
-            let sessions = store.finishedWorkouts.filter { w in w.items.contains { $0.versionId == v.id && $0.sets.contains { $0.hasData } } }
-            guard !sessions.isEmpty else { return nil }
-            return Entry(version: v, count: sessions.count, last: sessions.first?.date)
-        }
-        .sorted { ($0.last ?? "") > ($1.last ?? "") }
-    }
+    private func matches(_ v: Version) -> Bool { trimmed.isEmpty || store.fullName(v).lowercased().contains(trimmed) }
 
     var body: some View {
+        let list = variationHistories(versions: store.versions, workouts: store.workouts)
         VStack(spacing: 0) {
             SearchField(placeholder: "Search exercises", text: $query)
+            sortLine
             List {
-                ForEach(list) { e in
-                    let v = e.version
-                    NavigationLink(value: v) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                                Text("\(store.variationText(v)) · \(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
-                            }
-                            Spacer()
-                            if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
-                                Text(t.formatted).font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(p.secondary)
-                            }
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 12)
-                    }
-                    .rowCard(p)
-                }
-                if list.isEmpty {
-                    Text(query.isEmpty ? "Log a workout and your exercises show up here." : "Nothing matches \"\(query)\".")
-                        .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                switch sort {
+                case .muscle: muscleRows(list)
+                case .recent: recentRows(list)
                 }
             }
             .cardList()
         }
         .background(p.bg.ignoresSafeArea())
+    }
+
+    /// "Sort by Muscle group" under the search. The sort that is on reads in the accent; tap it for the two choices.
+    private var sortLine: some View {
+        HStack(spacing: 8) {
+            Text("Sort by").font(.system(size: 14)).foregroundStyle(p.muted)
+            Menu {
+                Picker("Sort", selection: Binding(get: { sort }, set: { sortRaw = $0.rawValue })) {
+                    ForEach(HistorySort.allCases) { s in Text(s.label).tag(s) }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(sort.label).font(.system(size: 14, weight: .bold))
+                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(p.accent)
+                .frame(height: 36)
+                .contentShape(Rectangle())
+            }
+            .menuOrder(.fixed)
+            Spacer()
+        }
+        .padding(.horizontal, 16).padding(.bottom, 2)
+    }
+
+    // MARK: Muscle group
+
+    /// Only groups and exercises with history. An exercise with one variation opens its history
+    /// straight away; with more, a page to pick the variation.
+    @ViewBuilder private func muscleRows(_ list: [VariationHistory]) -> some View {
+        let tree = historyByMuscle(list, exercises: store.exercises) { e, vs in
+            trimmed.isEmpty || searchRank(e, trimmed) != nil || vs.contains { matches($0.version) }
+        }
+        ForEach(tree) { sec in
+            Section {
+                ForEach(sec.bases) { b in
+                    Group {
+                        if b.variations.count == 1 {
+                            NavigationLink(value: b.variations[0].version) { baseRow(b) }
+                        } else {
+                            NavigationLink(value: BaseHistoryRoute(exerciseId: b.exercise.id)) { baseRow(b) }
+                        }
+                    }
+                    .rowCard(p)
+                }
+            } header: {
+                SectionLabel(sec.muscle.label).padding(.leading, 16)
+            }
+        }
+        if tree.isEmpty { emptyText }
+    }
+
+    /// The name, when it was last done, and how many variations have history (accent, like Plan).
+    private func baseRow(_ b: BaseHistory) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(b.exercise.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                Text("Last \(monthDay(b.last))").font(.system(size: 12.5)).foregroundStyle(p.muted)
+            }
+            Spacer()
+            Text("\(b.variations.count)").font(.system(size: 14, weight: .heavy)).foregroundStyle(p.accent)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    // MARK: Most recent
+
+    @ViewBuilder private func recentRows(_ list: [VariationHistory]) -> some View {
+        let shown = list.filter { matches($0.version) }
+        ForEach(shown) { h in
+            NavigationLink(value: h.version) { recentRow(h) }.rowCard(p)
+        }
+        if shown.isEmpty { emptyText }
+    }
+
+    private func recentRow(_ h: VariationHistory) -> some View {
+        let v = h.version
+        return HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                VariationChips(tags: store.variationChips(v), size: .small, note: "\(monthDay(h.last)) - \(h.sessionsLabel)")
+            }
+            Spacer()
+            if let t = lastSession(versionId: v.id, workouts: store.finishedWorkouts, versions: store.versions).flatMap({ topSet($0.item) }) {
+                Text(t.formatted).font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(p.secondary)
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    private var emptyText: some View {
+        Text(query.isEmpty ? "Log a workout and your exercises show up here." : "Nothing matches \"\(query)\".")
+            .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
     }
 }
 
@@ -187,9 +261,9 @@ struct WorkoutDetailView: View {
                                         NavigationLink { ExerciseProgressView(versionId: v.id) } label: {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 HStack {
-                                                    VStack(alignment: .leading, spacing: 1) {
+                                                    VStack(alignment: .leading, spacing: 5) {
                                                         Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                                                        Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                                                        VariationChips(tags: store.variationChips(v), size: .small, note: store.style(item.styleId)?.label)
                                                     }
                                                     Spacer()
                                                     switch verdict(item.sets, item.doneRange(v)) {

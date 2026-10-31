@@ -77,11 +77,16 @@ struct StyleSpec: Hashable {
 
 /// "Cable · one arm · arms behind". Leg bases say "one leg"; body weight hides "two arms".
 func variationLabel(family: EquipmentFamily, arms: Arms, position: Position?, tag: String?, legs: Bool) -> String {
+    variationParts(family: family, arms: arms, position: position, tag: tag, legs: legs).joined(separator: " · ")
+}
+
+/// The words that make a variation, one per chip: "Cable", "one arm", "arms behind".
+func variationParts(family: EquipmentFamily, arms: Arms, position: Position?, tag: String?, legs: Bool) -> [String] {
     var parts: [String] = [family.label]
     if let tag, !tag.isEmpty { parts.append(tag) }
     if arms == .one || (!legs && family != .body) { parts.append(arms.label(legs: legs)) }
     if let position { parts.append(position.label) }
-    return parts.joined(separator: " · ")
+    return parts
 }
 
 func variationLabel(_ v: Version, legs: Bool) -> String {

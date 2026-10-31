@@ -51,8 +51,9 @@ struct WorkoutView: View {
             .sheet(isPresented: $showOverview, onDismiss: {
                 if let t = pendingAdd { pendingAdd = nil; adding = t }
             }) {
+                // Full height, so every exercise shows at once.
                 OverviewSheet(workoutId: workoutId, current: $current, adding: $pendingAdd)
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
             .sheet(isPresented: $showSettings) {
@@ -238,7 +239,7 @@ struct SetLoggedKey: PreferenceKey {
 }
 
 /// Always ready to edit: tick boxes to group or ungroup, hold a row and drag to reorder, hold for
-/// Swap or Delete, swipe left to delete. Tapping a name jumps to that exercise.
+/// Swap or Delete, swipe left to delete. Tapping a name jumps to that exercise; Add sits under the last one.
 struct OverviewSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -259,6 +260,17 @@ struct OverviewSheet: View {
                         row(w, index: i, item: item, paneIndex: ps.firstIndex { $0.contains { $0.id == item.id } } ?? 0)
                     }
                     .onMove { from, to in store.put(moveItem(w, from: from, to: to)) }
+                    // Under the last exercise, never floating over the list.
+                    Button { adding = WorkoutView.AddTarget(); dismiss() } label: {
+                        Label("Add exercise", systemImage: "plus").font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
+                            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                            .padding(.leading, 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
                 }
                 .cardList()
                 .navigationTitle("Overview")
@@ -275,28 +287,15 @@ struct OverviewSheet: View {
     }
 
     /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup.
-    /// With nothing to do, the + to add an exercise sits bottom right.
+    /// The bar shows only then, docked under the list.
     @ViewBuilder
     private func bottomBar(_ w: Workout) -> some View {
         let ticked = w.items.filter { selected.contains($0.id) }
-        HStack {
-            if ticked.contains(where: { $0.groupId != nil }) {
-                actionButton("Ungroup") { store.put(ungroup(w, ids: selected)); selected = [] }
-            } else if ticked.count >= 2 {
-                actionButton("Make a \(GroupType.forCount(ticked.count).rawValue)") { store.put(makeGroup(w, ids: selected)); selected = [] }
-            } else {
-                Spacer()
-                Button { adding = WorkoutView.AddTarget(); dismiss() } label: {
-                    Image(systemName: "plus").font(.system(size: 24, weight: .bold)).foregroundStyle(p.onAccent)
-                        .frame(width: 60, height: 60)
-                        .background(p.accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
-                }
-                .accessibilityLabel("Add exercise")
-            }
+        if ticked.contains(where: { $0.groupId != nil }) {
+            actionButton("Ungroup") { store.put(ungroup(w, ids: selected)); selected = [] }
+        } else if ticked.count >= 2 {
+            actionButton("Make a \(GroupType.forCount(ticked.count).rawValue)") { store.put(makeGroup(w, ids: selected)); selected = [] }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
 
     private func actionButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -305,6 +304,9 @@ struct OverviewSheet: View {
                 .frame(maxWidth: .infinity).frame(height: 56)
                 .background(p.accent, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .background(p.bg)
     }
 
     private func row(_ w: Workout, index i: Int, item: WorkoutItem, paneIndex: Int) -> some View {
@@ -333,7 +335,10 @@ struct OverviewSheet: View {
                             Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(p.accent)
                         }
                     }
-                    if let v { Text(dashed(store.subtitle(v, styleId: item.styleId))).font(.system(size: 14, weight: .bold)).foregroundStyle(p.text).lineLimit(1) }
+                    if let v {
+                        VariationChips(tags: store.variationTags(v), size: .small, note: store.style(item.styleId).map { dashed($0.label) })
+                            .padding(.vertical, 2)
+                    }
                     if !sets.isEmpty { Text(sets).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

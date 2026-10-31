@@ -249,9 +249,9 @@ struct WatchExerciseBlock: View {
                     Card {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                VStack(alignment: .leading, spacing: 1) {
+                                VStack(alignment: .leading, spacing: 5) {
                                     Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                                    Text(store.variationText(v)).font(.system(size: 12)).foregroundStyle(p.muted)
+                                    VariationChips(tags: store.variationChips(v), size: .small)
                                 }
                                 Spacer()
                                 Chevron()
