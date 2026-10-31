@@ -261,7 +261,7 @@ struct VersionEditorView: View {
     @State private var loaded = false
     @State private var editingStyle: Style? = nil
     @State private var newStyle = false
-    @State private var pickingCopy = false
+    @State private var picking: HistoryPick? = nil
     @State private var askErase = false
 
     private var version: Version? { store.version(versionId) }
@@ -340,11 +340,13 @@ struct VersionEditorView: View {
                 }
                 if !historySessions(v.id, workouts: store.workouts).isEmpty {
                     Section("History") {
-                        Button { pickingCopy = true } label: {
-                            HStack {
-                                Text("Copy history to…").foregroundStyle(p.text)
-                                Spacer()
-                                Chevron()
+                        ForEach(HistoryPick.allCases) { pick in
+                            Button { picking = pick } label: {
+                                HStack {
+                                    Text(pick.row).foregroundStyle(p.text)
+                                    Spacer()
+                                    Chevron()
+                                }
                             }
                         }
                         Button(role: .destructive) { askErase = true } label: { Text("Erase history").foregroundStyle(p.danger) }
@@ -366,7 +368,7 @@ struct VersionEditorView: View {
             .sheet(isPresented: $newStyle) {
                 StyleEditorSheet(version: v, style: nil).presentationDetents([.large]).presentationBackground(p.card)
             }
-            .historyActions(versionId: v.id, picking: $pickingCopy, erasing: $askErase)
+            .historyActions(versionId: v.id, picking: $picking, erasing: $askErase)
         }
     }
 }

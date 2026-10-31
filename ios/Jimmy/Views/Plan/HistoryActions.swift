@@ -1,19 +1,27 @@
 import SwiftUI
 
-/// What the History group on a variation's page opens: copy or move its sessions to another
+/// The rows of the History group on a variation's page, in order.
+enum HistoryPick: CaseIterable, Identifiable {
+    case move, copy
+    var id: Self { self }
+    var row: String { self == .move ? "Move history to…" : "Copy history to…" }
+    var sheetTitle: String { self == .move ? "Move to" : "Copy to" }
+}
+
+/// What the History group on a variation's page opens: move or copy its sessions to another
 /// exercise, or erase them. Move and Erase each ask "Are you sure?", then a short Undo bar shows.
-/// A copy or move lands on the target's history page, so you see the sessions arrive.
+/// A move or copy lands on the target's history page, so you see the sessions arrive.
 struct HistoryActions: ViewModifier {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
     let versionId: String
-    @Binding var picking: Bool
+    @Binding var picking: HistoryPick?
     @Binding var erasing: Bool
 
     private struct Target: Equatable { var version: Version; var styleId: String? }
 
+    @State private var pick: HistoryPick = .move
     @State private var target: Target? = nil
-    @State private var choosing = false
     @State private var sureMove = false
     @State private var landed: Version? = nil
 
@@ -22,26 +30,20 @@ struct HistoryActions: ViewModifier {
         let n = historySessions(versionId, workouts: store.workouts).count
         let name = v.map { store.workoutName($0) } ?? ""
         content
-            // The usual exercise search, titled "Copy to". Picking can make a new variation on the spot.
-            .sheet(isPresented: $picking, onDismiss: { if target != nil { choosing = true } }) {
-                AddExerciseSheet(title: "Copy to") { picked, style in
-                    if picked.id != versionId { target = Target(version: picked, styleId: style?.id) }
+            // The usual exercise search, titled "Move to" or "Copy to". Picking can make a new variation on the spot.
+            .sheet(item: $picking, onDismiss: afterSearch) { which in
+                AddExerciseSheet(title: which.sheetTitle) { chosen, style in
+                    if chosen.id != versionId { target = Target(version: chosen, styleId: style?.id) }
                 }
                 .presentationDetents([.large])
                 .presentationBackground(p.card)
             }
-            .onChange(of: picking) { _, open in if open { target = nil } }
-            .confirmationDialog(target.map { "\(sessionsText(n)) to \(store.workoutName($0.version))" } ?? "",
-                                isPresented: $choosing, titleVisibility: .visible) {
-                Button("Copy") { run(move: false) }
-                Button("Move", role: .destructive) { sureMove = true }
-                Button("Cancel", role: .cancel) { target = nil }
-            }
+            .onChange(of: picking) { _, open in if let open { pick = open; target = nil } }
             .alert("Are you sure?", isPresented: $sureMove) {
                 Button("Move", role: .destructive) { run(move: true) }
                 Button("Cancel", role: .cancel) { target = nil }
             } message: {
-                Text("\(name) loses \(sessionsText(n)).")
+                Text(target.map { "\(sessionsText(n)) go to \(store.workoutName($0.version)). \(name) loses them." } ?? "")
             }
             .alert("Are you sure?", isPresented: $erasing) {
                 Button("Erase", role: .destructive) { if let v { store.eraseHistory(v) } }
@@ -51,6 +53,12 @@ struct HistoryActions: ViewModifier {
             }
             .navigationDestination(item: $landed) { t in ExerciseProgressView(versionId: t.id) }
             .historyUndoBar(versionId: versionId)
+    }
+
+    /// After the search closes: a copy goes straight through (Undo covers it), a move asks first.
+    private func afterSearch() {
+        guard target != nil else { return }
+        if pick == .move { sureMove = true } else { run(move: false) }
     }
 
     private func run(move: Bool) {
@@ -100,7 +108,7 @@ struct HistoryUndoBar: ViewModifier {
 }
 
 extension View {
-    func historyActions(versionId: String, picking: Binding<Bool>, erasing: Binding<Bool>) -> some View {
+    func historyActions(versionId: String, picking: Binding<HistoryPick?>, erasing: Binding<Bool>) -> some View {
         modifier(HistoryActions(versionId: versionId, picking: picking, erasing: erasing))
     }
     func historyUndoBar(versionId: String) -> some View { modifier(HistoryUndoBar(versionId: versionId)) }
