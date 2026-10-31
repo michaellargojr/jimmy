@@ -611,7 +611,8 @@ struct SetRowView: View {
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .simultaneousGesture(swipe)
+        // Sideways only: a swipe up or down that starts on a row moves the page, not the row.
+        .sidewaysDrag(swipe, changed: { x in dx = min(0, x) }, ended: { x, predicted in letGo(x, predicted: predicted) })
         .onChange(of: pendingDelete) { _, pending in
             if !pending { withAnimation(.snappy) { dx = 0 } }
         }
@@ -629,14 +630,19 @@ struct SetRowView: View {
             .onEnded { g in
                 defer { horizontal = nil }
                 guard horizontal == true else { return }
-                let far = width > 0 && (g.translation.width < -width * 0.55 || g.predictedEndTranslation.width < -width * 0.9)
-                if far {
-                    withAnimation(.snappy) { dx = -width }
-                    onDelete()
-                } else {
-                    withAnimation(.snappy) { dx = 0 }
-                }
+                letGo(g.translation.width, predicted: g.predictedEndTranslation.width)
             }
+    }
+
+    /// Far enough, or flung far enough, and it asks to delete; otherwise it springs back.
+    private func letGo(_ x: CGFloat, predicted: CGFloat) {
+        let far = width > 0 && (x < -width * 0.55 || predicted < -width * 0.9)
+        if far {
+            withAnimation(.snappy) { dx = -width }
+            onDelete()
+        } else {
+            withAnimation(.snappy) { dx = 0 }
+        }
     }
 
     private func field(value: String?, ghost: String?, suffix: String?, action: @escaping () -> Void) -> some View {
