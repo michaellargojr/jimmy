@@ -103,29 +103,42 @@ struct WorkoutView: View {
         }
     }
 
-    /// One row that stays put: Done alone on the left, where a stray thumb is least likely to
-    /// land, the time big in the middle to keep the pace up, then Overview and the gear. Under it a
-    /// block per exercise fills in once that exercise is done.
+    /// One row that stays put: Start, then Done, alone on the left, where a stray thumb is least
+    /// likely to land, the time big in the middle to keep the pace up, then Overview and the gear.
+    /// Under it a block per exercise fills in once that exercise is done.
     private func header(_ w: Workout, finished: [Bool]) -> some View {
         VStack(spacing: 10) {
             ZStack {
                 HStack(spacing: 8) {
-                    PillButton(title: "Done", style: .primary) { askEnd = true }
+                    // Picking a workout doesn't start the clock; Start does, and then Done takes its place.
+                    if w.startedAt == nil {
+                        PillButton(title: "Start", style: .primary) { store.startClock(workoutId) }
+                    } else {
+                        PillButton(title: "Done", style: .primary) { askEnd = true }
+                    }
                     Spacer()
                     iconButton("checklist", label: "Overview") { showOverview = true }
                     iconButton("gearshape", label: "Workout settings") { showSettings = true }
                 }
-                TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                    let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
-                    Text(elapsedString(ms: ms))
-                        .font(.system(size: 28, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(p.text)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                        .frame(maxWidth: 140)
+                if let started = w.startedAt {
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        clock(elapsedString(ms: ctx.date.timeIntervalSince1970 * 1000 - started), running: true)
+                    }
+                } else {
+                    clock("0:00", running: false)
                 }
             }
             if !finished.isEmpty { progressStrip(finished) }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    /// The time, big. Grey at 0:00 until Start.
+    private func clock(_ text: String, running: Bool) -> some View {
+        Text(text)
+            .font(.system(size: 28, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(running ? p.text : p.muted)
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .frame(maxWidth: 140)
     }
 
     /// One block per exercise (a superset is one), filled when all its sets are checked.
