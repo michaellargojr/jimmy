@@ -229,7 +229,7 @@ struct SetPickerSheet: View {
         let idx = item.sets.firstIndex { $0.id == setId } ?? 0
         let before = item.sets.prefix(idx).last { $0.weight != nil }
         weight = s.weight ?? ghost?.weight ?? before?.weight ?? last?.item.sets.first { $0.kind == .working && $0.weight != nil }?.weight ?? 0
-        reps = s.reps ?? ghost?.reps ?? v.repMax
+        reps = s.reps ?? ghost?.reps ?? store.workout(workoutId).flatMap { store.repRange(item, in: $0) }?.hi ?? v.repMax
         partials = s.partials ?? 0
         loadedFor = setId
     }

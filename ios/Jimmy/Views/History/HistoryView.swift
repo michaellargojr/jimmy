@@ -83,7 +83,7 @@ struct WorkoutRow: View {
 
     var body: some View {
         let up = setsUp(in: workout, workouts: store.workouts, versions: store.versions)
-        let down = workout.items.filter { i in store.version(i.versionId).map { verdict(i.sets, $0) == .down } ?? false }.count
+        let down = workout.items.filter { i in store.version(i.versionId).map { verdict(i.sets, i.doneRange($0)) == .down } ?? false }.count
         let sets = workout.items.flatMap { $0.sets }.filter { $0.isDone }.count
         HStack(spacing: 12) {
             VStack(spacing: 0) {
@@ -192,7 +192,7 @@ struct WorkoutDetailView: View {
                                                         Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                                                     }
                                                     Spacer()
-                                                    switch verdict(item.sets, v) {
+                                                    switch verdict(item.sets, item.doneRange(v)) {
                                                     case .up: Badge(text: "up", kind: .up)
                                                     case .down: Badge(text: "down", kind: .down)
                                                     case .none: Chevron()

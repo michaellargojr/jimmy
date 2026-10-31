@@ -18,6 +18,7 @@ struct ExerciseCardView: View {
     @State private var editVersion = false
     @State private var newStyle = false
     @State private var showFormCues = false
+    @State private var showRange = false
     @State private var customRange = false
     @State private var showHistory = false
     /// Holding Last time opens the last three times and the other variations over the workout.
@@ -29,8 +30,6 @@ struct ExerciseCardView: View {
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
     enum SetField: String { case weight, reps, rating }
 
-    static let repRanges: [(Int, Int)] = [(3, 5), (5, 8), (6, 10), (8, 12), (10, 15), (12, 15), (15, 20)]
-
     private var workout: Workout? { store.workout(workoutId) }
     private var item: WorkoutItem? { workout?.items.first { $0.id == itemId } }
 
@@ -40,9 +39,10 @@ struct ExerciseCardView: View {
             let others = otherVersionsLast(version: v, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
             // The verdict waits until every set has its numbers, so a blank added set hides it.
             let complete = setsComplete(item.sets, bodyweight: v.family == .body)
-            let verdictNow = complete ? verdict(item.sets, v) : Verdict.none
+            let range = store.repRange(item, in: w) ?? RepRange(v.repMin, v.repMax)
+            let verdictNow = complete ? verdict(item.sets, range) : Verdict.none
             VStack(alignment: .leading, spacing: 14) {
-                titleBlock(v, item: item)
+                titleBlock(v, item: item, w: w, range: range)
                 lastTime(last: last, holdable: last != nil || !others.isEmpty)
                 formCuesLine(v)
                 setGrid(item: item, v: v, last: last, done: complete)
@@ -67,7 +67,8 @@ struct ExerciseCardView: View {
                     .presentationDetents([.large]).presentationBackground(p.card)
             }
             .sheet(isPresented: $customRange) {
-                RepRangeSheet(version: v).presentationBackground(p.card)
+                RepRangeSheet(range: range) { r in update { $0 = settingRepRange(r, on: $0) } }
+                    .presentationBackground(p.card)
             }
             .fullScreenCover(isPresented: $showRecent, onDismiss: {
                 if historyNext { historyNext = false; showHistory = true }
@@ -99,7 +100,7 @@ struct ExerciseCardView: View {
     // MARK: Title
 
     /// "Dumbbell Shoulder Press", then "Two arms" with the rep range, then the style.
-    private func titleBlock(_ v: Version, item: WorkoutItem) -> some View {
+    private func titleBlock(_ v: Version, item: WorkoutItem, w: Workout, range: RepRange) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(store.workoutName(v))
                 .font(.system(size: compact ? 23 : 28, weight: .heavy)).tracking(-0.5)
@@ -108,7 +109,7 @@ struct ExerciseCardView: View {
             HStack(spacing: 6) {
                 Text(store.armsText(v)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 4)
-                repRangeMenu(v)
+                repRangeButton(v, item: item, w: w, range: range)
                 Menu { cardMenu(v) } label: {
                     Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(p.secondary)
                         .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
@@ -120,27 +121,36 @@ struct ExerciseCardView: View {
         }
     }
 
-    /// The rep range in the accent color. Picking another one changes the variation for good.
-    private func repRangeMenu(_ v: Version) -> some View {
-        Menu {
-            ForEach(Self.repRanges.indices, id: \.self) { i in
-                let r = Self.repRanges[i]
-                Button { setRange(v.id, r.0, r.1) } label: {
-                    if v.repMin == r.0 && v.repMax == r.1 { Label("\(r.0)-\(r.1)", systemImage: "checkmark") } else { Text("\(r.0)-\(r.1)") }
-                }
-            }
-            Divider()
-            Button("Custom…") { customRange = true }
-        } label: {
-            (Text("\(v.repMin)-\(v.repMax)").font(.system(size: 17, weight: .heavy)).monospacedDigit()
+    /// Today's rep range in the accent color. Tapping it opens the templates and numbers;
+    /// a pick here is for this workout only and beats the gear's.
+    private func repRangeButton(_ v: Version, item: WorkoutItem, w: Workout, range: RepRange) -> some View {
+        let group = store.repGroup(v)
+        return Button { showRange = true } label: {
+            (Text(range.text).font(.system(size: 17, weight: .heavy)).monospacedDigit()
                 + Text(" rep range").font(.system(size: 15, weight: .bold)))
                 .foregroundStyle(p.accent)
                 .lineLimit(1)
                 .frame(height: 36).padding(.horizontal, 12)
                 .background(p.accentSoft, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         }
-        .menuOrder(.fixed)
-        .accessibilityLabel("Rep range \(v.repMin) to \(v.repMax)")
+        .buttonStyle(.plain)
+        .accessibilityLabel("Rep range \(range.lo) to \(range.hi)")
+        .popover(isPresented: $showRange, arrowEdge: .top) {
+            RepRangePicker(
+                ranges: Dictionary(uniqueKeysWithValues: RepTemplate.allCases.map { ($0, templateRange($0, version: v, group: group)) }),
+                picked: pickedRepTemplate(item: item, workout: w),
+                current: range,
+                templates: group != .hold,
+                onTemplate: { t in update { $0 = settingRepTemplate(t, on: $0) }; showRange = false },
+                onRange: { r in update { $0 = settingRepRange(r, on: $0) }; showRange = false },
+                onCustom: {
+                    showRange = false
+                    // The wheels open once the popover is gone; two at once drops the second.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { customRange = true }
+                })
+            .presentationCompactAdaptation(.popover)
+            .presentationBackground(p.card)
+        }
     }
 
     /// A tappable badge under last time, modelled on "Go up next time", with the play button
@@ -471,7 +481,7 @@ struct ExerciseCardView: View {
             editing = SetEdit(setId: s.id, field: .weight)
             return
         }
-        let reps = s.reps ?? ghost?.reps ?? prev?.reps ?? v.repMax
+        let reps = s.reps ?? ghost?.reps ?? prev?.reps ?? todayRange(v).hi
         patch(s.id) { $0.weight = weight; $0.reps = reps; if let g = ghost, g.plus, s.reps == nil { $0.plus = g.plus } }
         logTrigger += 1
         lastLogged = nowMs()
@@ -495,10 +505,9 @@ struct ExerciseCardView: View {
         update { $0.sets.removeAll { $0.id == id } }
     }
 
-    private func setRange(_ versionId: String, _ lo: Int, _ hi: Int) {
-        guard var v = store.version(versionId) else { return }
-        v.repMin = lo; v.repMax = hi
-        store.put(v)
+    private func todayRange(_ v: Version) -> RepRange {
+        guard let w = workout, let item, let r = store.repRange(item, in: w) else { return RepRange(v.repMin, v.repMax) }
+        return r
     }
 
     private func toggleSkip() { update { $0.skipped = $0.skipped == true ? nil : true } }
@@ -642,49 +651,6 @@ struct SetRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Any rep range, for when the presets do not fit. Saves to the variation.
-struct RepRangeSheet: View {
-    @Environment(AppStore.self) private var store
-    @Environment(\.palette) private var p
-    @Environment(\.dismiss) private var dismiss
-    let versionId: String
-    @State private var lo: Int
-    @State private var hi: Int
-
-    init(version v: Version) {
-        versionId = v.id
-        _lo = State(initialValue: v.repMin)
-        _hi = State(initialValue: v.repMax)
-    }
-
-    var body: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 12) {
-                column("Min", $lo)
-                column("Max", $hi)
-            }
-            PillButton(title: "Save", style: .primary, full: true, height: 56) {
-                guard var v = store.version(versionId) else { return }
-                v.repMin = min(lo, hi); v.repMax = max(lo, hi)
-                store.put(v)
-                dismiss()
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 24)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(340)])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func column(_ title: String, _ value: Binding<Int>) -> some View {
-        VStack(spacing: 8) {
-            Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(p.secondary)
-            WheelPicker(values: Array(1...40), selection: value) { "\($0)" }
-        }
     }
 }
 

@@ -8,6 +8,7 @@ struct WorkoutView: View {
 
     @State private var current: Int? = 0
     @State private var showOverview = false
+    @State private var showSettings = false
     @State private var adding: AddTarget? = nil
     /// Set by the Overview sheet; presented only after Overview has finished closing,
     /// because two sheets changing at once leaves the new one unable to take the keyboard.
@@ -27,7 +28,7 @@ struct WorkoutView: View {
         if let w = workout {
             let ps = panes(w.items)
             VStack(spacing: 0) {
-                header(w, paneCount: ps.count)
+                header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
@@ -53,6 +54,11 @@ struct WorkoutView: View {
                 // Full height, so every exercise shows at once.
                 OverviewSheet(workoutId: workoutId, current: $current, adding: $pendingAdd)
                     .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            .sheet(isPresented: $showSettings) {
+                WorkoutRepRangesSheet(workoutId: workoutId)
+                    .presentationDetents([.medium, .large])
                     .presentationBackground(p.card)
             }
             .sheet(item: $adding) { t in
@@ -87,26 +93,65 @@ struct WorkoutView: View {
         }
     }
 
-    private func header(_ w: Workout, paneCount: Int) -> some View {
-        HStack(spacing: 10) {
-            PillButton(title: "Overview") { showOverview = true }
-            Spacer()
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
-                Text("\(w.name) - \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount) - \(elapsedString(ms: ms))")
-                    .font(.system(size: 13)).monospacedDigit().foregroundStyle(p.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+    /// One row that stays put: Done alone on the left, where a stray thumb is least likely to
+    /// land, the time big in the middle to keep the pace up, then Overview and the gear. Under it a
+    /// block per exercise fills in once that exercise is done.
+    private func header(_ w: Workout, finished: [Bool]) -> some View {
+        VStack(spacing: 10) {
+            ZStack {
+                HStack(spacing: 8) {
+                    PillButton(title: "Done", style: .primary) { askEnd = true }
+                    Spacer()
+                    iconButton("checklist", label: "Overview") { showOverview = true }
+                    iconButton("gearshape", label: "Workout settings") { showSettings = true }
+                }
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
+                    Text(elapsedString(ms: ms))
+                        .font(.system(size: 28, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(p.text)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: 140)
+                }
             }
-            Spacer()
-            PillButton(title: "Done", style: .primary) { askEnd = true }
+            if !finished.isEmpty { progressStrip(finished) }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    /// One block per exercise (a superset is one), filled when all its sets are checked.
+    private func progressStrip(_ finished: [Bool]) -> some View {
+        HStack(spacing: 4) {
+            ForEach(finished.indices, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(finished[i] ? p.accent : p.elevated)
+                    .frame(height: 6)
+            }
+        }
+        .animation(.snappy, value: finished)
+        .accessibilityElement()
+        .accessibilityLabel("\(finished.filter { $0 }.count) of \(finished.count) exercises done")
+    }
+
+    private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 18, weight: .bold)).foregroundStyle(p.text)
+                .frame(width: 44, height: 44)
+                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder
     private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
+                // The workout's name lives at the top of the first page and scrolls away with it.
+                if index == 0 {
+                    Text(w.name).font(.system(size: 30, weight: .heavy)).tracking(-0.5).foregroundStyle(p.accent)
+                        .lineLimit(2).minimumScaleFactor(0.8)
+                        .padding(.bottom, 4)
+                }
                 if pane.count > 1, pane.first?.groupId != nil {
                     HStack {
                         Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
