@@ -9,8 +9,8 @@ struct JimmyTabBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            item(.home, "Home", "house")
-            item(.plan, "Plan", "square.text.square")
+            item(.home, "Home", "house.fill")
+            item(.plan, "Plan", "square.text.square.fill")
             WorkoutTile { select(.workout) }
             item(.history, "History", "chart.xyaxis.line")
             item(.settings, "Settings", "slider.horizontal.3")
@@ -32,7 +32,8 @@ struct JimmyTabBar: View {
         let on = tab == t
         return Button { select(t) } label: {
             VStack(spacing: 2) {
-                Image(systemName: icon).font(.system(size: 19, weight: .semibold)).frame(height: 24)
+                // The same symbols and weight the app always had.
+                Image(systemName: icon).font(.system(size: 21, weight: .semibold)).frame(height: 26)
                 Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
             }
             .foregroundStyle(on ? p.text : p.muted)
