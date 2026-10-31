@@ -117,8 +117,8 @@ struct ExerciseProgressView: View {
                     }
                     if !others.isEmpty {
                         SectionLabel("Other variations").padding(.top, 6)
-                        ForEach(others, id: \.version.id) { o in
-                            NavigationLink { ExerciseProgressView(versionId: o.version.id) } label: { otherCard(o) }
+                        ForEach(others) { o in
+                            NavigationLink { ExerciseProgressView(versionId: o.version.id) } label: { VariationHistoryCard(version: o.version) }
                                 .buttonStyle(.plain)
                         }
                     }
@@ -163,44 +163,9 @@ struct ExerciseProgressView: View {
         .padding(.horizontal, 16).padding(.vertical, 12)
     }
 
-    private struct Other { var version: Version; var points: [ProgressPoint] }
-
     /// The other variations of this exercise that have finished sessions, most recent first.
-    private func otherVariations(_ v: Version) -> [Other] {
-        store.versions
-            .filter { $0.exerciseId == v.exerciseId && $0.id != v.id }
-            .map { Other(version: $0, points: progressPoints(versionId: $0.id, workouts: store.workouts, version: $0)) }
-            .filter { !$0.points.isEmpty }
-            .sorted { ($0.points.last?.date ?? "") > ($1.points.last?.date ?? "") }
-    }
-
-    private func otherCard(_ o: Other) -> some View {
-        let last = o.points.last
-        let lastText = last.map { pt in ([monthDay(pt.date)] + [pt.sets.prefix(3).map { $0.valueText }.joined(separator: ", ")]).joined(separator: " - ") } ?? ""
-        let n = o.points.count
-        return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(store.workoutName(o.version)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).multilineTextAlignment(.leading)
-                VariationChips(tags: store.variationTags(o.version), size: .small, note: "\(n) \(n == 1 ? "session" : "sessions")")
-                Text(lastText).font(.system(size: 16, weight: .bold)).monospacedDigit().foregroundStyle(p.secondary).padding(.top, 4)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if o.points.count > 1 {
-                Chart(o.points) { pt in
-                    LineMark(x: .value("Date", dayDate(pt.date)), y: .value("Weight", pt.weight))
-                        .foregroundStyle(p.secondary)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                    PointMark(x: .value("Date", dayDate(pt.date)), y: .value("Weight", pt.weight))
-                        .symbol(.square).symbolSize(24).foregroundStyle(p.secondary)
-                }
-                .chartYScale(domain: .automatic(includesZero: false))
-                .chartXAxis(.hidden).chartYAxis(.hidden)
-                .frame(width: 90, height: 44)
-            }
-            Chevron()
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+    private func otherVariations(_ v: Version) -> [VariationHistory] {
+        variationHistories(versions: store.versions.filter { $0.exerciseId == v.exerciseId && $0.id != v.id }, workouts: store.workouts)
     }
 
     private func stat(_ label: String, _ value: String, accent: Bool = false) -> some View {
