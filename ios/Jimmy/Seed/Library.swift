@@ -89,7 +89,9 @@ let LIBRARY: [LibraryBase] = RAW.split(separator: "\n").compactMap { line -> Lib
     let c = line.split(separator: "|", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
     guard c.count >= 6, let group = MuscleGroup(rawValue: c[1]) else { return nil }
     let also = list(c[2]).compactMap { MuscleGroup(rawValue: $0) }
-    let variations = c[5].split(separator: ";").compactMap { VariationSpec(String($0)) }
+    let variations = c[5].split(separator: ";").compactMap { text in
+        VariationSpec(String(text)).map { spec in withUsualLoading(spec, base: c[0]) }
+    }
     return LibraryBase(name: c[0], group: group, also: also, primary: list(c[3]), secondary: list(c[4]),
                        variations: variations, aliases: c.count > 6 ? list(c[6]) : [])
 }

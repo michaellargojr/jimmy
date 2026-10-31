@@ -18,6 +18,11 @@ struct AddExerciseSheet: View {
     @State private var variation = VariationSpec(family: .dumbbell)
     @State private var style = StyleSpec()
     @State private var started = false
+    /// Naming a machine in the Machine block, and the name typed there.
+    @State private var naming: MachineNaming? = nil
+    @State private var machineText = ""
+    /// You switched the app's pick for a machine name (variation or style).
+    @State private var flipped = false
     @FocusState private var focused: Bool
 
     init(base: Exercise? = nil, title: String? = nil, onPick: @escaping (Version, Style?) -> Void) {
@@ -131,10 +136,11 @@ struct AddExerciseSheet: View {
         chosen = b
         let vs = store.variations(of: b.id)
         let lib = libraryBase(named: b.name)
-        if let v = vs.first { variation = VariationSpec(family: v.family, arms: v.arms, position: v.position, tag: v.tag) }
+        if let v = vs.first { variation = VariationSpec(v) }
         else if let s = lib?.variations.first { variation = s }
         else { variation = VariationSpec(family: .dumbbell) }
         style = StyleSpec()
+        naming = nil; machineText = ""; flipped = false
     }
 
     /// From Plan: start on a common variation you don't have yet, so Add makes something new.
@@ -142,9 +148,10 @@ struct AddExerciseSheet: View {
         let mine = store.variations(of: b.id)
         let lib = libraryBase(named: b.name)
         if let s = lib?.variations.first(where: { s in !mine.contains { $0.key == s.key } }) { variation = s }
-        else if let v = mine.first { variation = VariationSpec(family: v.family, arms: v.arms, position: v.position, tag: v.tag) }
+        else if let v = mine.first { variation = VariationSpec(v) }
         else { variation = VariationSpec(family: .dumbbell) }
         style = StyleSpec()
+        naming = nil; machineText = ""; flipped = false
     }
 
     // MARK: New base: pick the muscle group
@@ -180,6 +187,10 @@ struct AddExerciseSheet: View {
         let mine = store.variations(of: b.id)
         let suggested = (libraryBase(named: b.name)?.variations ?? []).filter { s in !mine.contains { $0.key == s.key } }
         let verdict = store.addVerdict(base: b, variation: variation, style: style)
+        let showMachines = variation.family == .machine
+        let needsName = naming != nil && machineName(machineText) == nil
+        let call = variationCall(b, verdict: verdict)
+        let asVariation = call.map { flipped ? !$0.appPicksVariation : $0.appPicksVariation }
         return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
@@ -217,25 +228,104 @@ struct AddExerciseSheet: View {
                         VariationFields(legs: b.isLegs, spec: $variation)
                     }
                 }
+                if showMachines {
+                    Card(padding: 14) {
+                        MachineBlock(base: b, spec: $variation, naming: $naming, name: $machineText)
+                    }
+                }
                 Card(padding: 14) {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel("Style")
-                        StyleFields(family: variation.family, position: variation.position, spec: $style)
+                        StyleFields(family: variation.family, position: variation.position, spec: $style, showsMachineName: naming == nil)
                     }
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(verdictText(verdict, base: b)).font(.system(size: 14, weight: .semibold)).foregroundStyle(verdictColor(verdict))
-                    let have = base != nil && verdict.isExisting
-                    PillButton(title: "Add", style: .primary, full: true) {
-                        let (v, s) = store.resolve(base: b, variation: variation, style: style)
-                        finish(v, s)
+                    if !needsName {
+                        HStack(spacing: 10) {
+                            if let call, let asVariation {
+                                Text(asVariation ? "New variation" : "New style").font(.system(size: 14, weight: .semibold)).foregroundStyle(p.accent)
+                                if asVariation { specPill(call.variation, base: b) }
+                            } else {
+                                Text(verdictText(verdict, base: b)).font(.system(size: 14, weight: .semibold)).foregroundStyle(verdictColor(verdict))
+                                if variation.family == .machine, verdict == .newVariation { specPill(variation, base: b) }
+                            }
+                        }
+                        .frame(minHeight: 24)
+                        if let asVariation {
+                            VariationOrStyle(asVariation: asVariation) { v in
+                                if let call { flipped = v != call.appPicksVariation }
+                            }
+                        }
                     }
-                    .disabled(have).opacity(have ? 0.4 : 1)
+                    let have = base != nil && verdict.isExisting && call == nil
+                    PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false) }
+                        .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
                 }
             }
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onChange(of: variation.family) { _, f in
+            if f != .machine { naming = nil; machineText = ""; variation.machine = nil; variation.loading = nil }
+        }
+        .onChange(of: naming) { _, n in
+            flipped = false
+            if n != nil { style.machine = nil }
+        }
+    }
+
+    // MARK: Machines
+
+    /// A call the app made that you can switch: a second machine you named (its own variation,
+    /// or a style of yours), or a new style (a style, or its own variation).
+    private struct VariationCall {
+        /// The variation you have that a style would go on.
+        var target: Version
+        /// The variation it makes as its own.
+        var variation: VariationSpec
+        /// What stays a style on it (a grip beside a machine name).
+        var rest: StyleSpec
+        var appPicksVariation: Bool
+    }
+
+    private func variationCall(_ b: Exercise, verdict: AppStore.AddVerdict) -> VariationCall? {
+        let types = machineTypes(forBase: b.name)
+        if variation.family == .machine, case .another(let n)? = naming, verdict == .newVariation, machineName(machineText) != nil,
+           let t = types.first(where: { $0.name == n }),
+           let target = store.machines(of: t, baseId: b.id, arms: variation.arms, position: variation.position,
+                                       loading: variation.loading).first {
+            return VariationCall(target: target, variation: variation, rest: style, appPicksVariation: true)
+        }
+        if naming == nil, case .newStyle(let v) = verdict, let own = ownVariation(of: style, beside: v, types: types) {
+            return VariationCall(target: v, variation: own.spec, rest: own.rest,
+                                 appPicksVariation: styleNameIsOwnVariation(style.machine, beside: v, types: types))
+        }
+        return nil
+    }
+
+    private func add(_ b: Exercise, call: VariationCall?, asVariation: Bool) {
+        if let call {
+            if asVariation {
+                let v = store.makeVariation(base: b, spec: call.variation, like: call.target)
+                finish(v, store.makeStyle(for: v, spec: call.rest))
+            } else {
+                var st = style
+                if naming != nil { st.machine = machineName(machineText) }
+                finish(call.target, store.makeStyle(for: call.target, spec: st))
+            }
+        } else if variation.family == .machine {
+            let v = store.makeVariation(base: b, spec: variation, like: nil)
+            finish(v, store.makeStyle(for: v, spec: style))
+        } else {
+            let (v, s) = store.resolve(base: b, variation: variation, style: style)
+            finish(v, s)
+        }
+    }
+
+    /// The variation a pick makes, as its chip: "Machine | Iso-lateral | D Stars | One arm".
+    private func specPill(_ s: VariationSpec, base b: Exercise) -> some View {
+        VariationPill(parts: variationParts(family: s.family, arms: s.arms, position: s.position, tag: s.tag, machine: s.machine, loading: s.loading, legs: b.isLegs)
+            .map { capitalized($0) }, size: .small)
     }
 
     private func variationRow(_ v: Version) -> some View {

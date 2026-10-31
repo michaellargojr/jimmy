@@ -55,7 +55,8 @@ final class AppStore {
     /// "Lateral Raise · Cable · one arm", for lists that show one line.
     func fullName(_ v: Version, styleId: String? = nil) -> String { baseName(v) + " · " + subtitle(v, styleId: styleId) }
     /// The Workout title, built from the blocks: "Dumbbell Shoulder Press", "Cable Overhead Tricep
-    /// Extension". A named machine tag reads last: "Machine Calf Raise (D Stars)". Plan keeps base names.
+    /// Extension". A named machine reads last: "Machine Calf Raise (D Stars)", "Machine Iso-lateral
+    /// Pulldown (D Stars)". Plan keeps base names.
     func workoutName(_ v: Version) -> String {
         var words: [String] = []
         switch v.family {
@@ -67,7 +68,8 @@ final class AppStore {
         let namedMachine = v.family == .machine && tag.first?.isUppercase == true
         if !tag.isEmpty && !namedMachine { words.append(tag.split(separator: " ").map { capitalized(String($0)) }.joined(separator: " ")) }
         words.append(baseName(v))
-        return words.joined(separator: " ") + (namedMachine ? " (\(tag))" : "")
+        let names = [namedMachine ? tag : nil, v.machine?.trimmingCharacters(in: .whitespaces)].compactMap { $0 }.filter { !$0.isEmpty }
+        return words.joined(separator: " ") + (names.isEmpty ? "" : " (\(names.joined(separator: " - ")))")
     }
     /// The Workout subtitle: "Two arms", "One arm - seated", "One leg".
     func armsText(_ v: Version) -> String {
@@ -79,14 +81,16 @@ final class AppStore {
     }
     /// The whole variation as chips: "Cable", "Two arms". For Plan, History and lists.
     func variationChips(_ v: Version) -> [String] {
-        variationParts(family: v.family, arms: v.arms, position: v.position, tag: v.tag, legs: base(of: v)?.isLegs ?? false)
+        variationParts(family: v.family, arms: v.arms, position: v.position, tag: v.tag, machine: v.machine,
+                       loading: v.loading, legs: base(of: v)?.isLegs ?? false)
             .map { capitalized($0) }
     }
     /// The same words as armsText, one per chip: "Two arms", "Seated". The Workout card's title
-    /// already names the equipment, so it shows only these.
+    /// already names the equipment, so it shows only these, plus Plates or Stack for a machine.
     func variationTags(_ v: Version) -> [String] {
         let legs = base(of: v)?.isLegs ?? false
         var tags: [String] = []
+        if v.family == .machine, let l = v.loading { tags.append(capitalized(l.label)) }
         if v.arms == .one || v.family != .body { tags.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { tags.append(capitalized(pos.label)) }
         return tags
@@ -130,6 +134,7 @@ final class AppStore {
             apply(s)
             if splits.isEmpty, !routines.isEmpty { seedSplitFromRoutines() }
             if s.version < 2 { migrateToLibraryV2(); markDirty() }
+            if fillMachineLoading() { markDirty() }
         } else {
             resetToSeed()
         }
@@ -179,6 +184,7 @@ final class AppStore {
         gyms = s.gyms; splits = s.splits; ideas = keepIdeas
         settings = keepSettings
         settings.activeSplitId = s.splits.first?.id
+        fillMachineLoading()
         markDirty()
     }
 
@@ -191,6 +197,7 @@ final class AppStore {
         if s.settings == nil { settings = keepSettings }
         if splits.isEmpty { seedSplitFromRoutines() }
         if s.version < 2 { migrateToLibraryV2() }
+        fillMachineLoading()
         markDirty()
     }
 
@@ -364,11 +371,12 @@ final class AppStore {
 
     /// The variation with these fields, created if needed.
     @discardableResult
-    func makeVariation(base: Exercise, spec: VariationSpec, repMin: Int? = nil, repMax: Int? = nil) -> Version {
+    func makeVariation(base: Exercise, spec given: VariationSpec, repMin: Int? = nil, repMax: Int? = nil) -> Version {
+        let spec = withLoading(given, base: base)
         if let v = findVariation(baseId: base.id, key: spec.key) { return v }
         let name = base.name + " · " + variationLabel(spec, legs: base.isLegs)
         let v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
-                        tag: spec.tag, repMin: repMin ?? 5, repMax: repMax ?? 8)
+                        tag: spec.tag, machine: spec.machine, loading: spec.loading, repMin: repMin ?? 5, repMax: repMax ?? 8)
         put(v)
         return v
     }
@@ -394,7 +402,7 @@ final class AppStore {
     }
 
     func addVerdict(base: Exercise, variation: VariationSpec, style: StyleSpec) -> AddVerdict {
-        guard let v = findVariation(baseId: base.id, key: variation.key) else { return .newVariation }
+        guard let v = findVariation(baseId: base.id, key: withLoading(variation, base: base).key) else { return .newVariation }
         if style.isEmpty { return .existing(v, nil) }
         if let s = findStyle(versionId: v.id, key: style.key) { return .existing(v, s) }
         return .newStyle(v)

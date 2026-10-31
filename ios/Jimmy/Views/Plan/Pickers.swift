@@ -130,6 +130,8 @@ struct StyleFields: View {
     let family: EquipmentFamily
     let position: Position?
     @Binding var spec: StyleSpec
+    /// Off while a new machine is being named: the name goes on the variation instead.
+    var showsMachineName: Bool = true
     @State private var heightPicker = false
     @State private var benchPicker = false
 
@@ -146,7 +148,7 @@ struct StyleFields: View {
                     }
                 }
             }
-            if family == .machine {
+            if family == .machine && showsMachineName {
                 TextField("Machine name", text: Binding(get: { spec.machine ?? "" }, set: { spec.machine = $0.isEmpty ? nil : $0 }))
                     .textInputAutocapitalization(.words).autocorrectionDisabled()
                     .padding(.horizontal, 12).frame(height: 40)

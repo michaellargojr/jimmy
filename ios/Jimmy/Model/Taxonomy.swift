@@ -23,8 +23,15 @@ struct VariationSpec: Hashable {
     var tag: String? = nil
     /// A nickname people search by ("preacher", "Bayesian", "skull crusher").
     var nick: String? = nil
+    /// One machine's own name when you have two of a type ("D Stars").
+    var machine: String? = nil
+    /// Plates or stack, for machines.
+    var loading: Loading? = nil
 
-    var key: VariationKey { VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased()) }
+    var key: VariationKey {
+        VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased(), machine: machine?.lowercased(),
+                     loading: family == .machine ? loading : nil)
+    }
 
     /// Grammar: "<family> [one|two] [position] [tag words] [(nick)]", e.g. "cable one arms-behind (Bayesian)".
     init?(_ text: String) {
@@ -49,8 +56,15 @@ struct VariationSpec: Hashable {
         if !words.isEmpty { tag = words.joined(separator: " ") }
     }
 
-    init(family: EquipmentFamily, arms: Arms = .two, position: Position? = nil, tag: String? = nil, nick: String? = nil) {
+    init(family: EquipmentFamily, arms: Arms = .two, position: Position? = nil, tag: String? = nil, nick: String? = nil,
+         machine: String? = nil, loading: Loading? = nil) {
         self.family = family; self.arms = arms; self.position = position; self.tag = tag; self.nick = nick
+        self.machine = machine; self.loading = loading
+    }
+
+    /// The fields of a variation you have, so the add flow can start from it.
+    init(_ v: Version) {
+        self.init(family: v.family, arms: v.arms, position: v.position, tag: v.tag, machine: v.machine, loading: v.loading)
     }
 }
 
@@ -75,26 +89,40 @@ struct StyleSpec: Hashable {
     var label: String { style(for: "").label }
 }
 
+extension StyleSpec {
+    /// The fields of a style you have.
+    init(_ s: Style) {
+        self.init(attachment: s.attachment, cableHeight: s.cableHeight.flatMap { CableHeight(rawValue: $0) },
+                  benchAngle: s.benchAngle, barType: s.barType, grip: s.grip, machine: s.machine)
+    }
+}
+
 /// "Cable · one arm · arms behind". Leg bases say "one leg"; body weight hides "two arms".
-func variationLabel(family: EquipmentFamily, arms: Arms, position: Position?, tag: String?, legs: Bool) -> String {
-    variationParts(family: family, arms: arms, position: position, tag: tag, legs: legs).joined(separator: " · ")
+func variationLabel(family: EquipmentFamily, arms: Arms, position: Position?, tag: String?, machine: String? = nil,
+                    loading: Loading? = nil, legs: Bool) -> String {
+    variationParts(family: family, arms: arms, position: position, tag: tag, machine: machine, loading: loading, legs: legs)
+        .joined(separator: " · ")
 }
 
 /// The words that make a variation, one per chip: "Cable", "one arm", "arms behind".
-func variationParts(family: EquipmentFamily, arms: Arms, position: Position?, tag: String?, legs: Bool) -> [String] {
+/// A machine says how it's loaded, then its type and name: "Machine", "plates", "iso-lateral", "D Stars", "one arm".
+func variationParts(family: EquipmentFamily, arms: Arms, position: Position?, tag: String?, machine: String? = nil,
+                    loading: Loading? = nil, legs: Bool) -> [String] {
     var parts: [String] = [family.label]
+    if let loading { parts.append(loading.label) }
     if let tag, !tag.isEmpty { parts.append(tag) }
+    if let machine, !machine.isEmpty { parts.append(machine) }
     if arms == .one || (!legs && family != .body) { parts.append(arms.label(legs: legs)) }
     if let position { parts.append(position.label) }
     return parts
 }
 
 func variationLabel(_ v: Version, legs: Bool) -> String {
-    variationLabel(family: v.family, arms: v.arms, position: v.position, tag: v.tag, legs: legs)
+    variationLabel(family: v.family, arms: v.arms, position: v.position, tag: v.tag, machine: v.machine, loading: v.loading, legs: legs)
 }
 
 func variationLabel(_ s: VariationSpec, legs: Bool) -> String {
-    variationLabel(family: s.family, arms: s.arms, position: s.position, tag: s.tag, legs: legs)
+    variationLabel(family: s.family, arms: s.arms, position: s.position, tag: s.tag, machine: s.machine, loading: s.loading, legs: legs)
 }
 
 /// Order variations on a base page: by family, then two arms before one, then position.
@@ -105,5 +133,7 @@ func variationSort(_ a: Version, _ b: Version) -> Bool {
     let pa = a.position.map { Position.allCases.firstIndex(of: $0)! } ?? -1
     let pb = b.position.map { Position.allCases.firstIndex(of: $0)! } ?? -1
     if pa != pb { return pa < pb }
-    return (a.tag ?? "") < (b.tag ?? "")
+    if (a.tag ?? "") != (b.tag ?? "") { return (a.tag ?? "") < (b.tag ?? "") }
+    if a.loading != b.loading { return (a.loading?.rawValue ?? "") < (b.loading?.rawValue ?? "") }
+    return (a.machine ?? "") < (b.machine ?? "")
 }
