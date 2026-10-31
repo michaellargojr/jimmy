@@ -227,7 +227,7 @@ struct OverviewSheet: View {
                     }
                 }
                 .cardList()
-                .navigationTitle("Overview")
+                .navigationTitle(selecting ? "Pick exercises" : "Overview")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -257,10 +257,14 @@ struct OverviewSheet: View {
         let v = store.version(item.versionId)
         let g = item.groupId.flatMap { gid in w.groups.first { $0.id == gid } }
         return HStack(spacing: 12) {
+            // Only Group mode shows boxes to tick. Otherwise a done exercise gets a plain check mark,
+            // not a box, so it doesn't look like something to untick; tapping the row opens it.
             if selecting {
                 RectCheck(on: selected.contains(item.id), size: 26)
             } else {
-                RectCheck(on: item.isDone, size: 26)
+                Image(systemName: "checkmark").font(.system(size: 17, weight: .heavy)).foregroundStyle(p.accent)
+                    .opacity(item.isDone ? 1 : 0)
+                    .frame(width: 26, height: 26)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
