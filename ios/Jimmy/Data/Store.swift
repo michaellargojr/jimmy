@@ -282,16 +282,32 @@ final class AppStore {
 
     @discardableResult
     func startWorkout(from r: Routine) -> Workout {
-        let w = workoutFromRoutine(r, versions: versions, styles: styles, unit: settings.unit, workouts: workouts)
+        var w = workoutFromRoutine(r, versions: versions, styles: styles, unit: settings.unit, workouts: workouts)
+        w.repTemplate = settings.repTemplate == .standard ? nil : settings.repTemplate
         put(w)
         return w
     }
 
     @discardableResult
     func startQuickWorkout() -> Workout {
-        let w = Workout(name: "Quick workout", startedAt: nowMs())
+        let w = Workout(name: "Quick workout", startedAt: nowMs(), repTemplate: settings.repTemplate == .standard ? nil : settings.repTemplate)
         put(w)
         return w
+    }
+
+    // MARK: Rep ranges
+
+    func repGroup(_ v: Version) -> RepGroup { exerciseRepGroup(base: baseName(v), family: v.family, tag: v.tag) }
+
+    /// What this exercise works to in this workout.
+    func repRange(_ item: WorkoutItem, in w: Workout) -> RepRange? {
+        guard let v = version(item.versionId) else { return nil }
+        return effectiveRepRange(item: item, workout: w, version: v, group: repGroup(v))
+    }
+
+    func setRepTemplate(_ t: RepTemplate, workoutId: String) {
+        guard let w = workout(workoutId) else { return }
+        put(settingRepTemplate(t, on: w))
     }
 
     /// Exercises with nothing logged, not even a warm-up. Finish drops them so history stays clean.
@@ -304,6 +320,7 @@ final class AppStore {
         w.endedAt = nowMs()
         let drop = Set(unlogged(w).map(\.id))
         w.items.removeAll { drop.contains($0.id) }
+        w = freezingRepRanges(w, versions: versions) { self.repGroup($0) }
         if w.items.isEmpty { deleteWorkout(id) } else { put(w) }
     }
 

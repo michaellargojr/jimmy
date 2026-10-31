@@ -66,6 +66,18 @@ struct SettingsView: View {
                                 }
                             }
                             Divider1()
+                            // Where every new workout starts; the gear changes one workout.
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Rep ranges").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                HStack(spacing: 6) {
+                                    ForEach(RepTemplate.allCases) { t in
+                                        Chip(text: t.title, on: store.settings.repTemplate == t, small: true) { store.update { $0.repTemplate = t } }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                            Divider1()
                             SettingsRow(title: "Set rating", subtitle: capitalized(store.settings.rating.words.map { $0.lowercased() }.joined(separator: ", "))) {
                                 HStack(spacing: 6) {
                                     ForEach(SetRating.allCases, id: \.self) { r in

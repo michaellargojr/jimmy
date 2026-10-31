@@ -122,6 +122,16 @@ func setsComplete(_ sets: [SetEntry], bodyweight: Bool) -> Bool {
     !sets.isEmpty && sets.allSatisfy { $0.reps != nil && ($0.weight != nil || bodyweight) }
 }
 
+/// A pane is finished when every exercise in it that wasn't skipped has every set checked.
+/// Adding a set opens it again until that set is checked too. Skipping never fills it: a pane
+/// with nothing but skipped exercises stays open, a visible gap.
+func paneFinished(_ pane: [WorkoutItem], versions: [Version]) -> Bool {
+    let done = pane.filter { $0.skipped != true }
+    return !done.isEmpty && done.allSatisfy { item in
+        setsComplete(item.sets, bodyweight: versions.first { $0.id == item.versionId }?.family == .body)
+    }
+}
+
 /// Consecutive items sharing a groupId form one pane.
 func panes(_ items: [WorkoutItem]) -> [[WorkoutItem]] {
     var out: [[WorkoutItem]] = []
