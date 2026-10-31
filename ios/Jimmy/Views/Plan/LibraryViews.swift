@@ -83,11 +83,10 @@ struct ExercisesList: View {
     private func baseRow(_ e: Exercise) -> some View {
         let count = store.variations(of: e.id).count
         return HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(e.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                if !e.primary.isEmpty {
-                    Text(capitalizedFirst(e.primary.joined(separator: ", ")))
-                        .font(.system(size: 13)).foregroundStyle(p.text.opacity(0.86)).lineLimit(1)
+                if !e.primary.isEmpty || !e.secondary.isEmpty {
+                    MuscleTags(primary: e.primary, secondary: e.secondary)
                 }
             }
             Spacer()
@@ -128,9 +127,6 @@ extension MuscleGroup {
     }
 }
 
-/// "middle and lower chest, lats" becomes "Middle and lower chest, lats".
-func capitalizedFirst(_ s: String) -> String { s.prefix(1).uppercased() + s.dropFirst() }
-
 /// One base: the muscles in words, your variations, and more you could add.
 struct BasePageView: View {
     @Environment(AppStore.self) private var store
@@ -146,7 +142,7 @@ struct BasePageView: View {
             let suggested = (libraryBase(named: e.name)?.variations ?? []).filter { s in !mine.contains { $0.key == s.key } }
             List {
                 Section {
-                    MusclesLine(primary: e.primary, secondary: e.secondary)
+                    MuscleTags(primary: e.primary, secondary: e.secondary)
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
                 }
@@ -228,21 +224,35 @@ struct BasePageView: View {
     }
 }
 
-/// "Side delt" in bold, then "also upper traps" muted. Plain words for beginners.
-struct MusclesLine: View {
+/// Main muscles as big bright tags, helpers as small dim tags under them, so you can see
+/// which muscle groups you are collecting. Plain words for beginners.
+struct MuscleTags: View {
     @Environment(\.palette) private var p
     let primary: [String]
     let secondary: [String]
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             if primary.isEmpty && secondary.isEmpty {
                 Text("Muscles not set").font(.system(size: 14)).foregroundStyle(p.muted)
             }
             if !primary.isEmpty {
-                Text(capitalized(primary.joined(separator: ", "))).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
+                FlowRow(spacing: 5, lineSpacing: 5) {
+                    ForEach(Array(primary.enumerated()), id: \.offset) { _, m in
+                        Text(capitalized(m)).font(.system(size: 13.5, weight: .bold)).foregroundStyle(p.text).lineLimit(1)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(p.isDark ? Color(hex: 0x2A2C31) : Color(hex: 0xE3E5EC), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
             }
             if !secondary.isEmpty {
-                Text("also " + secondary.joined(separator: ", ")).font(.system(size: 14)).foregroundStyle(p.muted)
+                FlowRow(spacing: 5, lineSpacing: 4) {
+                    ForEach(Array(secondary.enumerated()), id: \.offset) { _, m in
+                        Text(capitalized(m)).font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(p.isDark ? Color(hex: 0x6E717A) : Color(hex: 0x8A8F9A)).lineLimit(1)
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(p.isDark ? Color(hex: 0x18191D) : Color(hex: 0xF0F1F5), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    }
+                }
             }
         }
     }
@@ -285,8 +295,8 @@ struct VersionEditorView: View {
                         Text(store.baseName(v)).font(.system(size: 24, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
                         Text(store.variationText(v)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
                         if let e = store.base(of: v) {
-                            MusclesLine(primary: regionOverrides(base: e.name, variation: v)?.primary ?? e.primary,
-                                        secondary: regionOverrides(base: e.name, variation: v)?.secondary ?? e.secondary)
+                            MuscleTags(primary: regionOverrides(base: e.name, variation: v)?.primary ?? e.primary,
+                                       secondary: regionOverrides(base: e.name, variation: v)?.secondary ?? e.secondary)
                                 .padding(.top, 6)
                         }
                     }

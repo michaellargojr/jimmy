@@ -18,7 +18,7 @@ struct RoutineEditorView: View {
         if let r = routine {
             List {
                 Section {
-                    MusclesLine(primary: muscles(r).primary, secondary: muscles(r).secondary)
+                    MuscleTags(primary: muscles(r).primary, secondary: muscles(r).secondary)
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
                 }
