@@ -75,6 +75,20 @@ final class AppStore {
         if let pos = v.position { parts.append(parts.isEmpty ? capitalized(pos.label) : pos.label) }
         return parts.joined(separator: " - ")
     }
+    /// The whole variation as chips: "Cable", "Two arms". For Plan, History and lists.
+    func variationChips(_ v: Version) -> [String] {
+        variationParts(family: v.family, arms: v.arms, position: v.position, tag: v.tag, legs: base(of: v)?.isLegs ?? false)
+            .map { capitalized($0) }
+    }
+    /// The same words as armsText, one per chip: "Two arms", "Seated". The Workout card's title
+    /// already names the equipment, so it shows only these.
+    func variationTags(_ v: Version) -> [String] {
+        let legs = base(of: v)?.isLegs ?? false
+        var tags: [String] = []
+        if v.arms == .one || v.family != .body { tags.append(capitalized(v.arms.label(legs: legs))) }
+        if let pos = v.position { tags.append(capitalized(pos.label)) }
+        return tags
+    }
     func routine(_ id: String) -> Routine? { routines.first { $0.id == id } }
     func workout(_ id: String) -> Workout? { workouts.first { $0.id == id } }
     func muscle(of v: Version) -> MuscleGroup? { exercise(v.exerciseId)?.muscleGroup }

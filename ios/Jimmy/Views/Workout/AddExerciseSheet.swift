@@ -242,10 +242,10 @@ struct AddExerciseSheet: View {
         return VStack(alignment: .leading, spacing: 6) {
             Button { finish(v, lastStyle(v)) } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(store.variationText(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                    VStack(alignment: .leading, spacing: 6) {
+                        VariationChips(tags: store.variationChips(v))
                         if let last {
-                            Text("\(last.daysAgo == 0 ? "today" : "\(last.daysAgo)d ago") · " + last.item.sets.filter { $0.isDone }.prefix(3).map { $0.formatted }.joined(separator: ", "))
+                            Text("\(last.daysAgo == 0 ? "today" : "\(last.daysAgo)d ago") - " + last.item.sets.filter { $0.isDone }.prefix(3).map { $0.formatted }.joined(separator: ", "))
                                 .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                         }
                     }

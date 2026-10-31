@@ -132,9 +132,10 @@ struct ExercisesHistoryList: View {
                     let v = e.version
                     NavigationLink(value: v) {
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: 5) {
                                 Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                                Text("\(store.variationText(v)) · \(e.count) sessions · last \(e.last.map { monthDay($0) } ?? "–")").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                                VariationChips(tags: store.variationChips(v), size: .small,
+                                               note: "\(e.count) sessions - last \(e.last.map { monthDay($0) } ?? "-")")
                             }
                             Spacer()
                             if let t = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions).flatMap({ topSet($0.item) }) {
@@ -187,9 +188,9 @@ struct WorkoutDetailView: View {
                                         NavigationLink { ExerciseProgressView(versionId: v.id) } label: {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 HStack {
-                                                    VStack(alignment: .leading, spacing: 1) {
+                                                    VStack(alignment: .leading, spacing: 5) {
                                                         Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                                                        Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                                                        VariationChips(tags: store.variationChips(v), size: .small, note: store.style(item.styleId)?.label)
                                                     }
                                                     Spacer()
                                                     switch verdict(item.sets, item.doneRange(v)) {

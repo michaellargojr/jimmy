@@ -78,9 +78,9 @@ struct ExerciseProgressView: View {
             let others = otherVariations(v)
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text(store.workoutName(v)).font(.system(size: 26, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
-                        Text(store.armsText(v)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
+                        VariationChips(tags: store.variationTags(v))
                     }
                     HStack(spacing: 8) {
                         Chip(text: "1 month", on: range == 30, small: true) { range = 30 }
@@ -181,7 +181,7 @@ struct ExerciseProgressView: View {
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(store.workoutName(o.version)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).multilineTextAlignment(.leading)
-                Text("\(store.armsText(o.version)) - \(n) \(n == 1 ? "session" : "sessions")").font(.system(size: 13)).foregroundStyle(p.muted)
+                VariationChips(tags: store.variationTags(o.version), size: .small, note: "\(n) \(n == 1 ? "session" : "sessions")")
                 Text(lastText).font(.system(size: 16, weight: .bold)).monospacedDigit().foregroundStyle(p.secondary).padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

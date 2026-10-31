@@ -145,6 +145,8 @@ struct BasePageView: View {
                     MuscleTags(primary: e.primary, secondary: e.secondary)
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
+                } header: {
+                    SectionLabel("Muscles").padding(.leading, 16)
                 }
                 Section {
                     ForEach(mine) { v in
@@ -207,12 +209,12 @@ struct BasePageView: View {
         let last = lastSession(versionId: v.id, workouts: store.workouts, versions: store.versions)
         let styles = store.styles(of: v.id)
         return HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(store.variationText(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                Text([last.map { "\($0.daysAgo == 0 ? "today" : "\($0.daysAgo)d ago")" + (topSet($0.item).map { " · \($0.formatted)" } ?? "") },
+            VStack(alignment: .leading, spacing: 8) {
+                VariationChips(tags: store.variationChips(v))
+                Text([last.map { "\($0.daysAgo == 0 ? "today" : "\($0.daysAgo)d ago")" + (topSet($0.item).map { " - \($0.formatted)" } ?? "") },
                       styles.isEmpty ? nil : "\(styles.count) style\(styles.count == 1 ? "" : "s")",
-                      "\(v.repRange) reps"].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
+                      "\(v.repMin)-\(v.repMax) rep range"].compactMap { $0 }.joined(separator: " - "))
+                    .font(.system(size: 12.5)).foregroundStyle(p.muted).lineLimit(1)
             }
             Spacer()
         }
@@ -258,7 +260,7 @@ struct MuscleTags: View {
     }
 }
 
-/// One variation: rep range, defaults, notes, its styles, and progress.
+/// One variation: its styles, progress, form cues, defaults (rep range first) and notes.
 struct VersionEditorView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -271,6 +273,7 @@ struct VersionEditorView: View {
     @State private var loaded = false
     @State private var editingStyle: Style? = nil
     @State private var newStyle = false
+    @State private var editingRange = false
 
     private var version: Version? { store.version(versionId) }
 
@@ -291,13 +294,13 @@ struct VersionEditorView: View {
             let styles = store.styles(of: v.id)
             Form {
                 Section {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text(store.baseName(v)).font(.system(size: 24, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
-                        Text(store.variationText(v)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
+                        VariationChips(tags: store.variationChips(v))
                         if let e = store.base(of: v) {
+                            SectionLabel("Muscles").padding(.top, 8)
                             MuscleTags(primary: regionOverrides(base: e.name, variation: v)?.primary ?? e.primary,
                                        secondary: regionOverrides(base: e.name, variation: v)?.secondary ?? e.secondary)
-                                .padding(.top, 6)
                         }
                     }
                     .listRowBackground(Color.clear)
@@ -318,11 +321,8 @@ struct VersionEditorView: View {
                     }
                     Button { newStyle = true } label: { Label("Add style", systemImage: "plus").foregroundStyle(p.accent) }
                 }
-                Section("Rep range") {
-                    Stepper("Min \(v.repMin)", value: b.repMin, in: 1...50)
-                    Stepper("Max \(v.repMax)", value: b.repMax, in: 1...60)
-                    Text("Go up when set 1 reaches \(v.repMax + UP_FIRST_OFFSET) and set 2 reaches \(v.repMax + UP_SECOND_OFFSET). Go down when set 1 is under \(v.repMin).")
-                        .font(.system(size: 13)).foregroundStyle(p.muted)
+                Section {
+                    NavigationLink { ExerciseProgressView(versionId: v.id) } label: { Label("Progress over time", systemImage: "chart.xyaxis.line") }
                 }
                 Section {
                     NavigationLink { FormCuesView(versionId: v.id) } label: {
@@ -335,6 +335,15 @@ struct VersionEditorView: View {
                     }
                 }
                 Section("Defaults") {
+                    // Where every workout starts; a workout's own pick (the gear or the card) beats it.
+                    Button { editingRange = true } label: {
+                        HStack {
+                            Text("Rep range").foregroundStyle(p.text)
+                            Spacer()
+                            Text("\(v.repMin)-\(v.repMax)").font(.system(size: 16, weight: .heavy)).monospacedDigit().foregroundStyle(p.accent)
+                            Chevron()
+                        }
+                    }
                     Stepper("Working sets \(v.defaultSets)", value: b.defaultSets, in: 1...8)
                     Toggle("Warm-up set", isOn: b.defaultWarmup)
                 }
@@ -342,9 +351,6 @@ struct VersionEditorView: View {
                     TextField("Setup, what to watch", text: $draftNotes, axis: .vertical)
                         .lineLimit(2...5)
                         .focused($notesFocused)
-                }
-                Section {
-                    NavigationLink { ExerciseProgressView(versionId: v.id) } label: { Label("Progress over time", systemImage: "chart.xyaxis.line") }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -361,6 +367,13 @@ struct VersionEditorView: View {
             }
             .sheet(isPresented: $newStyle) {
                 StyleEditorSheet(version: v, style: nil).presentationDetents([.large]).presentationBackground(p.card)
+            }
+            .sheet(isPresented: $editingRange) {
+                RepRangeSheet(range: RepRange(v.repMin, v.repMax)) { r in
+                    guard var nv = store.version(versionId) else { return }
+                    nv.repMin = r.lo; nv.repMax = r.hi; store.put(nv)
+                }
+                .presentationBackground(p.card)
             }
         }
     }

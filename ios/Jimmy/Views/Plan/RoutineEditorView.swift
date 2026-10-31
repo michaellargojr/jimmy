@@ -109,7 +109,11 @@ struct RoutineEditorView: View {
                 Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                 HStack(spacing: 6) {
                     if g != nil { Text(GroupType.forCount(r.items.filter { $0.groupId == item.groupId }.count).label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
-                    if let v { Text("\(store.subtitle(v, styleId: item.styleId)) · \(v.repRange) reps").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(2) }
+                    if let v {
+                        VariationChips(tags: store.variationChips(v), size: .small,
+                                       note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
+                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "))
+                    }
                 }
             }
             Spacer()

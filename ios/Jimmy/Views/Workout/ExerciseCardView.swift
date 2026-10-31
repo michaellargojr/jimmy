@@ -44,7 +44,12 @@ struct ExerciseCardView: View {
             VStack(alignment: .leading, spacing: 14) {
                 titleBlock(v, item: item, w: w, range: range)
                 lastTime(last: last, holdable: last != nil || !others.isEmpty)
-                formCuesLine(v)
+                // Form cues on the left, the rep range on the right, just above the sets.
+                HStack(spacing: 8) {
+                    formCuesLine(v)
+                    Spacer(minLength: 4)
+                    repRangeButton(v, item: item, w: w, range: range)
+                }
                 setGrid(item: item, v: v, last: last, done: complete)
                 if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 14)).foregroundStyle(p.secondary).padding(.horizontal, 4) }
                 if complete { statusBox(verdictNow) }
@@ -107,9 +112,9 @@ struct ExerciseCardView: View {
                 .foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
                 .contextMenu { cardMenu(v) }
             HStack(spacing: 6) {
-                Text(store.armsText(v)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.8)
+                let tags = store.variationTags(v)
+                if !tags.isEmpty { VariationPill(parts: tags, size: .large) }
                 Spacer(minLength: 4)
-                repRangeButton(v, item: item, w: w, range: range)
                 Menu { cardMenu(v) } label: {
                     Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundStyle(p.secondary)
                         .frame(width: 36, height: 36).background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
@@ -296,13 +301,15 @@ struct ExerciseCardView: View {
                 }
             }
             ForEach(others, id: \.version.id) { o in
-                let arms = store.armsText(o.version)
                 VStack(alignment: .leading, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(store.workoutName(o.version)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
-                        (Text(arms).foregroundStyle(p.text)
-                         + Text((arms.isEmpty ? "" : " - ") + relativeDays(o.workout.date).lowercased()).foregroundStyle(p.secondary))
-                            .font(.system(size: 14, weight: .bold))
+                        HStack(spacing: 6) {
+                            let tags = store.variationTags(o.version)
+                            if !tags.isEmpty { VariationPill(parts: tags) }
+                            Text(relativeDays(o.workout.date).lowercased())
+                                .font(.system(size: 14, weight: .bold)).foregroundStyle(p.secondary).lineLimit(1)
+                        }
                     }
                     lastSets(o.item.sets.filter { $0.hasData }, tags: setTags(o.item.sets))
                 }

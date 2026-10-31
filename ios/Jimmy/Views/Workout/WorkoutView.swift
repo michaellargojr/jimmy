@@ -335,7 +335,10 @@ struct OverviewSheet: View {
                             Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(p.accent)
                         }
                     }
-                    if let v { Text(dashed(store.subtitle(v, styleId: item.styleId))).font(.system(size: 14, weight: .bold)).foregroundStyle(p.text).lineLimit(1) }
+                    if let v {
+                        VariationChips(tags: store.variationTags(v), size: .small, note: store.style(item.styleId).map { dashed($0.label) })
+                            .padding(.vertical, 2)
+                    }
                     if !sets.isEmpty { Text(sets).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
