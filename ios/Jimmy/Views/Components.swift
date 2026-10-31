@@ -22,8 +22,6 @@ struct VariationPill: View {
     @Environment(\.palette) private var p
     let parts: [String]
     var size: Size = .regular
-    /// Grey, for a variation you don't have yet (a one-tap shortcut to add it).
-    var muted: Bool = false
 
     /// Font size, height, side padding and corner radius for a size.
     private func metrics(_ size: Size) -> (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) {
@@ -50,7 +48,7 @@ struct VariationPill: View {
     private func row(_ size: Size, squeeze: Bool = false) -> some View {
         let m = metrics(size)
         let line: CGFloat = size == .small ? 1 : 1.5
-        let ink = muted ? p.secondary : p.accent
+        let ink = p.accent
         return HStack(spacing: 0) {
             ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
                 if i > 0 {
@@ -62,7 +60,7 @@ struct VariationPill: View {
             }
         }
         .frame(height: m.height)
-        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(ink.opacity(muted ? 0.5 : 0.7), lineWidth: line))
+        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(ink.opacity(0.7), lineWidth: line))
     }
 }
 

@@ -185,7 +185,6 @@ struct AddExerciseSheet: View {
 
     private func basePage(_ b: Exercise) -> some View {
         let mine = store.variations(of: b.id)
-        let suggested = (libraryBase(named: b.name)?.variations ?? []).filter { s in !mine.contains { $0.key == s.key } }
         let verdict = store.addVerdict(base: b, variation: variation, style: style)
         let showMachines = variation.family == .machine
         let needsName = naming != nil && machineName(machineText) == nil
@@ -203,23 +202,6 @@ struct AddExerciseSheet: View {
                 if base == nil, !mine.isEmpty {
                     VStack(spacing: 6) {
                         ForEach(mine) { v in variationRow(v) }
-                    }
-                }
-                if base == nil, !suggested.isEmpty {
-                    VStack(spacing: 6) {
-                        ForEach(suggested, id: \.self) { s in
-                            Button { let v = store.makeVariation(base: b, spec: s); finish(v, nil) } label: {
-                                HStack(spacing: 8) {
-                                    VariationPill(parts: variationChipWords(s, legs: b.isLegs), size: .small, muted: true)
-                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1) }
-                                    Spacer()
-                                    Image(systemName: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
-                                }
-                                .padding(.horizontal, 14).frame(height: 44)
-                                .background(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(p.border, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                        }
                     }
                 }
                 Card(padding: 14) {

@@ -52,6 +52,7 @@ struct MachineBlock: View {
         }
         .onAppear { if spec.loading == nil { spec = store.withLoading(spec, base: base) } }
         .onChange(of: name) { _, _ in applyName() }
+        .onChange(of: spec.position) { _, pos in dropKindNotIn(pos) }
         .sheet(isPresented: $choosing) {
             HelpMeChooseView(base: base, arms: spec.arms, types: shown) { t, l in pick(t, loading: l) }
                 .presentationDetents([.large]).presentationBackground(p.card)
@@ -220,6 +221,15 @@ struct MachineBlock: View {
             spec.machine = nil
             spec.loading = told ?? t.loading
         }
+    }
+
+    /// A position the picked kind never comes in drops it, so the variation doesn't name a
+    /// machine the list no longer shows.
+    private func dropKindNotIn(_ pos: Position?) {
+        guard naming == nil, let tag = spec.tag,
+              let t = types.first(where: { ($0.tag ?? "").lowercased() == tag.lowercased() }), !t.allows(pos) else { return }
+        spec.tag = nil
+        spec.machine = nil
     }
 
     /// Plates or Stack. Picking a machine you have stays on yours; otherwise it's that kind, new.

@@ -139,7 +139,6 @@ struct BasePageView: View {
     var body: some View {
         if let e = base {
             let mine = store.variations(of: e.id)
-            let suggested = (libraryBase(named: e.name)?.variations ?? []).filter { s in !mine.contains { $0.key == s.key } }
             List {
                 Section {
                     MuscleTags(primary: e.primary, secondary: e.secondary)
@@ -166,24 +165,6 @@ struct BasePageView: View {
                 Section {
                     PillButton(title: "Add variation", style: .primary, icon: "plus", full: true) { adding = true }
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                }
-                // Shortcuts under the button: one tap adds a common variation.
-                if !suggested.isEmpty {
-                    Section {
-                        ForEach(suggested, id: \.self) { s in
-                            Button { store.makeVariation(base: e, spec: s) } label: {
-                                HStack(spacing: 8) {
-                                    VariationPill(parts: variationChipWords(s, legs: e.isLegs), size: .small, muted: true)
-                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1) }
-                                    Spacer()
-                                    Image(systemName: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
-                                }
-                                .padding(.horizontal, 16).padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                            .rowCard(p)
-                        }
-                    }
                 }
             }
             .cardList()
