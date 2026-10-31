@@ -1,0 +1,96 @@
+import CoreGraphics
+import Testing
+@testable import Jimmy
+
+// Swiping between exercises on the Workout page: one exercise per swipe with a light touch,
+// and a long exercise scrolls to its end before the next swipe moves on.
+
+private let page: CGFloat = 600   // nudge 72, magnet 60
+
+private func rest(_ start: CGFloat, _ coast: CGFloat, _ heights: [CGFloat]) -> CGFloat {
+    PaneSnap.rest(start: start, coast: coast, heights: heights, page: page)
+}
+
+@Suite struct PaneSnapShortTests {
+    let three: [CGFloat] = [600, 600, 600]
+
+    @Test func aLightFlickMovesToTheNextExercise() {
+        #expect(rest(0, 100, three) == 600)
+        #expect(rest(600, 700, three) == 1200)
+    }
+
+    @Test func aSmallDragSpringsBack() {
+        #expect(rest(0, 50, three) == 0)
+        #expect(rest(600, 560, three) == 600)
+    }
+
+    @Test func backUpLandsOnTheOneBefore() {
+        #expect(rest(600, 450, three) == 0)
+        #expect(rest(1200, 1000, three) == 600)
+    }
+
+    @Test func aHardFlickStillMovesOnlyOne() {
+        #expect(rest(0, 5000, three) == 600)
+        #expect(rest(1200, -3000, three) == 600)
+    }
+
+    @Test func theEndsStayPut() {
+        #expect(rest(0, -200, three) == 0)
+        #expect(rest(1200, 1500, three) == 1200)
+    }
+
+    @Test func aPaneShorterThanTheScreenCountsAsAScreen() {
+        // Unmeasured (0) or short, each still fills a page.
+        #expect(rest(0, 100, [0, 0]) == 600)
+        #expect(rest(0, 100, [350, 400]) == 600)
+    }
+}
+
+@Suite struct PaneSnapTallTests {
+    // The first exercise runs 300 past the screen: its end sits at 300, the next title at 900.
+    let tall: [CGFloat] = [900, 600]
+
+    @Test func insideALongExerciseItScrollsFreely() {
+        #expect(rest(0, 150, tall) == 150)
+        #expect(rest(200, 120, tall) == 120)
+    }
+
+    @Test func aFlickStopsAtItsEndBeforeMovingOn() {
+        #expect(rest(0, 2000, tall) == 300)
+        #expect(rest(150, 2000, tall) == 300)
+        #expect(rest(300, 400, tall) == 900)
+    }
+
+    @Test func comingToRestNearAnEdgeSettlesOnIt() {
+        #expect(rest(0, 260, tall) == 300)
+        #expect(rest(200, 40, tall) == 0)
+    }
+
+    @Test func fromTheMiddleItNeverSkipsBack() {
+        #expect(rest(150, -500, tall) == 0)
+    }
+
+    @Test func backFromTheNextLandsOnTheTitle() {
+        #expect(rest(900, 800, tall) == 0)
+        #expect(rest(900, 870, tall) == 900)
+    }
+}
+
+@Suite struct PaneSnapBetweenTests {
+    let three: [CGFloat] = [600, 600, 600]
+
+    @Test func caughtBetweenTwoItCarriesOnTheWayItWasGoing() {
+        #expect(rest(900, 950, three) == 1200)
+        #expect(rest(900, 850, three) == 600)
+    }
+
+    @Test func letGoBetweenTwoItSettlesOnTheNearer() {
+        #expect(rest(700, 700, three) == 600)
+        #expect(rest(1100, 1100, three) == 1200)
+    }
+
+    @Test func nothingToSnapToLeavesTheSwipeAlone() {
+        #expect(PaneSnap.rest(start: 0, coast: 120, heights: [], page: 600) == 120)
+        #expect(PaneSnap.rest(start: 0, coast: 120, heights: [600], page: 0) == 120)
+    }
+}

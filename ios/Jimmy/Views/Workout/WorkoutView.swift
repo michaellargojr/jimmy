@@ -19,6 +19,9 @@ struct WorkoutView: View {
     @State private var sureFinish = false
     @State private var sureDiscard = false
     @State private var restEndsAt: Date? = nil
+    /// Each pane's height and the screen's, measured, so a swipe knows where every exercise starts.
+    @State private var paneHeights: [Int: CGFloat] = [:]
+    @State private var pageHeight: CGFloat = 0
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
 
@@ -29,20 +32,27 @@ struct WorkoutView: View {
             let ps = panes(w.items)
             VStack(spacing: 0) {
                 header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
+                // One scroll for the whole workout. Each pane used to be a scroll of its own inside
+                // this one, and the two fought over every up and down swipe. See PaneSnap.
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
-                            paneView(w, pane: pane, index: idx)
-                                .containerRelativeFrame(.vertical)
-                                .id(idx)
+                            ZStack(alignment: .top) {
+                                // A pane is never shorter than the screen; a longer one simply runs on.
+                                Color.clear
+                                    .containerRelativeFrame(.vertical)
+                                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
+                                paneView(w, pane: pane, index: idx)
+                            }
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeights[idx] = $0 }
+                            .id(idx)
                         }
                         if ps.isEmpty { emptyPane.containerRelativeFrame(.vertical).id(0) }
                     }
                     .scrollTargetLayout()
                 }
-                // Snap to each pane's own frame, one per swipe. Paging snapped to multiples of the
-                // screen height, which drifted from the panes, so an Overview jump landed mid-card.
-                .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
+                // One exercise per swipe, with a light touch, landing on its title.
+                .scrollTargetBehavior(PaneSnapBehavior(heights: ps.indices.map { paneHeights[$0] ?? 0 }, page: pageHeight))
                 .scrollPosition(id: $current, anchor: .top)
                 .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
@@ -144,32 +154,30 @@ struct WorkoutView: View {
 
     @ViewBuilder
     private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int) -> some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 12) {
-                // The workout's name lives at the top of the first page and scrolls away with it.
-                if index == 0 {
-                    Text(w.name).font(.system(size: 30, weight: .heavy)).tracking(-0.5).foregroundStyle(p.accent)
-                        .lineLimit(2).minimumScaleFactor(0.8)
-                        .padding(.bottom, 4)
-                }
-                if pane.count > 1, pane.first?.groupId != nil {
-                    HStack {
-                        Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
-                        Text("\(pane.count) exercises, rotate through them").font(.system(size: 13)).foregroundStyle(p.muted)
-                    }
-                }
-                ForEach(pane) { item in
-                    ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
-                                     onSwap: { adding = AddTarget(swapItemId: item.id) },
-                                     onAddAfter: { adding = AddTarget(afterItemId: item.id) })
-                }
-                footer(index: index, panesOf: w)
+        VStack(alignment: .leading, spacing: 12) {
+            // The workout's name lives at the top of the first page and scrolls away with it.
+            if index == 0 {
+                Text(w.name).font(.system(size: 30, weight: .heavy)).tracking(-0.5).foregroundStyle(p.accent)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                    .padding(.bottom, 4)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 4)
-            .padding(.bottom, 24)
+            if pane.count > 1, pane.first?.groupId != nil {
+                HStack {
+                    Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
+                    Text("\(pane.count) exercises, rotate through them").font(.system(size: 13)).foregroundStyle(p.muted)
+                }
+            }
+            ForEach(pane) { item in
+                ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
+                                 onSwap: { adding = AddTarget(swapItemId: item.id) },
+                                 onAddAfter: { adding = AddTarget(afterItemId: item.id) })
+            }
+            footer(index: index, panesOf: w)
         }
-        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 24)
     }
 
     /// Only for the odd extra exercise, so it stays quiet: plain text, no accent.
@@ -229,6 +237,18 @@ struct WorkoutView: View {
         if let idx = ps.firstIndex(where: { $0.contains { $0.id == item.id } }) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { withAnimation { current = idx } }
         }
+    }
+}
+
+/// Where a swipe on the Workout page lands, worked out by PaneSnap from the measured panes.
+struct PaneSnapBehavior: ScrollTargetBehavior {
+    var heights: [CGFloat]
+    var page: CGFloat
+
+    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+        let page = self.page > 0 ? self.page : context.containerSize.height
+        target.rect.origin.y = PaneSnap.rest(start: context.originalTarget.rect.minY, coast: target.rect.minY,
+                                             heights: heights, page: page)
     }
 }
 
