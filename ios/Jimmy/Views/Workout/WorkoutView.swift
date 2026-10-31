@@ -28,7 +28,7 @@ struct WorkoutView: View {
         if let w = workout {
             let ps = panes(w.items)
             VStack(spacing: 0) {
-                header(w, paneCount: ps.count)
+                header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
@@ -94,8 +94,8 @@ struct WorkoutView: View {
 
     /// One row that stays put: Done alone on the left, where a stray thumb is least likely to
     /// land, the time big in the middle to keep the pace up, then Overview and the gear. Under it a
-    /// block per exercise fills in as you move through the workout.
-    private func header(_ w: Workout, paneCount: Int) -> some View {
+    /// block per exercise fills in once that exercise is done.
+    private func header(_ w: Workout, finished: [Bool]) -> some View {
         VStack(spacing: 10) {
             ZStack {
                 HStack(spacing: 8) {
@@ -112,23 +112,23 @@ struct WorkoutView: View {
                         .frame(maxWidth: 140)
                 }
             }
-            if paneCount > 0 { progressStrip(at: min(current ?? 0, paneCount - 1), of: paneCount) }
+            if !finished.isEmpty { progressStrip(finished) }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
 
-    /// One block per exercise (a superset is one), filled up to the one you're on.
-    private func progressStrip(at index: Int, of count: Int) -> some View {
+    /// One block per exercise (a superset is one), filled when all its sets are checked.
+    private func progressStrip(_ finished: [Bool]) -> some View {
         HStack(spacing: 4) {
-            ForEach(0..<count, id: \.self) { i in
+            ForEach(finished.indices, id: \.self) { i in
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(i <= index ? p.accent : p.elevated)
+                    .fill(finished[i] ? p.accent : p.elevated)
                     .frame(height: 6)
             }
         }
-        .animation(.snappy, value: index)
+        .animation(.snappy, value: finished)
         .accessibilityElement()
-        .accessibilityLabel("Exercise \(index + 1) of \(count)")
+        .accessibilityLabel("\(finished.filter { $0 }.count) of \(finished.count) exercises done")
     }
 
     private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
