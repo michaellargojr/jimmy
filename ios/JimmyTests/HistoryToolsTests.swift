@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Jimmy
 
-// Copy, move and erase a variation's history from its history page.
+// Copy, move and erase a variation's history from its page in Plan.
 
 private func S(_ weight: Double, _ reps: Int?, _ kind: SetKind = .working) -> SetEntry {
     SetEntry(kind: kind, unit: .kg, weight: weight, reps: reps)

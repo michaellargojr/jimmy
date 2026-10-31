@@ -1,6 +1,6 @@
 import Foundation
 
-// Copy, move and erase one variation's history, from the ··· menu on its history page.
+// Copy, move and erase one variation's history, from the History group on its page in Plan.
 // Only finished workouts change: a workout in progress is left alone.
 
 /// Everything a history change touches, kept whole so Undo can put it back.
