@@ -9,6 +9,7 @@ import { AddExerciseSheet } from '../components/AddExerciseSheet'
 import { Sheet } from '../components/Sheet'
 import { exportSnapshot } from '../db'
 import { shareJson } from '../share'
+import { IdeaFab } from '../components/IdeaFab'
 
 export function Live() {
   const { id } = useParams()
@@ -22,12 +23,17 @@ export function Live() {
   const [newGym, setNewGym] = useState('')
   const [, tick] = useState(0)
   const pagerRef = useRef<HTMLDivElement>(null)
+  const touching = useRef(false)
+  const startPane = useRef(0)
+  const settleTimer = useRef<number | undefined>(undefined)
   const [cur, setCur] = useState(0)
   useEffect(() => { const t = setInterval(() => tick(x => x + 1), 1000); return () => clearInterval(t) }, [])
   useEffect(() => {
     const saved = Number(localStorage.getItem(`jimmy.pane.${id}`) ?? 0)
-    if (saved > 0) setTimeout(() => { const el = pagerRef.current?.children[saved] as HTMLElement | undefined; el?.scrollIntoView({ block: 'start' }) }, 30)
+    if (saved > 0) setTimeout(() => { startPane.current = saved; const el = pagerRef.current?.children[saved] as HTMLElement | undefined; el?.scrollIntoView({ block: 'start' }) }, 30)
     sessionStorage.removeItem('jimmy.left')
+    setNotes(workouts.find(x => x.id === id)?.notes ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
   if (!w) return <div className="page">Workout not found. <Link to="/">Home</Link></div>
   const vmap = new Map(versions.map(v => [v.id, v]))
@@ -53,15 +59,46 @@ export function Live() {
     setTimeout(() => scrollTo(panes(items).findIndex(p => p.some(i => i.id === item.id))), 50)
   }
   const scrollTo = (paneIdx: number) => {
+    startPane.current = paneIdx // a deliberate jump (strip chip, Next, add) is never clamped by the one-flick guard
     const el = pagerRef.current?.children[paneIdx] as HTMLElement | undefined
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+  const paneTops = (el: HTMLDivElement) => Array.from(el.children).map(c => (c as HTMLElement).offsetTop - el.offsetTop)
+  const paneAt = (tops: number[], top: number) => Math.max(0, tops.filter(t => t <= top + 1).length - 1)
+  /**
+   * Snap after the scroll settles. Inside one exercise the scroll is free, however tall the card.
+   * When a boundary sits inside the viewport, go to the next exercise only if more than half the
+   * screen already shows it; otherwise settle back on the current card's edge. One flick can
+   * never skip an exercise.
+   */
+  const settleSnap = () => {
+    const el = pagerRef.current; if (!el || touching.current) return
+    const h = el.clientHeight, top = el.scrollTop, tops = paneTops(el)
+    if (tops.length < 2) return
+    const endOf = (i: number) => Math.max(tops[i], (tops[i + 1] ?? el.scrollHeight) - h)
+    let target: number | undefined
+    const landed = paneAt(tops, top), from = startPane.current
+    if (landed > from + 1) target = tops[from + 1]
+    else if (landed < from - 1) target = endOf(from - 1)
+    else {
+      const j = tops.findIndex(t => t > top + 1 && t < top + h - 1) // a boundary inside the viewport
+      if (j > 0) {
+        const nextVisible = top + h - tops[j]
+        target = nextVisible >= h / 2 ? tops[j] : endOf(j - 1)
+        if (target === tops[j] && j > from + 1) target = tops[from + 1]
+        if (target !== tops[j] && j - 1 < from - 1) target = endOf(from - 1)
+      }
+    }
+    if (target != null && Math.abs(target - top) > 1) el.scrollTo({ top: target, behavior: 'smooth' })
+  }
+  const scheduleSnap = (ms = 120) => { window.clearTimeout(settleTimer.current); settleTimer.current = window.setTimeout(settleSnap, ms) }
   const onScroll = () => {
     const el = pagerRef.current; if (!el) return
     const top = el.scrollTop; let best = 0, bd = Infinity
     Array.from(el.children).forEach((c, i) => { const d = Math.abs((c as HTMLElement).offsetTop - top); if (d < bd) { bd = d; best = i } })
     setCur(best)
     try { localStorage.setItem(`jimmy.pane.${w.id}`, String(best)) } catch {}
+    scheduleSnap()
   }
   const finish = async () => {
     putWorkout({ ...w, endedAt: w.endedAt ?? Date.now(), notes })
@@ -69,11 +106,34 @@ export function Live() {
     nav('/')
   }
   const exportNow = async () => { shareJson(await exportSnapshot(), `jimmy-${w.date}.json`) }
+  /** Either/or: swap this slot to one of its alternatives; the current version becomes an alternative. */
+  const swapTo = (itemId: string, versionId: string) => {
+    const old = w.items.find(i => i.id === itemId); const v = vmap.get(versionId)
+    if (!old || !v) return
+    const logged = old.sets.some(s => s.reps != null || s.weight != null)
+    if (logged && !confirm(`Switch to ${v.name}? Today's sets for ${vmap.get(old.versionId)?.name ?? 'this exercise'} will be cleared.`)) return
+    const fresh = newItem(v, settings.unit, workouts, old.groupId)
+    const alts = [...(old.alts ?? []).filter(a => a !== versionId), old.versionId]
+    putWorkout({ ...w, items: w.items.map(i => (i.id === itemId ? { ...fresh, id: old.id, alts, note: old.note } : i)) })
+  }
+  // Hard swipe left anywhere on the pager opens the routine overview.
+  const swipe = useRef<{ x: number; y: number; t: number } | null>(null)
+  const onSwipeStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]; swipe.current = { x: t.clientX, y: t.clientY, t: Date.now() }
+    touching.current = true; window.clearTimeout(settleTimer.current)
+    const el = pagerRef.current; if (el) startPane.current = paneAt(paneTops(el), el.scrollTop)
+  }
+  const onSwipeEnd = (e: React.TouchEvent) => {
+    touching.current = false; scheduleSnap(160)
+    const s = swipe.current; swipe.current = null; if (!s) return
+    const t = e.changedTouches[0]; const dx = t.clientX - s.x, dy = t.clientY - s.y
+    if (Date.now() - s.t < 700 && dx < -90 && Math.abs(dx) > Math.abs(dy) * 2) nav(`/workout/${w.id}/overview`)
+  }
   const remaining = w.items.filter(i => !itemDone(i)).length
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <div className="topbar" style={{ padding: '8px 16px' }}>
+    <div className="live">
+      <div className="topbar">
         <Link className="iconbtn" to="/" onClick={() => sessionStorage.setItem('jimmy.left', w.id)}>‹</Link>
         <div className="grow">
           <div style={{ fontWeight: 700 }}>{w.name}</div>
@@ -88,23 +148,25 @@ export function Live() {
           : <span className="small faint">done</span>}
       </div>
 
-      <div className="pager grow" ref={pagerRef} onScroll={onScroll} style={{ height: 'auto', scrollSnapType: 'y proximity' }}>
+      <div className="pager" ref={pagerRef} onScroll={onScroll} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd} onTouchCancel={onSwipeEnd}>
         {ps.map((pane, pi) => {
           const g = pane[0].groupId ? w.groups.find(x => x.id === pane[0].groupId) : undefined
           return (
             <div className="pane" key={pane[0].id}>
-              {g && pane.length > 1 && <div className="small" style={{ color: 'var(--accent)', fontWeight: 700, margin: '0 0 6px 4px', textTransform: 'uppercase', letterSpacing: '.06em' }}>{g.type}</div>}
-              {pane.map(item => {
-                const v = vmap.get(item.versionId)
-                if (!v) return null
-                return <ExerciseCard key={item.id} workout={w} item={item} version={v} compact={item.skipped}
-                  onChange={updateItem} onRemove={() => removeItem(item.id)} onSwap={() => setAdding({ swapItemId: item.id })} />
-              })}
-              <div className="row" style={{ marginTop: 12 }}>
-                <button className="btn sm ghost" onClick={() => setAdding({ afterItemId: pane[pane.length - 1].id })}>+ add after</button>
-                <span className="grow" />
-                {pi < ps.length - 1 ? <button className="btn primary" onClick={() => scrollTo(pi + 1)}>Next →</button>
-                  : running ? <button className="btn primary" onClick={() => setEnding(true)}>Finish</button> : null}
+              <div className="panebody">
+                {g && pane.length > 1 && <div className="small" style={{ color: 'var(--accent)', fontWeight: 700, margin: '0 0 6px 4px', textTransform: 'uppercase', letterSpacing: '.06em' }}>{g.type}</div>}
+                {pane.map(item => {
+                  const v = vmap.get(item.versionId)
+                  if (!v) return null
+                  return <ExerciseCard key={item.id} workout={w} item={item} version={v} compact={item.skipped}
+                    onChange={updateItem} onRemove={() => removeItem(item.id)} onSwap={() => setAdding({ swapItemId: item.id })} onSwapTo={vid => swapTo(item.id, vid)} />
+                })}
+                <div className="row" style={{ marginTop: 12 }}>
+                  <button className="btn sm ghost" onClick={() => setAdding({ afterItemId: pane[pane.length - 1].id })}>+ add after</button>
+                  <span className="grow" />
+                  {pi < ps.length - 1 ? <button className="btn primary" onClick={() => scrollTo(pi + 1)}>Next →</button>
+                    : running ? <button className="btn primary" onClick={() => setEnding(true)}>Finish</button> : null}
+                </div>
               </div>
             </div>
           )
@@ -117,13 +179,18 @@ export function Live() {
       </div>
 
       <div className="strip">
-        <span>{remaining} left</span>
-        {ps.map((pane, i) => (
-          <button key={pane[0].id} className={'item' + (pane.every(itemDone) ? ' done' : '') + (i === cur ? ' cur' : '')} onClick={() => scrollTo(i)}>
-            {pane.map(it => vmap.get(it.versionId)?.name.split(' ').slice(0, 2).join(' ')).join(' + ')}
-          </button>
-        ))}
-        <button className="item" onClick={() => setAdding({})}>+</button>
+        <div className="strip-scroll">
+          <span>{remaining} left</span>
+          {ps.map((pane, i) => (
+            <button key={pane[0].id} className={'item' + (pane.every(itemDone) ? ' done' : '') + (i === cur ? ' cur' : '')} onClick={() => scrollTo(i)}>
+              {pane.map(it => vmap.get(it.versionId)?.name.split(' ').slice(0, 2).join(' ')).join(' + ')}
+            </button>
+          ))}
+        </div>
+        <div className="strip-fixed">
+          <button className="item" onClick={() => setAdding({})} aria-label="Add exercise">+</button>
+          <IdeaFab variant="strip" />
+        </div>
       </div>
 
       <AddExerciseSheet open={!!adding} onClose={() => setAdding(null)} onPick={addVersion} />

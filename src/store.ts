@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { db, type Idea } from './db'
-import { DEFAULT_SETTINGS, type Exercise, type Gym, type Routine, type Settings, type Version, type Workout } from './model'
+import { DEFAULT_SETTINGS, THEME_BG, type Exercise, type Gym, type Routine, type Settings, type Version, type Workout } from './model'
 import { buildSeed } from './seed'
 
 interface State {
   loaded: boolean
+  loadError?: string
   exercises: Exercise[]
   versions: Version[]
   workouts: Workout[]
@@ -32,37 +33,49 @@ function upsert<T extends { id: string }>(list: T[], item: T): T[] {
   const next = list.slice(); next[i] = item; return next
 }
 
+/** Theme on <html> plus the status-bar colour iOS reads from <meta name="theme-color">. */
+export function applyTheme(theme: Settings['theme']) {
+  document.documentElement.dataset.theme = theme
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) meta.setAttribute('content', THEME_BG[theme] ?? THEME_BG.dark)
+}
+
 export const useStore = create<State>((set, get) => ({
   loaded: false,
   exercises: [], versions: [], workouts: [], routines: [], gyms: [], ideas: [],
   settings: DEFAULT_SETTINGS,
 
   load: async () => {
-    let settings = await db.settings.get('settings')
-    if (!settings || !settings.seeded) {
-      const count = await db.workouts.count()
-      if (count === 0) {
-        const s = buildSeed()
-        await db.transaction('rw', [db.exercises, db.versions, db.workouts, db.routines, db.gyms, db.settings], async () => {
-          await db.exercises.bulkPut(s.exercises)
-          await db.versions.bulkPut(s.versions)
-          await db.workouts.bulkPut(s.workouts)
-          await db.routines.bulkPut(s.routines)
-          await db.gyms.bulkPut(s.gyms)
-        })
+    try {
+      let settings = await db.settings.get('settings')
+      if (!settings || !settings.seeded) {
+        const count = await db.workouts.count()
+        if (count === 0) {
+          const s = buildSeed()
+          await db.transaction('rw', [db.exercises, db.versions, db.workouts, db.routines, db.gyms, db.settings], async () => {
+            await db.exercises.bulkPut(s.exercises)
+            await db.versions.bulkPut(s.versions)
+            await db.workouts.bulkPut(s.workouts)
+            await db.routines.bulkPut(s.routines)
+            await db.gyms.bulkPut(s.gyms)
+          })
+        }
+        settings = { ...(settings ?? DEFAULT_SETTINGS), seeded: true }
+        await db.settings.put(settings)
       }
-      settings = { ...(settings ?? DEFAULT_SETTINGS), seeded: true }
-      await db.settings.put(settings)
+      await get().reload()
+    } catch (e) {
+      set({ loadError: e instanceof Error ? e.message : String(e) })
     }
-    await get().reload()
   },
 
   reload: async () => {
     const [exercises, versions, workouts, routines, gyms, ideas, settings] = await Promise.all([
       db.exercises.toArray(), db.versions.toArray(), db.workouts.toArray(), db.routines.toArray(), db.gyms.toArray(), db.ideas.toArray(), db.settings.get('settings'),
     ])
-    set({ exercises, versions, workouts, routines, gyms, ideas, settings: settings ?? DEFAULT_SETTINGS, loaded: true })
-    document.documentElement.dataset.theme = (settings ?? DEFAULT_SETTINGS).theme
+    const merged = { ...DEFAULT_SETTINGS, ...(settings ?? {}) }
+    set({ exercises, versions, workouts, routines, gyms, ideas, settings: merged, loaded: true })
+    applyTheme(merged.theme)
   },
 
   putWorkout: w => { set(s => ({ workouts: upsert(s.workouts, w) })); void db.workouts.put(w) },
@@ -77,6 +90,6 @@ export const useStore = create<State>((set, get) => ({
   setSettings: patch => {
     const settings = { ...get().settings, ...patch }
     set({ settings }); void db.settings.put(settings)
-    document.documentElement.dataset.theme = settings.theme
+    applyTheme(settings.theme)
   },
 }))
