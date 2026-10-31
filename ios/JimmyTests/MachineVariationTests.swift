@@ -89,18 +89,24 @@ import Testing
         #expect(s.unlistedMachines(base: pull, arms: .one, loading: .plates).isEmpty)
     }
 
-    @Test func machinesNamedBeforeTheListStillShow() {
+    @Test func machinesNamedBeforeTheListJoinTheirKind() {
         let calf = Exercise(name: "Calf Raise", muscleGroup: .Calves)
         let plain = Version(exerciseId: calf.id, name: "x", equipment: .machine, arms: .two, position: .standing)
         let dStars = Version(exerciseId: calf.id, name: "x", equipment: .machine, arms: .two, position: .standing, tag: "D Stars")
-        let s = store([calf], [plain, dStars])
-        s.fillMachineLoading()
+        let other = Version(exerciseId: calf.id, name: "x", equipment: .machine, arms: .one, position: .kneeling, tag: "Gym B")
+        let s = store([calf], [plain, dStars, other])
+        let before = s.workoutName(dStars)
+        #expect(s.fillMachineLoading())
+        // D Stars was named in its tag: now it's a second standing calf raise, same title.
+        let d = s.version(dStars.id)
+        #expect(d?.tag == nil && d?.machine == "D Stars" && d?.loading == .stack)
+        if let d { #expect(s.workoutName(d) == before) }
         let standing = machineTypes(forBase: "Calf Raise")[0]
-        #expect(s.machines(of: standing, baseId: calf.id, arms: .two, position: nil, loading: .stack).map(\.id) == [plain.id])
-        // Not in the list, so its loading is unknown: it shows either way.
-        #expect(s.unlistedMachines(base: calf, arms: .two, loading: .stack).map(\.id) == [dStars.id])
-        #expect(s.unlistedMachines(base: calf, arms: .two, loading: .plates).map(\.id) == [dStars.id])
-        #expect(s.workoutName(dStars) == "Machine Calf Raise (D Stars)")
+        #expect(s.machines(of: standing, baseId: calf.id, arms: .two, position: nil, loading: .stack).map(\.id) == [plain.id, dStars.id])
+        // No kind fits a kneeling calf raise, so that one stays as it was and shows either way.
+        #expect(s.version(other.id)?.tag == "Gym B" && s.version(other.id)?.loading == nil)
+        #expect(s.unlistedMachines(base: calf, arms: .one, loading: .plates).map(\.id) == [other.id])
+        #expect(!s.fillMachineLoading())                              // once
     }
 
     @Test func aMachineNameTypedOnAStyle() {

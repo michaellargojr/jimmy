@@ -12,15 +12,24 @@ extension AppStore {
     /// A machine with no Plates or Stack yet takes the way its kind usually comes.
     func withLoading(_ spec: VariationSpec, base b: Exercise) -> VariationSpec { withUsualLoading(spec, base: b.name) }
 
-    /// Machines saved before Plates and Stack take the way their kind usually comes, so the ones
-    /// you have keep matching. Machines not in the list stay unset. True when any changed.
+    /// Machines saved before the machine list catch up with it. A machine named in its tag
+    /// ("D Stars", before names had their own field) becomes a named machine of the plain kind, so
+    /// it sits beside that kind's other machine. Then each takes the way its kind usually comes
+    /// (Plates or Stack). Machines that fit no kind stay as they are. True when any changed.
     @discardableResult
     func fillMachineLoading() -> Bool {
         var changed = false
-        for i in versions.indices where versions[i].family == .machine && versions[i].loading == nil {
-            guard let t = machineType(of: versions[i]) else { continue }
-            versions[i].loading = t.loading
-            changed = true
+        for i in versions.indices where versions[i].family == .machine {
+            var v = versions[i]
+            if machineType(of: v) == nil, v.machine == nil, let tag = v.tag, tag.first?.isUppercase == true,
+               let b = base(of: v), let plain = machineTypes(forBase: b.name).first(where: { $0.fits(tag: nil, position: v.position) }) {
+                var named = v
+                named.tag = plain.tag
+                named.machine = tag
+                if !versions.contains(where: { $0.id != v.id && $0.exerciseId == v.exerciseId && $0.key == named.key }) { v = named }
+            }
+            if v.loading == nil, let t = machineType(of: v) { v.loading = t.loading }
+            if v != versions[i] { versions[i] = v; changed = true }
         }
         return changed
     }
