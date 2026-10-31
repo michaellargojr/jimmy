@@ -7,6 +7,8 @@ struct AddExerciseSheet: View {
     @Environment(\.palette) private var p
     @Environment(\.dismiss) private var dismiss
     var base: Exercise? = nil
+    /// Overrides the heading, as in "Copy to" from the history page.
+    var title: String? = nil
     let onPick: (Version, Style?) -> Void
 
     @State private var query = ""
@@ -18,15 +20,15 @@ struct AddExerciseSheet: View {
     @State private var started = false
     @FocusState private var focused: Bool
 
-    init(base: Exercise? = nil, onPick: @escaping (Version, Style?) -> Void) {
-        self.base = base; self.onPick = onPick
+    init(base: Exercise? = nil, title: String? = nil, onPick: @escaping (Version, Style?) -> Void) {
+        self.base = base; self.title = title; self.onPick = onPick
         _chosen = State(initialValue: base)
     }
 
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text(base == nil ? "Add exercise" : "Add variation").font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)
+                Text(title ?? (base == nil ? "Add exercise" : "Add variation")).font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)
                 Spacer()
                 Button("Close") { dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
             }
