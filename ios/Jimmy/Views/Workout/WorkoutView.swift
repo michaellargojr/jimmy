@@ -44,10 +44,15 @@ struct WorkoutView: View {
                                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
                                 paneView(w, pane: pane, index: idx)
                             }
+                            // Exactly the screen's width. Without it the widest line of Last time
+                            // could stretch the whole page past the edge of a smaller phone.
+                            .containerRelativeFrame(.horizontal)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeights[idx] = $0 }
+                            // Room under each pane, so the next exercise doesn't show through the tab bar.
+                            .padding(.bottom, PaneSnap.gap)
                             .id(idx)
                         }
-                        if ps.isEmpty { emptyPane.containerRelativeFrame(.vertical).id(0) }
+                        if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
                     }
                     .scrollTargetLayout()
                 }
@@ -261,7 +266,7 @@ struct PaneSnapBehavior: ScrollTargetBehavior {
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
         let page = self.page > 0 ? self.page : context.containerSize.height
         target.rect.origin.y = PaneSnap.rest(start: context.originalTarget.rect.minY, coast: target.rect.minY,
-                                             heights: heights, page: page)
+                                             heights: heights, page: page, gap: PaneSnap.gap)
     }
 }
 

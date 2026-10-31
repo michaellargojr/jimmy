@@ -11,6 +11,13 @@ struct JimmyApp: App {
                 .environment(store)
                 .environment(nav)
                 .onAppear { if !store.loaded { store.load() } }
+                #if DEBUG
+                // A test simulator can open straight on the Workout tab for screenshots: -openTab workout
+                .onAppear {
+                    let args = ProcessInfo.processInfo.arguments
+                    if let i = args.firstIndex(of: "-openTab"), i + 1 < args.count, args[i + 1] == "workout" { nav.tab = .workout }
+                }
+                #endif
         }
     }
 }

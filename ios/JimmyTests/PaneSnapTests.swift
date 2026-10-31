@@ -94,3 +94,28 @@ private func rest(_ start: CGFloat, _ coast: CGFloat, _ heights: [CGFloat]) -> C
         #expect(PaneSnap.rest(start: 0, coast: 120, heights: [600], page: 0) == 120)
     }
 }
+
+@Suite struct PaneSnapGapTests {
+    // 120 of empty space under each pane, so the next title never shows through the tab bar.
+    private func rest(_ start: CGFloat, _ coast: CGFloat, _ heights: [CGFloat]) -> CGFloat {
+        PaneSnap.rest(start: start, coast: coast, heights: heights, page: 600, gap: 120)
+    }
+    let three: [CGFloat] = [600, 600, 600]
+
+    @Test func swipesStepOverTheGap() {
+        #expect(rest(0, 100, three) == 720)
+        #expect(rest(720, 600, three) == 0)
+        #expect(rest(1440, 1700, three) == 1440)
+    }
+
+    @Test func aLongExerciseStillStopsAtItsEndFirst() {
+        #expect(rest(0, 2000, [900, 600]) == 300)
+        #expect(rest(300, 400, [900, 600]) == 1020)
+        #expect(rest(1020, 900, [900, 600]) == 0)
+    }
+
+    @Test func letGoInTheGapItSettlesOnTheNearer() {
+        #expect(rest(300, 300, three) == 0)
+        #expect(rest(500, 500, three) == 720)
+    }
+}
