@@ -177,3 +177,28 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(s.valueText == "10+ (3p)")
     }
 }
+
+@Suite struct HoldLastTimeTests {
+    private let cable = Version(exerciseId: "fr", name: "Front Raise · Cable", equipment: .cable, arms: .two)
+    private let db = Version(exerciseId: "fr", name: "Front Raise · Dumbbell · one arm", equipment: .dumbbell, arms: .one)
+    private let bar = Version(exerciseId: "fr", name: "Front Raise · Barbell", equipment: .barbell, arms: .two)
+
+    private func w(_ date: String, _ v: Version, logged: Bool = true) -> Workout {
+        Workout(name: "Shoulders", date: date, items: [WorkoutItem(versionId: v.id, sets: [S(reps: logged ? 10 : nil)])])
+    }
+
+    @Test func lastThreeTimesNewestFirstSkippingToday() {
+        let today = w("2026-10-31", cable)
+        let ws = [w("2026-10-10", cable), w("2026-10-27", cable), w("2026-10-13", cable), w("2026-10-20", cable), today,
+                  w("2026-10-29", cable, logged: false)]
+        let r = recentSessions(versionId: cable.id, workouts: ws, versions: [cable], excludeWorkoutId: today.id)
+        #expect(r.map(\.workout.date) == ["2026-10-27", "2026-10-20", "2026-10-13"])
+    }
+
+    @Test func eachOtherVariationOnceMostRecentFirst() {
+        let ws = [w("2026-09-01", bar), w("2026-10-08", db), w("2026-09-20", db), w("2026-10-27", cable)]
+        let o = otherVersionsLast(version: cable, workouts: ws, versions: [cable, db, bar])
+        #expect(o.map(\.version.id) == [db.id, bar.id])
+        #expect(o.first?.workout.date == "2026-10-08")
+    }
+}
