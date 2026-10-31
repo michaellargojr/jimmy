@@ -179,8 +179,8 @@ struct WorkoutDetailView: View {
                     ForEach(Array(panes(w.items).enumerated()), id: \.offset) { _, pane in
                         Card(padding: 14) {
                             VStack(alignment: .leading, spacing: 10) {
-                                if pane.count > 1, let gid = pane.first?.groupId, let g = w.groups.first(where: { $0.id == gid }) {
-                                    Text(g.type.label.uppercased()).font(.system(size: 11, weight: .bold)).tracking(0.6).foregroundStyle(p.accent)
+                                if pane.count > 1, pane.first?.groupId != nil {
+                                    Text(GroupType.forCount(pane.count).label.uppercased()).font(.system(size: 11, weight: .bold)).tracking(0.6).foregroundStyle(p.accent)
                                 }
                                 ForEach(pane) { item in
                                     if let v = store.version(item.versionId) {

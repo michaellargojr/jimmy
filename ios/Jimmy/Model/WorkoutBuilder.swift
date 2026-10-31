@@ -106,6 +106,17 @@ func cycleSetKind(_ sets: [SetEntry], at index: Int) -> [SetEntry] {
     return out
 }
 
+/// One-arm sets always carry a side. A row without one (from a workout started on an older build,
+/// or a variation switched to one arm mid-workout) becomes L, with an empty R partner after it.
+func pairSides(_ sets: [SetEntry]) -> [SetEntry] {
+    sets.flatMap { s -> [SetEntry] in
+        guard s.side == nil else { return [s] }
+        var l = s
+        l.side = .L
+        return [l, SetEntry(kind: s.kind, unit: s.unit, side: .R, bar: s.bar)]
+    }
+}
+
 /// Every set has its numbers in. Only then does the card show its verdict.
 func setsComplete(_ sets: [SetEntry], bodyweight: Bool) -> Bool {
     !sets.isEmpty && sets.allSatisfy { $0.reps != nil && ($0.weight != nil || bodyweight) }
@@ -122,4 +133,85 @@ func panes(_ items: [WorkoutItem]) -> [[WorkoutItem]] {
         }
     }
     return out
+}
+
+// MARK: - Groups in Overview
+
+/// Keeps groups whole after any change in Overview. A group split apart keeps only its longest run,
+/// a group left with one exercise dissolves, and every group is named by its count.
+func tidyGroups(_ w: Workout) -> Workout {
+    var w = w
+    let n = w.items.count
+    // Each group's runs of consecutive members; only the longest stays in the group.
+    var runs: [String: [Range<Int>]] = [:]
+    var i = 0
+    while i < n {
+        guard let g = w.items[i].groupId else { i += 1; continue }
+        var j = i
+        while j < n, w.items[j].groupId == g { j += 1 }
+        runs[g, default: []].append(i..<j)
+        i = j
+    }
+    for (_, rs) in runs {
+        let keep = rs.firstIndex { $0.count == rs.map(\.count).max() } ?? 0
+        for (k, r) in rs.enumerated() where k != keep { for x in r { w.items[x].groupId = nil } }
+    }
+    var counts: [String: Int] = [:]
+    for it in w.items { if let g = it.groupId { counts[g, default: 0] += 1 } }
+    for x in w.items.indices { if let g = w.items[x].groupId, counts[g, default: 0] < 2 { w.items[x].groupId = nil } }
+    w.groups = w.groups.compactMap { g in
+        guard let c = counts[g.id], c >= 2 else { return nil }
+        return ExerciseGroup(id: g.id, type: .forCount(c))
+    }
+    return w
+}
+
+/// A drag in Overview. The moved exercise joins a group when dropped between two of its members,
+/// stays in its own group while it still touches it, and otherwise leaves it.
+func moveItem(_ w: Workout, from: IndexSet, to: Int) -> Workout {
+    var w = w
+    // The same as List's move(fromOffsets:toOffset:), which lives in SwiftUI.
+    let picked = from.map { w.items[$0] }
+    let moved = Set(picked.map(\.id))
+    for i in from.reversed() { w.items.remove(at: i) }
+    w.items.insert(contentsOf: picked, at: to - from.filter { $0 < to }.count)
+    for i in w.items.indices where moved.contains(w.items[i].id) {
+        let prev = i > 0 ? w.items[i - 1].groupId : nil
+        let next = i + 1 < w.items.count ? w.items[i + 1].groupId : nil
+        if let g = prev, g == next { w.items[i].groupId = g }
+        else if let g = w.items[i].groupId, g != prev, g != next { w.items[i].groupId = nil }
+    }
+    return tidyGroups(w)
+}
+
+/// Ticked loose exercises become one group, pulled together at the first one's place.
+func makeGroup(_ w: Workout, ids: Set<String>) -> Workout {
+    var w = w
+    let gid = uid()
+    let chosen = w.items.filter { ids.contains($0.id) }.map { var it = $0; it.groupId = gid; return it }
+    guard chosen.count >= 2, let at = w.items.firstIndex(where: { ids.contains($0.id) }) else { return w }
+    w.items.removeAll { ids.contains($0.id) }
+    w.items.insert(contentsOf: chosen, at: min(at, w.items.count))
+    w.groups.append(ExerciseGroup(id: gid, type: .forCount(chosen.count)))
+    return tidyGroups(w)
+}
+
+/// Ticked exercises leave their groups. If two or more stay, they keep together and the ones leaving
+/// sit just below them, in order; otherwise the group dissolves where it is.
+func ungroup(_ w: Workout, ids: Set<String>) -> Workout {
+    var w = w
+    let touched = w.items.filter { ids.contains($0.id) }.compactMap(\.groupId)
+    let gids = touched.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+    for gid in gids {
+        let members = w.items.filter { $0.groupId == gid }
+        let leaving = members.filter { ids.contains($0.id) }
+        if members.count - leaving.count < 2 {
+            for x in w.items.indices where w.items[x].groupId == gid { w.items[x].groupId = nil }
+            continue
+        }
+        w.items.removeAll { $0.groupId == gid && ids.contains($0.id) }
+        let end = (w.items.lastIndex { $0.groupId == gid } ?? -1) + 1
+        w.items.insert(contentsOf: leaving.map { var it = $0; it.groupId = nil; return it }, at: end)
+    }
+    return tidyGroups(w)
 }

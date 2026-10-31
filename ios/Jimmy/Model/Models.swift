@@ -99,6 +99,8 @@ enum Bar: String, Codable, Hashable { case ez, straight }
 enum GroupType: String, Codable, CaseIterable, Hashable {
     case superset, triset, circuit
     var label: String { rawValue.capitalized }
+    /// Named by how many exercises it holds: two make a superset, three a triset, more a circuit.
+    static func forCount(_ n: Int) -> GroupType { n <= 2 ? .superset : n == 3 ? .triset : .circuit }
 }
 enum MuscleGroup: String, Codable, CaseIterable, Hashable {
     case Back, Abs, Chest, Shoulders, Triceps, Biceps, Forearms, Calves, Legs, Glutes
@@ -589,3 +591,6 @@ func capitalized(_ s: String) -> String {
     guard let f = s.first else { return s }
     return f.uppercased() + s.dropFirst()
 }
+
+/// Dashes between items on the Workout screen ("Wrist cuff - hip height"). Stored names keep their dots.
+func dashed(_ s: String) -> String { s.replacingOccurrences(of: " · ", with: " - ") }

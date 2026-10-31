@@ -19,6 +19,10 @@ struct ExerciseCardView: View {
     @State private var newStyle = false
     @State private var showFormCues = false
     @State private var customRange = false
+    @State private var showHistory = false
+    /// Holding Last time opens the last three times and the other variations over the workout.
+    @State private var showRecent = false
+    @State private var historyNext = false
     /// The set a full swipe asked to delete, waiting on the "are you sure".
     @State private var pendingDelete: String? = nil
 
@@ -33,13 +37,13 @@ struct ExerciseCardView: View {
     var body: some View {
         if let w = workout, let item, let v = store.version(item.versionId) {
             let last = lastSession(versionId: v.id, styleId: item.styleId, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
-            let other = otherVersionLast(version: v, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
+            let others = otherVersionsLast(version: v, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id)
             // The verdict waits until every set has its numbers, so a blank added set hides it.
             let complete = setsComplete(item.sets, bodyweight: v.family == .body)
             let verdictNow = complete ? verdict(item.sets, v) : Verdict.none
             VStack(alignment: .leading, spacing: 14) {
                 titleBlock(v, item: item)
-                lastTime(last: last, other: other)
+                lastTime(last: last, holdable: last != nil || !others.isEmpty)
                 formCuesLine(v)
                 setGrid(item: item, v: v, last: last, done: complete)
                 if item.note?.isEmpty == false { Text(item.note!).font(.system(size: 14)).foregroundStyle(p.secondary).padding(.horizontal, 4) }
@@ -65,6 +69,17 @@ struct ExerciseCardView: View {
             .sheet(isPresented: $customRange) {
                 RepRangeSheet(version: v).presentationBackground(p.card)
             }
+            .fullScreenCover(isPresented: $showRecent, onDismiss: {
+                if historyNext { historyNext = false; showHistory = true }
+            }) {
+                HoldPopup(close: { setRecent(false) }) { recentPanel(v, item: item, others: others, workoutId: w.id) }
+                    .presentationBackground(.ultraThinMaterial)
+            }
+            .sensoryFeedback(.impact(weight: .medium), trigger: showRecent) { _, open in open }
+            .sheet(isPresented: $showHistory) {
+                NavigationStack { ExerciseProgressView(versionId: v.id) }
+                    .presentationDetents([.large]).presentationBackground(p.bg)
+            }
             .alert(deleteTitle(item), isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })) {
                 Button("Delete", role: .destructive) { if let id = pendingDelete { deleteSet(id) }; pendingDelete = nil }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -74,6 +89,9 @@ struct ExerciseCardView: View {
             .preference(key: SetLoggedKey.self, value: lastLogged)
             .onChange(of: complete && verdictNow == .up) { _, isUp in
                 if isUp { upTrigger += 1 }
+            }
+            .task(id: v.arms) {
+                if v.arms == .one, item.sets.contains(where: { $0.side == nil }) { update { $0.sets = pairSides($0.sets) } }
             }
         }
     }
@@ -88,7 +106,7 @@ struct ExerciseCardView: View {
                 .foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
                 .contextMenu { cardMenu(v) }
             HStack(spacing: 6) {
-                Text(store.armsText(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.secondary).lineLimit(1)
+                Text(store.armsText(v)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 4)
                 repRangeMenu(v)
                 Menu { cardMenu(v) } label: {
@@ -114,9 +132,10 @@ struct ExerciseCardView: View {
             Divider()
             Button("Custom…") { customRange = true }
         } label: {
-            Text("\(v.repMin)-\(v.repMax)")
-                .font(.system(size: 17, weight: .heavy)).monospacedDigit()
+            (Text("\(v.repMin)-\(v.repMax)").font(.system(size: 17, weight: .heavy)).monospacedDigit()
+                + Text(" rep range").font(.system(size: 15, weight: .bold)))
                 .foregroundStyle(p.accent)
+                .lineLimit(1)
                 .frame(height: 36).padding(.horizontal, 12)
                 .background(p.accentSoft, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         }
@@ -132,7 +151,7 @@ struct ExerciseCardView: View {
         return Button { showFormCues = true } label: {
             HStack(spacing: 7) {
                 Image(systemName: "play.circle.fill").font(.system(size: 17, weight: .bold))
-                Text(n > 0 ? "Form cues · \(n)" : "Form cues").font(.system(size: 15, weight: .bold))
+                Text(n > 0 ? "Form cues - \(n)" : "Form cues").font(.system(size: 15, weight: .bold))
             }
             .foregroundStyle(n > 0 ? p.accent : p.muted)
             .frame(height: 36)
@@ -151,7 +170,7 @@ struct ExerciseCardView: View {
         return Menu {
             ForEach(styles) { s in
                 Button { update { $0.styleId = s.id } } label: {
-                    if s.id == item.styleId { Label(s.label, systemImage: "checkmark") } else { Text(s.label) }
+                    if s.id == item.styleId { Label(dashed(s.label), systemImage: "checkmark") } else { Text(dashed(s.label)) }
                 }
             }
             if item.styleId != nil { Button("No style") { update { $0.styleId = nil } } }
@@ -159,8 +178,8 @@ struct ExerciseCardView: View {
             Button { newStyle = true } label: { Label("New style", systemImage: "plus") }
         } label: {
             HStack(spacing: 8) {
-                Text(current?.label ?? "No style")
-                    .font(.system(size: 16, weight: .semibold))
+                Text(current.map { dashed($0.label) } ?? "No style")
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(current == nil ? p.muted : p.text)
                     .lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(p.secondary)
@@ -191,20 +210,25 @@ struct ExerciseCardView: View {
 
     // MARK: Last time
 
-    private func lastTime(last: LastSession?, other: LastSession?) -> some View {
+    /// Two-arm working sets need no tag; the rest read W, D, 1L, WR ...
+    private func setTags(_ sets: [SetEntry]) -> [String: String] {
+        let labels = setLabels(sets)
+        return Dictionary(sets.enumerated().map { i, s in
+            (s.id, s.kind == .working && s.side == nil ? "" : labels[i])
+        }, uniquingKeysWith: { a, _ in a })
+    }
+
+    /// Hold it for the last three times and the other variations; the full history is linked from there.
+    private func lastTime(last: LastSession?, holdable: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if let last {
                 let sets = last.item.sets.filter { $0.hasData }
-                let labels = setLabels(last.item.sets)
-                // Two-arm working sets need no tag; the rest read W, D, 1L, WR ...
-                let tags: [String: String] = Dictionary(last.item.sets.enumerated().map { i, s in
-                    (s.id, s.kind == .working && s.side == nil ? "" : labels[i])
-                }, uniquingKeysWith: { a, _ in a })
+                let tags = setTags(last.item.sets)
                 // When the last time was a different style, say which, so the ghosts make sense.
                 let styleNote = last.sameStyle ? nil : (store.style(last.item.styleId)?.label ?? "no style")
-                let when = ([relativeDays(last.workout.date).lowercased(), styleNote] as [String?]).compactMap { $0 }.joined(separator: " · ")
+                let when = ([relativeDays(last.workout.date).lowercased(), styleNote] as [String?]).compactMap { $0 }.joined(separator: " - ")
                 VStack(alignment: .leading, spacing: 8) {
-                    (Text("Last time").foregroundStyle(p.accent) + Text(" · " + when).foregroundStyle(p.secondary))
+                    (Text("Last time").foregroundStyle(p.accent) + Text(" - " + when).foregroundStyle(p.secondary))
                         .font(.system(size: 15, weight: .bold))
                     lastSets(sets, tags: tags)
                     let setNotes: [String] = last.item.sets.compactMap { s in
@@ -214,7 +238,7 @@ struct ExerciseCardView: View {
                     }
                     let notes = ([last.item.note ?? ""] + setNotes).filter { !$0.isEmpty }
                     if !notes.isEmpty {
-                        Text(notes.joined(separator: " · ")).font(.system(size: 14)).foregroundStyle(p.muted)
+                        Text(notes.joined(separator: " - ")).font(.system(size: 14)).foregroundStyle(p.muted)
                     }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 14)
@@ -225,16 +249,70 @@ struct ExerciseCardView: View {
             } else {
                 Text("First time").font(.system(size: 15, weight: .semibold)).foregroundStyle(p.muted).padding(.horizontal, 4)
             }
-            // The other variation of the same exercise: quieter, still readable.
-            if let other {
-                let sets: [String] = other.item.sets.filter { $0.kind != .warmup && $0.reps != nil }.prefix(3).map { $0.formatted }
-                let parts: [String] = [store.variationText(other.version), relativeDays(other.workout.date).lowercased()] + (sets.isEmpty ? [] : [sets.joined(separator: ", ")])
-                Text(parts.joined(separator: " · "))
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
-                    .lineLimit(2)
-                    .padding(.horizontal, 4)
-            }
         }
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 0.35) { if holdable { setRecent(true) } }
+    }
+
+    /// The popup appears in place rather than sliding up like a sheet.
+    private func setRecent(_ on: Bool) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) { showRecent = on }
+    }
+
+    /// What the hold opens: this variation's last three times, then each other variation's last time
+    /// in a block of its own, then the full history.
+    private func recentPanel(_ v: Version, item: WorkoutItem, others: [LastSession], workoutId: String) -> some View {
+        let recent = recentSessions(versionId: v.id, workouts: store.workouts, versions: store.versions, excludeWorkoutId: workoutId)
+        return VStack(alignment: .leading, spacing: 10) {
+            if !recent.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(recent.count == 1 ? "Last time" : "Last \(recent.count) times")
+                        .font(.system(size: 15, weight: .bold)).foregroundStyle(p.accent).padding(.bottom, 2)
+                    ForEach(Array(recent.enumerated()), id: \.offset) { i, s in
+                        // Styles share history; one done in another style says which.
+                        let style = s.item.styleId == item.styleId ? nil : (store.style(s.item.styleId)?.label ?? "no style")
+                        let when = ([relativeDays(s.workout.date), style.map(dashed)] as [String?]).compactMap { $0 }.joined(separator: " - ")
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(s.verdict == .up ? when + "  ✅" : when)
+                                .font(.system(size: 14, weight: .bold)).foregroundStyle(p.secondary)
+                            lastSets(s.item.sets.filter { $0.hasData }, tags: setTags(s.item.sets))
+                        }
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .overlay(alignment: .top) { if i > 0 { Rectangle().fill(p.line).frame(height: 1) } }
+                    }
+                }
+            }
+            ForEach(others, id: \.version.id) { o in
+                let arms = store.armsText(o.version)
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(store.workoutName(o.version)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
+                        (Text(arms).foregroundStyle(p.text)
+                         + Text((arms.isEmpty ? "" : " - ") + relativeDays(o.workout.date).lowercased()).foregroundStyle(p.secondary))
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    lastSets(o.item.sets.filter { $0.hasData }, tags: setTags(o.item.sets))
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(p.elevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            Button { historyNext = true; setRecent(false) } label: {
+                HStack(spacing: 6) {
+                    Text("See full history").font(.system(size: 16, weight: .bold))
+                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(p.accent)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Last time's sets, big. One arm reads as two rows, left arm on top: WL 1L 2L over WR 1R 2R.
@@ -290,7 +368,6 @@ struct ExerciseCardView: View {
 
     private func setGrid(item: WorkoutItem, v: Version, last: LastSession?, done: Bool) -> some View {
         let labels = setLabels(item.sets)
-        let firstOpen = item.sets.firstIndex { $0.reps == nil }
         let bodyweight = v.family == .body
         let rating = store.settings.rating
         return VStack(spacing: 0) {
@@ -305,7 +382,7 @@ struct ExerciseCardView: View {
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
             ForEach(Array(item.sets.enumerated()), id: \.element.id) { i, s in
                 let lastMatch = last.map { matchLast(now: s, nowAll: item.sets, lastAll: $0.item.sets) } ?? nil
-                SetRowView(entry: s, label: labels[i], ghost: lastMatch, isCurrent: i == firstOpen,
+                SetRowView(entry: s, label: labels[i], ghost: lastMatch,
                            improved: improved(now: s, last: lastMatch), bodyweight: bodyweight, rating: rating,
                            pendingDelete: pendingDelete == s.id,
                            onWeight: { editing = SetEdit(setId: s.id, field: .weight) },
@@ -439,7 +516,6 @@ struct SetRowView: View {
     let entry: SetEntry
     let label: String
     let ghost: SetEntry?
-    let isCurrent: Bool
     let improved: Bool
     var bodyweight: Bool = false
     /// Activation or Intensity, whichever Settings picked; it gets its own column.
@@ -463,15 +539,13 @@ struct SetRowView: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
-                // An accent outline means done, as everywhere on the card. The set you're on next
-                // gets accent text on a soft fill instead.
+                // The label stays plain: the check mark alone says a set is done.
                 Button(action: onLabel) {
                     Text(label)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(done ? p.text : isCurrent ? p.accent : entry.kind == .working ? p.secondary : p.muted)
+                        .foregroundStyle(entry.kind == .working ? p.secondary : p.muted)
                         .frame(width: 44, height: 50)
-                        .background(isCurrent && !done ? p.accentSoft : .clear, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(done ? p.accent : p.border, lineWidth: 2))
+                        .overlay(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(p.border, lineWidth: 2))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -634,5 +708,32 @@ struct NoteSheet: View {
             Spacer()
         }
         .padding(16)
+    }
+}
+
+/// What a hold on Last time opens: the workout blurs behind, the panel sits in the middle and
+/// scrolls when it's long. Tap outside it to close.
+private struct HoldPopup<Content: View>: View {
+    @Environment(\.palette) private var p
+    let close: () -> Void
+    @ViewBuilder let content: () -> Content
+    @State private var shown = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { close() }
+            ViewThatFits(in: .vertical) {
+                content()
+                ScrollView { content() }.scrollIndicators(.hidden)
+            }
+            .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 16)
+            .padding(.horizontal, 16).padding(.vertical, 24)
+            .scaleEffect(shown ? 1 : 0.94).opacity(shown ? 1 : 0)
+        }
+        .onAppear { withAnimation(.spring(duration: 0.25)) { shown = true } }
     }
 }

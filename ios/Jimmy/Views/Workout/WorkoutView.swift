@@ -12,7 +12,11 @@ struct WorkoutView: View {
     /// Set by the Overview sheet; presented only after Overview has finished closing,
     /// because two sheets changing at once leaves the new one unable to take the keyboard.
     @State private var pendingAdd: AddTarget? = nil
-    @State private var confirmFinish = false
+    /// Done asks Finish, Discard or Keep going, then Finish and Discard each ask again,
+    /// so a tap from a pocket can never end the workout.
+    @State private var askEnd = false
+    @State private var sureFinish = false
+    @State private var sureDiscard = false
     @State private var restEndsAt: Date? = nil
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
@@ -27,7 +31,7 @@ struct WorkoutView: View {
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
-                            paneView(w, pane: pane, index: idx, total: ps.count)
+                            paneView(w, pane: pane, index: idx)
                                 .containerRelativeFrame(.vertical)
                                 .id(idx)
                         }
@@ -55,12 +59,24 @@ struct WorkoutView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
-            .alert("Finish workout?", isPresented: $confirmFinish) {
+            .alert("End workout?", isPresented: $askEnd) {
+                Button("Finish") { sureFinish = true }
+                Button("Discard", role: .destructive) { sureDiscard = true }
+                Button("Keep going", role: .cancel) {}
+            }
+            .alert("Are you sure?", isPresented: $sureFinish) {
                 Button("Finish") { store.finishWorkout(workoutId) }
                 Button("Keep going", role: .cancel) {}
             } message: {
-                let undone = w.items.filter { !$0.isDone }.count
-                Text(undone > 0 ? "\(undone) exercises have no sets logged. They will be dropped." : "Nice. This saves to history.")
+                // Counted the same way Finish drops them, so a logged warm-up keeps its exercise.
+                let n = store.unlogged(w).count
+                Text(n == 0 ? "This saves to history." : n == 1 ? "1 exercise has no sets logged. It will be dropped." : "\(n) exercises have no sets logged. They will be dropped.")
+            }
+            .alert("Are you sure?", isPresented: $sureDiscard) {
+                Button("Discard", role: .destructive) { store.deleteWorkout(workoutId) }
+                Button("Keep going", role: .cancel) {}
+            } message: {
+                Text("This workout won't be saved.")
             }
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
@@ -76,23 +92,23 @@ struct WorkoutView: View {
             Spacer()
             TimelineView(.periodic(from: .now, by: 1)) { ctx in
                 let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
-                Text("\(w.name) · \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount) · \(elapsedString(ms: ms))")
+                Text("\(w.name) - \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount) - \(elapsedString(ms: ms))")
                     .font(.system(size: 13)).monospacedDigit().foregroundStyle(p.secondary)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             Spacer()
-            PillButton(title: "Done", style: .primary) { confirmFinish = true }
+            PillButton(title: "Done", style: .primary) { askEnd = true }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
 
     @ViewBuilder
-    private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int, total: Int) -> some View {
+    private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
-                if pane.count > 1, let gid = pane.first?.groupId, let g = w.groups.first(where: { $0.id == gid }) {
+                if pane.count > 1, pane.first?.groupId != nil {
                     HStack {
-                        Chip(text: g.type.label, on: true, small: true)
+                        Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
                         Text("\(pane.count) exercises, rotate through them").font(.system(size: 13)).foregroundStyle(p.muted)
                     }
                 }
@@ -101,7 +117,7 @@ struct WorkoutView: View {
                                      onSwap: { adding = AddTarget(swapItemId: item.id) },
                                      onAddAfter: { adding = AddTarget(afterItemId: item.id) })
                 }
-                footer(index: index, total: total, panesOf: w)
+                footer(index: index, panesOf: w)
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -110,16 +126,12 @@ struct WorkoutView: View {
         .scrollIndicators(.hidden)
     }
 
-    private func footer(index: Int, total: Int, panesOf w: Workout) -> some View {
+    /// Only for the odd extra exercise, so it stays quiet: plain text, no accent.
+    private func footer(index: Int, panesOf w: Workout) -> some View {
         HStack {
-            if index + 1 < total, let next = panes(w.items)[index + 1].first, let v = store.version(next.versionId) {
-                Text("Swipe up for \(store.workoutName(v))").font(.system(size: 13)).foregroundStyle(p.muted)
-            } else {
-                Text("Last one. Tap Done when you finish.").font(.system(size: 13)).foregroundStyle(p.muted)
-            }
             Spacer()
             Button { adding = AddTarget(afterItemId: panes(w.items)[index].last?.id) } label: {
-                Label("Add exercise", systemImage: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.accent)
+                Label("Add exercise", systemImage: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.text)
             }
         }
         .padding(.top, 4)
@@ -180,6 +192,8 @@ struct SetLoggedKey: PreferenceKey {
     static func reduce(value: inout Double, nextValue: () -> Double) { value = max(value, nextValue()) }
 }
 
+/// Always ready to edit: tick boxes to group or ungroup, hold a row and drag to reorder, hold for
+/// Swap or Delete, swipe left to delete. Tapping a name jumps to that exercise.
 struct OverviewSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -187,8 +201,9 @@ struct OverviewSheet: View {
     let workoutId: String
     @Binding var current: Int?
     @Binding var adding: WorkoutView.AddTarget?
-    @State private var selecting = false
+    /// Starts empty every time Overview opens, so nothing half-grouped is left over.
     @State private var selected: Set<String> = []
+    @State private var deleting: WorkoutItem? = nil
 
     var body: some View {
         if let w = store.workout(workoutId) {
@@ -196,99 +211,130 @@ struct OverviewSheet: View {
             NavigationStack {
                 List {
                     ForEach(Array(w.items.enumerated()), id: \.element.id) { i, item in
-                        row(w, item: item, paneIndex: ps.firstIndex { $0.contains { $0.id == item.id } } ?? 0)
+                        row(w, index: i, item: item, paneIndex: ps.firstIndex { $0.contains { $0.id == item.id } } ?? 0)
                     }
-                    .onMove { from, to in
-                        var ww = w
-                        ww.items.move(fromOffsets: from, toOffset: to)
-                        store.put(ww)
-                    }
-                    .onDelete { idx in
-                        var ww = w
-                        ww.items.remove(atOffsets: idx)
-                        ww.groups.removeAll { g in !ww.items.contains { $0.groupId == g.id } }
-                        store.put(ww)
-                    }
+                    .onMove { from, to in store.put(moveItem(w, from: from, to: to)) }
                 }
                 .cardList()
                 .navigationTitle("Overview")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        if selecting {
-                            Menu("Group") {
-                                ForEach(GroupType.allCases, id: \.self) { t in
-                                    Button(t.label) { group(w, as: t) }
-                                }
-                                Button("Ungroup", role: .destructive) { ungroup(w) }
-                            }.disabled(selected.count < 1)
-                        } else {
-                            Button("Group…") { selecting = true }
-                        }
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        HStack {
-                            Button { adding = WorkoutView.AddTarget(); dismiss() } label: { Image(systemName: "plus") }
-                            if selecting { Button("Cancel") { selecting = false; selected = [] } } else { EditButton() }
-                        }
-                    }
+                .safeAreaInset(edge: .bottom) { bottomBar(w) }
+                .alert("Are you sure?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { item in
+                    Button("Delete", role: .destructive) { remove(w, item) }
+                    Button("Keep", role: .cancel) {}
+                } message: { _ in
+                    Text("Its logged sets will be lost.")
                 }
             }
         }
     }
 
-    private func row(_ w: Workout, item: WorkoutItem, paneIndex: Int) -> some View {
+    /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup.
+    /// With nothing to do, the + to add an exercise sits bottom right.
+    @ViewBuilder
+    private func bottomBar(_ w: Workout) -> some View {
+        let ticked = w.items.filter { selected.contains($0.id) }
+        HStack {
+            if ticked.contains(where: { $0.groupId != nil }) {
+                actionButton("Ungroup") { store.put(ungroup(w, ids: selected)); selected = [] }
+            } else if ticked.count >= 2 {
+                actionButton("Make a \(GroupType.forCount(ticked.count).rawValue)") { store.put(makeGroup(w, ids: selected)); selected = [] }
+            } else {
+                Spacer()
+                Button { adding = WorkoutView.AddTarget(); dismiss() } label: {
+                    Image(systemName: "plus").font(.system(size: 24, weight: .bold)).foregroundStyle(p.onAccent)
+                        .frame(width: 60, height: 60)
+                        .background(p.accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+                }
+                .accessibilityLabel("Add exercise")
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    private func actionButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button { withAnimation { action() } } label: {
+            Text(title).font(.system(size: 18, weight: .heavy)).foregroundStyle(p.onAccent)
+                .frame(maxWidth: .infinity).frame(height: 56)
+                .background(p.accent, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+        }
+    }
+
+    private func row(_ w: Workout, index i: Int, item: WorkoutItem, paneIndex: Int) -> some View {
         let v = store.version(item.versionId)
-        let g = item.groupId.flatMap { gid in w.groups.first { $0.id == gid } }
-        return HStack(spacing: 12) {
-            if selecting {
-                RectCheck(on: selected.contains(item.id), size: 26)
-            } else {
-                RectCheck(on: item.isDone, size: 26)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                HStack(spacing: 6) {
-                    if let g { Text(g.type.label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
-                    if let v { Text(store.subtitle(v, styleId: item.styleId)).font(.system(size: 12)).foregroundStyle(p.secondary).lineLimit(1) }
-                    Text(item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " · "))
-                        .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
-                }
-            }
-            Spacer()
-            if item.skipped == true { Badge(text: "skipped") }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if selecting {
+        let gid = item.groupId
+        let first = gid == nil || i == 0 || w.items[i - 1].groupId != gid
+        let last = gid == nil || i == w.items.count - 1 || w.items[i + 1].groupId != gid
+        let sets = item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " - ")
+        return HStack(spacing: 14) {
+            // Its own button, so a tick never jumps away or closes Overview.
+            Button {
                 if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
-            } else {
-                current = paneIndex
-                dismiss()
+            } label: {
+                RectCheck(on: selected.contains(item.id), size: 26).frame(width: 40, height: 44).contentShape(Rectangle())
             }
+            Button { current = paneIndex; dismiss() } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let gid, first {
+                        Text(GroupType.forCount(w.items.filter { $0.groupId == gid }.count).label.uppercased())
+                            .font(.system(size: 12, weight: .heavy)).tracking(0.6).foregroundStyle(p.accent)
+                            .padding(.bottom, 2)
+                    }
+                    HStack(spacing: 7) {
+                        Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).lineLimit(1)
+                        if item.isDone && item.skipped != true {
+                            Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(p.accent)
+                        }
+                    }
+                    if let v { Text(dashed(store.subtitle(v, styleId: item.styleId))).font(.system(size: 14, weight: .bold)).foregroundStyle(p.text).lineLimit(1) }
+                    if !sets.isEmpty { Text(sets).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            if item.skipped == true { Badge(text: "skipped") }
+            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
         }
-        .rowCard(p)
+        .buttonStyle(.plain)
+        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
+        .contextMenu {
+            Button { adding = WorkoutView.AddTarget(swapItemId: item.id); dismiss() } label: { Label("Swap for another", systemImage: "arrow.left.arrow.right") }
+            Button(role: .destructive) { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
+        }
+        .overviewCard(p, grouped: gid != nil, first: first, last: last)
     }
 
-    private func group(_ w: Workout, as type: GroupType) {
-        var ww = w
-        let g = ExerciseGroup(id: uid(), type: type)
-        ww.groups.append(g)
-        // Pull the selected items together, in their current order, at the first selected position.
-        let chosen = ww.items.filter { selected.contains($0.id) }.map { var i = $0; i.groupId = g.id; return i }
-        guard let firstIdx = ww.items.firstIndex(where: { selected.contains($0.id) }) else { return }
-        ww.items.removeAll { selected.contains($0.id) }
-        ww.items.insert(contentsOf: chosen, at: min(firstIdx, ww.items.count))
-        ww.groups.removeAll { gg in !ww.items.contains { $0.groupId == gg.id } }
-        store.put(ww)
-        selecting = false; selected = []
+    /// Only an exercise with something logged asks first.
+    private func askRemove(_ w: Workout, _ item: WorkoutItem) {
+        if item.sets.contains(where: { $0.hasData }) { deleting = item } else { remove(w, item) }
     }
 
-    private func ungroup(_ w: Workout) {
-        var ww = w
-        for i in ww.items.indices where selected.contains(ww.items[i].id) { ww.items[i].groupId = nil }
-        ww.groups.removeAll { gg in !ww.items.contains { $0.groupId == gg.id } }
-        store.put(ww)
-        selecting = false; selected = []
+    private func remove(_ w: Workout, _ item: WorkoutItem) {
+        var ww = store.workout(w.id) ?? w
+        ww.items.removeAll { $0.id == item.id }
+        selected.remove(item.id)
+        withAnimation { store.put(tidyGroups(ww)) }
+    }
+}
+
+private extension View {
+    /// A group's members share one card with an accent edge; loose exercises get a card each.
+    func overviewCard(_ p: Palette, grouped: Bool, first: Bool, last: Bool) -> some View {
+        let r = Radius.row
+        let shape = UnevenRoundedRectangle(topLeadingRadius: first ? r : 0, bottomLeadingRadius: last ? r : 0,
+                                           bottomTrailingRadius: last ? r : 0, topTrailingRadius: first ? r : 0, style: .continuous)
+        return self.listRowBackground(
+            shape.fill(p.card)
+                .overlay(alignment: .leading) { if grouped { Rectangle().fill(p.accent).frame(width: 3) } }
+                .clipShape(shape)
+                .padding(.horizontal, 16).padding(.top, first ? 5 : 0).padding(.bottom, last ? 5 : 0)
+        )
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: first ? 5 : 0, leading: 16, bottom: last ? 5 : 0, trailing: 16))
     }
 }

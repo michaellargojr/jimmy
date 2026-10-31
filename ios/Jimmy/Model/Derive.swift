@@ -42,6 +42,25 @@ func lastSession(versionId: String, styleId: String? = nil, workouts: [Workout],
     return find { _ in true }
 }
 
+/// The latest sessions of this variation, newest first, in any style (styles share history).
+func recentSessions(versionId: String, workouts: [Workout], versions: [Version], excludeWorkoutId: String? = nil, limit: Int = 3) -> [LastSession] {
+    guard let v = versions.first(where: { $0.id == versionId }) else { return [] }
+    var out: [LastSession] = []
+    for w in sortedNewestFirst(workouts) where w.id != excludeWorkoutId {
+        guard let item = w.items.first(where: { $0.versionId == versionId && hasData($0) }) else { continue }
+        out.append(LastSession(workout: w, item: item, daysAgo: daysBetween(w.date, today()), verdict: verdict(item.sets, v), version: v))
+        if out.count == limit { break }
+    }
+    return out
+}
+
+/// The last session of each other variation of the same exercise, most recent first.
+func otherVersionsLast(version: Version, workouts: [Workout], versions: [Version], excludeWorkoutId: String? = nil) -> [LastSession] {
+    versions.filter { $0.exerciseId == version.exerciseId && $0.id != version.id }
+        .compactMap { lastSession(versionId: $0.id, workouts: workouts, versions: versions, excludeWorkoutId: excludeWorkoutId) }
+        .sorted { $0.workout.date > $1.workout.date }
+}
+
 /// Most recent session of any other version of the same base exercise.
 func otherVersionLast(version: Version, workouts: [Workout], versions: [Version], excludeWorkoutId: String? = nil) -> LastSession? {
     let siblings = versions.filter { $0.exerciseId == version.exerciseId && $0.id != version.id }

@@ -67,13 +67,13 @@ final class AppStore {
         words.append(baseName(v))
         return words.joined(separator: " ") + (namedMachine ? " (\(tag))" : "")
     }
-    /// The Workout subtitle: "Two arms", "One arm · seated", "One leg".
+    /// The Workout subtitle: "Two arms", "One arm - seated", "One leg".
     func armsText(_ v: Version) -> String {
         let legs = base(of: v)?.isLegs ?? false
         var parts: [String] = []
         if v.arms == .one || v.family != .body { parts.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { parts.append(parts.isEmpty ? capitalized(pos.label) : pos.label) }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: " - ")
     }
     func routine(_ id: String) -> Routine? { routines.first { $0.id == id } }
     func workout(_ id: String) -> Workout? { workouts.first { $0.id == id } }
@@ -294,11 +294,16 @@ final class AppStore {
         return w
     }
 
+    /// Exercises with nothing logged, not even a warm-up. Finish drops them so history stays clean.
+    func unlogged(_ w: Workout) -> [WorkoutItem] {
+        w.items.filter { !$0.isDone && !$0.sets.contains { $0.hasData } }
+    }
+
     func finishWorkout(_ id: String) {
         guard var w = workout(id) else { return }
         w.endedAt = nowMs()
-        // Drop exercises that never got a set logged so history stays clean.
-        w.items.removeAll { !$0.isDone && !$0.sets.contains { $0.hasData } }
+        let drop = Set(unlogged(w).map(\.id))
+        w.items.removeAll { drop.contains($0.id) }
         if w.items.isEmpty { deleteWorkout(id) } else { put(w) }
     }
 

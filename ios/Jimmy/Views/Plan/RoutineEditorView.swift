@@ -58,7 +58,7 @@ struct RoutineEditorView: View {
                     HStack(spacing: 12) {
                         if selecting {
                             Menu("Group") {
-                                ForEach(GroupType.allCases, id: \.self) { t in Button(t.label) { group(r, as: t) } }
+                                Button("Make a \(GroupType.forCount(selected.count).rawValue)") { group(r, as: .forCount(selected.count)) }.disabled(selected.count < 2)
                                 Button("Ungroup", role: .destructive) { ungroup(r) }
                             }.disabled(selected.isEmpty)
                             Button("Cancel") { selecting = false; selected = [] }
@@ -108,7 +108,7 @@ struct RoutineEditorView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                 HStack(spacing: 6) {
-                    if let g { Text(g.type.label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
+                    if g != nil { Text(GroupType.forCount(r.items.filter { $0.groupId == item.groupId }.count).label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
                     if let v { Text("\(store.subtitle(v, styleId: item.styleId)) · \(v.repRange) reps").font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(2) }
                 }
             }

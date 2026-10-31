@@ -60,6 +60,16 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(sets.count == 4)
     }
 
+    @Test func oneArmRowsWithoutASideGetPaired() {
+        let old = [S(.warmup, reps: 12), S(side: .L), S(side: .R)]
+        let sets = pairSides(old)
+        #expect(setLabels(sets) == ["WL", "WR", "1L", "1R"])
+        #expect(sets[0].id == old[0].id && sets[0].reps == 12)   // the logged row keeps its numbers as L
+        #expect(sets[1].reps == nil && sets[1].weight == nil)    // its new R partner starts empty
+        #expect(setLabels(cycleSetKind(sets, at: 0)) == ["DL", "DR", "1L", "1R"])
+        #expect(pairSides(sets) == sets)                           // already sided: unchanged
+    }
+
     @Test func outOfRangeChangesNothing() {
         let sets = [S()]
         #expect(cycleSetKind(sets, at: 5) == sets)
@@ -85,6 +95,17 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         let sets = [S(reps: 10), S(reps: 7)]
         #expect(verdict(sets, repMin: 5, repMax: 8) == .up)
         #expect(verdict(sets + [S(.drop, weight: 10, reps: 3)], repMin: 5, repMax: 8) == .up)
+    }
+
+    @Test func finishDropsOnlyExercisesWithNothingLogged() {
+        let s = AppStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("finish-\(uid()).json"))
+        let warm = WorkoutItem(versionId: "a", sets: [S(.warmup, reps: 12), S()])
+        let empty = WorkoutItem(versionId: "b", sets: [S(weight: nil), S(weight: nil)])
+        let w = Workout(name: "Shoulders", startedAt: nowMs(), items: [warm, empty])
+        s.put(w)
+        #expect(s.unlogged(w).map(\.id) == [empty.id])   // what the Are you sure? counts
+        s.finishWorkout(w.id)
+        #expect(s.workout(w.id)?.items.map(\.id) == [warm.id])
     }
 
     @Test func dropSetsCountAsDoneWorkButWarmupsDoNot() {
@@ -114,7 +135,7 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(s.workoutName(bar) == "Barbell Shoulder Press")
         #expect(s.workoutName(cable) == "Cable Overhead Tricep Extension")
         #expect(s.workoutName(dStars) == "Machine Calf Raise (D Stars)")
-        #expect(s.armsText(db) == "Two arms · seated")
+        #expect(s.armsText(db) == "Two arms - seated")
         #expect(s.armsText(cable) == "One arm")
         #expect(s.armsText(dStars) == "Two legs")
     }
@@ -154,5 +175,30 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(s.valueText == "12.5×10+ (3p)")
         s.weight = nil
         #expect(s.valueText == "10+ (3p)")
+    }
+}
+
+@Suite struct HoldLastTimeTests {
+    private let cable = Version(exerciseId: "fr", name: "Front Raise · Cable", equipment: .cable, arms: .two)
+    private let db = Version(exerciseId: "fr", name: "Front Raise · Dumbbell · one arm", equipment: .dumbbell, arms: .one)
+    private let bar = Version(exerciseId: "fr", name: "Front Raise · Barbell", equipment: .barbell, arms: .two)
+
+    private func w(_ date: String, _ v: Version, logged: Bool = true) -> Workout {
+        Workout(name: "Shoulders", date: date, items: [WorkoutItem(versionId: v.id, sets: [S(weight: logged ? 20 : nil, reps: logged ? 10 : nil)])])
+    }
+
+    @Test func lastThreeTimesNewestFirstSkippingToday() {
+        let today = w("2026-10-31", cable)
+        let ws = [w("2026-10-10", cable), w("2026-10-27", cable), w("2026-10-13", cable), w("2026-10-20", cable), today,
+                  w("2026-10-29", cable, logged: false)]
+        let r = recentSessions(versionId: cable.id, workouts: ws, versions: [cable], excludeWorkoutId: today.id)
+        #expect(r.map(\.workout.date) == ["2026-10-27", "2026-10-20", "2026-10-13"])
+    }
+
+    @Test func eachOtherVariationOnceMostRecentFirst() {
+        let ws = [w("2026-09-01", bar), w("2026-10-08", db), w("2026-09-20", db), w("2026-10-27", cable)]
+        let o = otherVersionsLast(version: cable, workouts: ws, versions: [cable, db, bar])
+        #expect(o.map(\.version.id) == [db.id, bar.id])
+        #expect(o.first?.workout.date == "2026-10-08")
     }
 }
