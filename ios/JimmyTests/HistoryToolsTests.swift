@@ -84,16 +84,18 @@ private func finished(_ date: String, _ items: [WorkoutItem]) -> Workout {
     }
 
     @Test func eraseDropsEmptyWorkouts() {
-        let s = erasingHistory(state(), versionId: press)
+        let before = state()
+        let s = erasingHistory(before, versionId: press)
         #expect(historySessions(press, workouts: s.workouts).isEmpty)
         // Sep 9 keeps the other exercise; Oct 10 had only the press, so it goes.
         #expect(s.workouts.filter(\.isFinished).map(\.date) == ["2026-09-09"])
         #expect(s.workouts[0].items.map(\.versionId) == [other])
-        #expect(s.routines == state().routines)
+        #expect(s.routines == before.routines)
     }
 
     @Test func copyOntoItselfChangesNothing() {
-        #expect(copyingHistory(state(), from: press, to: press, move: true) == state())
+        let before = state()
+        #expect(copyingHistory(before, from: press, to: press, move: true) == before)
     }
 
     @Test func undoPutsItBack() {
