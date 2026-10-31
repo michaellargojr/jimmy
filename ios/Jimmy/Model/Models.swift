@@ -99,6 +99,8 @@ enum Bar: String, Codable, Hashable { case ez, straight }
 enum GroupType: String, Codable, CaseIterable, Hashable {
     case superset, triset, circuit
     var label: String { rawValue.capitalized }
+    /// Named by how many exercises it holds: two make a superset, three a triset, more a circuit.
+    static func forCount(_ n: Int) -> GroupType { n <= 2 ? .superset : n == 3 ? .triset : .circuit }
 }
 enum MuscleGroup: String, Codable, CaseIterable, Hashable {
     case Back, Abs, Chest, Shoulders, Triceps, Biceps, Forearms, Calves, Legs, Glutes
