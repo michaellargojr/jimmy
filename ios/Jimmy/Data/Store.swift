@@ -17,6 +17,8 @@ final class AppStore {
     var clips: [Clip] = []
     var settings = Settings()
     var loaded = false
+    /// The last copy, move or erase of a history, while its Undo bar shows. Never saved.
+    var historyUndo: HistoryUndo?
 
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?

@@ -77,7 +77,8 @@ let SEED_EXERCISES: [SeedExercise] = [
     S("Lateral Raise", "Lateral Raise", .Shoulders, V(.dumbbell)),
     S("Reverse Rear Delt Fly", "Rear Delt Fly", .Shoulders, V(.machine)),
     S("Rope Cable Front Raise", "Front Raise", .Shoulders, V(.cable), style: StyleSpec(attachment: "rope")),
-    S("Shoulder Lateral Machine Press", "Shoulder Press", .Shoulders, V(.machine)),
+    // A lateral raise machine, despite "Press" in the note's name.
+    S("Shoulder Lateral Machine Press", "Lateral Raise", .Shoulders, V(.machine)),
     S("Upright Row", "Upright Row", .Shoulders, V(.bar), style: StyleSpec(barType: .ez)),
     // Triceps
     S("One-Arm Cuffed Tricep Extension", "Tricep Extension", .Triceps, V(.cable, arms: .one, tag: "overhead"), style: StyleSpec(attachment: "cuff")),

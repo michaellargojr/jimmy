@@ -271,6 +271,8 @@ struct VersionEditorView: View {
     @State private var loaded = false
     @State private var editingStyle: Style? = nil
     @State private var newStyle = false
+    @State private var picking: HistoryPick? = nil
+    @State private var askErase = false
 
     private var version: Version? { store.version(versionId) }
 
@@ -346,6 +348,20 @@ struct VersionEditorView: View {
                 Section {
                     NavigationLink { ExerciseProgressView(versionId: v.id) } label: { Label("Progress over time", systemImage: "chart.xyaxis.line") }
                 }
+                if !historySessions(v.id, workouts: store.workouts).isEmpty {
+                    Section("History") {
+                        ForEach(HistoryPick.allCases) { pick in
+                            Button { picking = pick } label: {
+                                HStack {
+                                    Text(pick.row).foregroundStyle(p.text)
+                                    Spacer()
+                                    Chevron()
+                                }
+                            }
+                        }
+                        Button(role: .destructive) { askErase = true } label: { Text("Erase history").foregroundStyle(p.danger) }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(p.bg.ignoresSafeArea())
@@ -362,6 +378,7 @@ struct VersionEditorView: View {
             .sheet(isPresented: $newStyle) {
                 StyleEditorSheet(version: v, style: nil).presentationDetents([.large]).presentationBackground(p.card)
             }
+            .historyActions(versionId: v.id, picking: $picking, erasing: $askErase)
         }
     }
 }
