@@ -212,7 +212,7 @@ struct ExercisesHistoryList: View {
         return HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                VariationChips(tags: store.variationChips(v), size: .small, note: "\(monthDay(h.last)) - \(sessionsText(h.sessions))")
+                VariationChips(tags: store.variationChips(v), size: .small, note: "\(monthDay(h.last)) - \(h.sessionsLabel)")
             }
             Spacer()
             if let t = lastSession(versionId: v.id, workouts: store.finishedWorkouts, versions: store.versions).flatMap({ topSet($0.item) }) {
@@ -227,9 +227,6 @@ struct ExercisesHistoryList: View {
             .font(.system(size: 14)).foregroundStyle(p.muted).listRowBackground(Color.clear).listRowSeparator(.hidden)
     }
 }
-
-/// "1 session", "3 sessions".
-func sessionsText(_ n: Int) -> String { "\(n) \(n == 1 ? "session" : "sessions")" }
 
 struct WorkoutDetailView: View {
     @Environment(AppStore.self) private var store

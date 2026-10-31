@@ -17,6 +17,8 @@ struct VariationHistory: Identifiable, Hashable {
     var sessions: Int
     /// Day of the latest session, "2026-10-15".
     var last: String
+    /// "1 session", "3 sessions".
+    var sessionsLabel: String { "\(sessions) \(sessions == 1 ? "session" : "sessions")" }
 }
 
 /// A base exercise and its variations that have history, most recent first.
