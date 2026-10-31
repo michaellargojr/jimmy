@@ -20,6 +20,7 @@ struct MachineBlock: View {
     @Binding var naming: MachineNaming?
     @Binding var name: String
     @FocusState private var nameFocused: Bool
+    @State private var choosing = false
 
     private var types: [MachineType] { machineTypes(forBase: base.name) }
 
@@ -44,10 +45,15 @@ struct MachineBlock: View {
             ForEach(store.unlistedMachines(base: base, arms: spec.arms, loading: spec.loading)) { v in
                 mineRow(v, on: picked?.id == v.id, inset: false)
             }
+            if types.count > 1 { helpRow }
             otherRow
         }
         .onAppear { if spec.loading == nil { spec = store.withLoading(spec, base: base) } }
         .onChange(of: name) { _, _ in applyName() }
+        .sheet(isPresented: $choosing) {
+            HelpMeChooseView(base: base, arms: spec.arms, types: types) { t, l in pick(t, loading: l) }
+                .presentationDetents([.large]).presentationBackground(p.card)
+        }
     }
 
     // MARK: Rows
@@ -133,6 +139,22 @@ struct MachineBlock: View {
         .background(on ? p.accentSoft : p.card, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
     }
 
+    /// Help me choose: a few plain questions that narrow the list.
+    private var helpRow: some View {
+        Button { naming = nil; nameFocused = false; choosing = true } label: {
+            HStack(spacing: 10) {
+                Text("Help me choose").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                Spacer(minLength: 4)
+                Chevron()
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var otherRow: some View {
         let on = naming == .other
         return VStack(alignment: .leading, spacing: 10) {
@@ -175,18 +197,20 @@ struct MachineBlock: View {
     // MARK: Picking
 
     /// A kind: yours when you have one (with this loading if you have that, else the other),
-    /// otherwise a new variation of that kind, loaded the way it usually comes.
-    private func pick(_ t: MachineType) {
+    /// otherwise a new variation of that kind, loaded the way it usually comes. Help me choose
+    /// passes the loading you told it, which wins.
+    private func pick(_ t: MachineType, loading told: Loading? = nil) {
         naming = nil; nameFocused = false
-        let mine: (Loading?) -> [Version] = { store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, loading: $0) }
-        let have = [spec.loading] + Loading.allCases.filter { $0 != spec.loading }.map { Optional($0) }
+        let pos = t.position ?? spec.position
+        let mine: (Loading?) -> [Version] = { store.machines(of: t, baseId: base.id, arms: spec.arms, position: pos, loading: $0) }
+        let have: [Loading?] = told.map { [$0] } ?? ([spec.loading] + Loading.allCases.filter { $0 != spec.loading }.map { Optional($0) })
         if let v = have.lazy.compactMap({ mine($0).first }).first {
             spec.tag = v.tag; spec.position = v.position; spec.machine = v.machine; spec.loading = v.loading
         } else {
             spec.tag = t.tag
-            if let pos = t.position { spec.position = pos }
+            if let fixed = t.position { spec.position = fixed }
             spec.machine = nil
-            spec.loading = t.loading
+            spec.loading = told ?? t.loading
         }
     }
 

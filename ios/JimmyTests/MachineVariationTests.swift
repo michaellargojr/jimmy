@@ -157,6 +157,46 @@ import Testing
         #expect(ownVariation(of: StyleSpec(), beside: high, types: []) == nil)
     }
 
+    @Test func helpMeChooseNarrowsTheList() {
+        // Every machine with a sibling has answers, and each answer is one its question offers.
+        for base in machineTypeBases where machineTypes(forBase: base).count > 1 {
+            for t in machineTypes(forBase: base) {
+                let traits = machineTraits(base: base, machine: t.name)
+                #expect(!traits.isEmpty, "\(base): \(t.name)")
+                for (q, a) in traits {
+                    #expect(CHOOSE_QUESTIONS.first { $0.id == q }?.answers.contains { $0.id == a } == true, "\(t.name) \(q)=\(a)")
+                }
+            }
+        }
+        // Your high row: one question, then how you add weight.
+        let pull = machineTypes(forBase: "Pulldown")
+        let first = nextChooseQuestion(pull, base: "Pulldown", asked: [])
+        #expect(first?.id == "start")
+        if let first { #expect(chooseAnswers(first, candidates: pull, base: "Pulldown").map(\.text) == ["Above your head", "High in front of you"]) }
+        let high = chooseCandidates(pull, base: "Pulldown", answers: ["start": "high"])
+        #expect(high.map(\.name) == ["High row"])
+        #expect(nextChooseQuestion(high, base: "Pulldown", asked: ["start"]) == nil)
+        // Above your head asks about the arms next; Not sure drops nothing.
+        let over = chooseCandidates(pull, base: "Pulldown", answers: ["start": "overhead"])
+        #expect(nextChooseQuestion(over, base: "Pulldown", asked: ["start"])?.id == "own")
+        #expect(chooseCandidates(pull, base: "Pulldown", answers: ["start": NOT_SURE]).count == 4)
+
+        // Answering as each machine would leaves just that machine, except the squat tie.
+        for base in machineTypeBases where machineTypes(forBase: base).count > 1 {
+            let all = machineTypes(forBase: base)
+            for t in all {
+                var answers: [String: String] = [:]
+                var left = all
+                while let q = nextChooseQuestion(left, base: base, asked: Set(answers.keys)) {
+                    answers[q.id] = machineTraits(base: base, machine: t.name)[q.id] ?? NOT_SURE
+                    left = chooseCandidates(all, base: base, answers: answers)
+                }
+                let tie = base == "squat" && (t.name == "Hack squat" || t.name == "V-squat")
+                #expect(left.map(\.name) == (tie ? ["Hack squat", "V-squat"] : [t.name]), "\(base): \(t.name)")
+            }
+        }
+    }
+
     @Test func theAppOffersToSplitAStyleThatRunsHeavier() {
         let pull = Exercise(name: "Pulldown", muscleGroup: .Back)
         let high = Version(exerciseId: pull.id, name: "x", equipment: .machine, arms: .two, tag: "high row", loading: .plates)
