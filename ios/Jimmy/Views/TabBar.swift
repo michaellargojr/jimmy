@@ -7,6 +7,8 @@ struct JimmyTabBar: View {
     @Binding var tab: AppTab
     @Namespace private var lens
 
+    static let height: CGFloat = 62
+
     var body: some View {
         HStack(spacing: 0) {
             item(.home, "Home", "house.fill")
@@ -16,9 +18,10 @@ struct JimmyTabBar: View {
             item(.settings, "Settings", "slider.horizontal.3")
         }
         .padding(.horizontal, 4)
-        .frame(height: 64)
+        .frame(height: Self.height)
         .modifier(FloatingGlass())
-        .padding(.horizontal, 14)
+        // Same size and place as the system's bar: 360 wide on a 402 wide phone.
+        .padding(.horizontal, 21)
         .sensoryFeedback(.selection, trigger: tab)
     }
 
@@ -41,7 +44,7 @@ struct JimmyTabBar: View {
             .frame(height: 56)
             .background {
                 if on {
-                    Capsule().fill(p.isDark ? Color.white.opacity(0.09) : Color.black.opacity(0.06))
+                    Capsule().fill(p.isDark ? Color.black.opacity(0.55) : Color.black.opacity(0.06))
                         .matchedGeometryEffect(id: "lens", in: lens)
                 }
             }
@@ -92,7 +95,7 @@ struct WorkoutTile: View {
 
     var body: some View {
         Color.clear
-            .frame(width: Self.slot, height: 64)
+            .frame(width: Self.slot, height: JimmyTabBar.height)
             .overlay(alignment: .top) {
                 Button(action: action) {
                     VStack(spacing: 2) {

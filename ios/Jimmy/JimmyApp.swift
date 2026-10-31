@@ -57,7 +57,7 @@ struct RootView: View {
                 if !keyboardUp {
                     // Floats low, a little into the home indicator's space, like the system's bar.
                     JimmyTabBar(tab: $nav.tab)
-                        .padding(.bottom, geo.safeAreaInsets.bottom > 0 ? -10 : 8)
+                        .padding(.bottom, geo.safeAreaInsets.bottom > 0 ? -13 : 8)
                 }
             }
         }
