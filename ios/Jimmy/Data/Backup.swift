@@ -171,14 +171,15 @@ final class Backups {
 
     // MARK: List
 
-    /// Re-read the folder. Cheap; runs off the main thread.
-    func refresh() {
-        guard let folder = folderURL() else { files = []; return }
+    /// Re-read the folder. Cheap; runs off the main thread. `done` runs on main with the list.
+    func refresh(done: (([BackupFile]) -> Void)? = nil) {
+        guard let folder = folderURL() else { files = []; done?([]); return }
         io.async {
             let list = Self.list(folder)
             DispatchQueue.main.async {
                 self.files = list
                 self.countMissing()
+                done?(list)
             }
         }
     }

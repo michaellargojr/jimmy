@@ -120,10 +120,12 @@ struct BackupView: View {
         picking = true
     }
 
+    /// A folder that already has backups is only listed, so a new phone's fresh data
+    /// never lands on top of the real backups. An empty folder gets its first backup now.
     private func chooseFolder(_ url: URL) {
         do {
             try store.backups.setFolder(url)
-            backUpNow()
+            store.backups.refresh { files in if files.isEmpty { backUpNow() } }
         } catch {
             self.error = "That folder can't be used. \(error.localizedDescription)"
         }

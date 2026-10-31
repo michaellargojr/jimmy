@@ -110,6 +110,16 @@ import Testing
         #expect(!b.failed)
     }
 
+    @Test func refreshListsBackupsAlreadyInAChosenFolder() async throws {
+        let dir = tempDir()
+        try Backups.write(Data("{}".utf8), clips: [], to: dir, at: at("2026-11-01 05.50"), clipSource: { _ in nil })
+        let b = Backups(defaults: nil)
+        try b.setFolder(dir)
+        let found = await withCheckedContinuation { (c: CheckedContinuation<[BackupFile], Never>) in b.refresh { c.resume(returning: $0) } }
+        #expect(found.map(\.id) == ["Jimmy 2026-11-01 05.50.json"])
+        #expect(b.files.count == 1)
+    }
+
     @Test func noFolderMeansNoBackup() async {
         let store = seededStore()
         #expect(!store.backups.hasFolder)
