@@ -119,3 +119,25 @@ private func rest(_ start: CGFloat, _ coast: CGFloat, _ heights: [CGFloat]) -> C
         #expect(rest(500, 500, three) == 720)
     }
 }
+
+@Suite struct PaneSnapSliverTests {
+    // An exercise only 10 taller than the screen: one swipe still moves on, it doesn't stop for 10 points.
+    let sliver: [CGFloat] = [610, 600, 600]
+
+    @Test func oneSwipePassesAShortOverhang() {
+        #expect(rest(0, 220, sliver) == 610)
+    }
+
+    @Test func aSmallDragStillShowsTheLastFewPoints() {
+        #expect(rest(0, 30, sliver) == 10)
+    }
+
+    @Test func backFromItsEndGoesToTheOneBefore() {
+        #expect(rest(610, 450, [600, 610, 600]) == 0)
+    }
+
+    @Test func nearTheEndOfALongExerciseCountsAsTheEnd() {
+        #expect(rest(250, 400, [900, 600]) == 900)
+        #expect(rest(250, 280, [900, 600]) == 300)
+    }
+}

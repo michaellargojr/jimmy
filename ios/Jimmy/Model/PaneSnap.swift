@@ -14,7 +14,9 @@ enum PaneSnap {
     /// A light flick is enough; a small drag springs back.
     static let nudge: CGFloat = 0.12
     /// Coming to rest this close to a pane's title or end settles exactly on it, so a swipe never
-    /// stops a few points short and leaves the next one stuck on the same pane.
+    /// stops a few points short and leaves the next one stuck on the same pane. A swipe that starts
+    /// this close to the end counts as starting at the end, so a card only a little taller than the
+    /// screen never spends a whole swipe on its last few points.
     static let magnet: CGFloat = 0.1
     /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
     /// through the bar while you're on this one.
@@ -50,6 +52,10 @@ enum PaneSnap {
             return c
         }
 
+        // Within the magnet of this pane's end or title counts as being there.
+        let atEnd = start >= end - max(eps, magnet)
+        let atTop = start <= top + max(eps, magnet)
+
         let goal: CGFloat
         if start > end + eps {
             // Caught between two exercises while the last swipe settled: carry on the way it's going.
@@ -58,14 +64,14 @@ enum PaneSnap {
             else { goal = start - end < next - start ? end : next }
         } else if coast > start {
             // Toward the next exercise. From the end of this one, a nudge is enough.
-            if start >= end - eps {
+            if atEnd {
                 goal = i < last && coast - end >= nudge ? next : end
             } else {
                 goal = settle(min(coast, end))
             }
         } else if coast < start {
             // Back toward the one before. From this one's title, a nudge lands on that one's title.
-            if start <= top + eps {
+            if atTop {
                 goal = i > 0 && top - coast >= nudge ? tops[i - 1] : top
             } else {
                 goal = settle(max(coast, top))
