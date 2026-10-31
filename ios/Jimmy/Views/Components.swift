@@ -16,51 +16,67 @@ struct Card<Content: View>: View {
 
 /// A variation as one collectible chip: its words in the theme color inside one outline, with a
 /// thin line between them, because together they make the variation ("Cable | Two arms").
-/// The muscle tags stay grey; color marks what you chose.
+/// The muscle tags stay grey; color marks what you chose. A chip too long for one line breaks
+/// onto two inside the same outline, always between the machine and how you use it:
+/// "Machine | Plates | High row" over "Two arms | Arms behind".
 struct VariationPill: View {
     enum Size { case small, regular, large }
     @Environment(\.palette) private var p
     let parts: [String]
     var size: Size = .regular
 
-    /// Font size, height, side padding and corner radius for a size.
-    private func metrics(_ size: Size) -> (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) {
+    private struct Metrics { let font, height, pad, radius, line: CGFloat }
+    private func metrics(_ size: Size) -> Metrics {
         switch size {
-        case .small: return (12.5, 24, 8, 7)
-        case .regular: return (14, 30, 11, 8)
-        case .large: return (15, 32, 12, 9)
+        case .small: return Metrics(font: 12.5, height: 24, pad: 8, radius: 7, line: 1)
+        case .regular: return Metrics(font: 14, height: 30, pad: 11, radius: 8, line: 1.5)
+        case .large: return Metrics(font: 15, height: 32, pad: 12, radius: 9, line: 1.5)
         }
     }
 
-    /// Its own size when there's room. On a narrow screen it steps down a size, then to small,
-    /// and only as a last resort shrinks its words, so it never runs past the edge.
+    /// Where how you use it starts (arms, then position). With none, the middle.
+    private var breakIndex: Int? {
+        guard parts.count > 1 else { return nil }
+        let how = Set([Arms.two, .one].flatMap { [$0.label(legs: false), $0.label(legs: true)] } + Position.allCases.map(\.label))
+        if let i = parts.firstIndex(where: { how.contains($0.lowercased()) }), i > 0 { return i }
+        return (parts.count + 1) / 2
+    }
+
+    /// One line when there's room; else two lines at its own size, then two small lines, and only
+    /// as a last resort smaller words, so it never runs past the edge.
     var body: some View {
+        let two: [[String]] = breakIndex.map { [Array(parts[..<$0]), Array(parts[$0...])] } ?? [parts]
         ViewThatFits(in: .horizontal) {
-            row(size).fixedSize(horizontal: true, vertical: false)
-            row(size == .large ? .regular : size).fixedSize(horizontal: true, vertical: false)
-            row(.small).fixedSize(horizontal: true, vertical: false)
-            row(.small, squeeze: true)
+            chip([parts], size).fixedSize(horizontal: true, vertical: false)
+            chip(two, size).fixedSize(horizontal: true, vertical: false)
+            chip(two, .small).fixedSize(horizontal: true, vertical: false)
+            chip(two, .small, squeeze: true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(parts.joined(separator: ", "))
     }
 
-    private func row(_ size: Size, squeeze: Bool = false) -> some View {
+    private func chip(_ rows: [[String]], _ size: Size, squeeze: Bool = false) -> some View {
         let m = metrics(size)
-        let line: CGFloat = size == .small ? 1 : 1.5
-        let ink = p.accent
-        return HStack(spacing: 0) {
-            ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
-                if i > 0 {
-                    Rectangle().fill(ink.opacity(0.45)).frame(width: line).padding(.vertical, (m.height * 0.23).rounded())
+        let stacked = rows.count > 1
+        let rowHeight = stacked ? m.height - 4 : m.height
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, words in
+                HStack(spacing: 0) {
+                    ForEach(Array(words.enumerated()), id: \.offset) { i, t in
+                        if i > 0 {
+                            Rectangle().fill(p.accent.opacity(0.45)).frame(width: m.line).padding(.vertical, (rowHeight * 0.23).rounded())
+                        }
+                        Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
+                            .minimumScaleFactor(squeeze ? 0.6 : 1)
+                            .padding(.horizontal, squeeze ? 6 : m.pad)
+                    }
                 }
-                Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(ink).lineLimit(1)
-                    .minimumScaleFactor(squeeze ? 0.6 : 1)
-                    .padding(.horizontal, squeeze ? 6 : m.pad)
+                .frame(height: rowHeight)
             }
         }
-        .frame(height: m.height)
-        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(ink.opacity(0.7), lineWidth: line))
+        .padding(.vertical, stacked ? 2 : 0)
+        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(p.accent.opacity(0.7), lineWidth: m.line))
     }
 }
 
