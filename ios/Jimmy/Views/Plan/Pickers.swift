@@ -173,10 +173,8 @@ struct StyleFields: View {
     private func toggle(_ current: String?, _ value: String) -> String? { current == value ? nil : value }
 
     private func chips(_ options: [String], pick: String?, action: @escaping (String) -> Void) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(options, id: \.self) { o in Chip(text: capitalized(o), on: pick == o, small: true) { action(o) } }
-            }
+        FlowRow(spacing: 8, lineSpacing: 8) {
+            ForEach(options, id: \.self) { o in Chip(text: capitalized(o), on: pick == o, small: true) { action(o) } }
         }
     }
 
@@ -204,22 +202,18 @@ struct VariationFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(EquipmentFamily.allCases, id: \.self) { f in
-                        Chip(text: f.label, on: spec.family == f, small: true) { spec.family = f }
-                    }
+            FlowRow(spacing: 8, lineSpacing: 8) {
+                ForEach(EquipmentFamily.allCases, id: \.self) { f in
+                    Chip(text: f.label, on: spec.family == f, small: true) { spec.family = f }
                 }
             }
             HStack(spacing: 8) {
                 Chip(text: capitalized(Arms.two.label(legs: legs)), on: spec.arms == .two, small: true) { spec.arms = .two }
                 Chip(text: capitalized(Arms.one.label(legs: legs)), on: spec.arms == .one, small: true) { spec.arms = .one }
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Position.allCases, id: \.self) { pos in
-                        Chip(text: capitalized(pos.label), on: spec.position == pos, small: true) { spec.position = spec.position == pos ? nil : pos }
-                    }
+            FlowRow(spacing: 8, lineSpacing: 8) {
+                ForEach(Position.allCases, id: \.self) { pos in
+                    Chip(text: capitalized(pos.label), on: spec.position == pos, small: true) { spec.position = spec.position == pos ? nil : pos }
                 }
             }
         }

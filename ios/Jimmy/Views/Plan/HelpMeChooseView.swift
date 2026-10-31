@@ -22,7 +22,7 @@ struct HelpMeChooseView: View {
     private var question: ChooseQuestion? { nextChooseQuestion(candidates, base: base.name, asked: Set(given.keys)) }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 12) {
                 topBar
                 if let q = question {

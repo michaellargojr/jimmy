@@ -23,6 +23,8 @@ struct MachineBlock: View {
     @State private var choosing = false
 
     private var types: [MachineType] { machineTypes(forBase: base.name) }
+    /// The kinds that come in the position picked (all of them when none is).
+    private var shown: [MachineType] { types.filter { $0.allows(spec.position) } }
 
     /// Your machine that is picked, when it's one you have.
     private var picked: Version? { naming == nil ? store.findVariation(baseId: base.id, key: spec.key) : nil }
@@ -32,7 +34,7 @@ struct MachineBlock: View {
         switch naming {
         case .another(let n)?: return types.first { $0.name == n }
         case .other?: return nil
-        case nil: return types.first { $0.fits(tag: spec.tag, position: spec.position) }
+        case nil: return shown.first { $0.fits(tag: spec.tag, position: spec.position) }
         }
     }
 
@@ -41,17 +43,17 @@ struct MachineBlock: View {
             SectionLabel("Machine")
             LoadingSwitch(loading: spec.loading) { setLoading($0) }
                 .padding(.bottom, 4)
-            ForEach(types) { t in typeRow(t) }
+            ForEach(shown) { t in typeRow(t) }
             ForEach(store.unlistedMachines(base: base, arms: spec.arms, loading: spec.loading)) { v in
                 mineRow(v, on: picked?.id == v.id, inset: false)
             }
-            if types.count > 1 { helpRow }
+            if shown.count > 1 { helpRow }
             otherRow
         }
         .onAppear { if spec.loading == nil { spec = store.withLoading(spec, base: base) } }
         .onChange(of: name) { _, _ in applyName() }
         .sheet(isPresented: $choosing) {
-            HelpMeChooseView(base: base, arms: spec.arms, types: types) { t, l in pick(t, loading: l) }
+            HelpMeChooseView(base: base, arms: spec.arms, types: shown) { t, l in pick(t, loading: l) }
                 .presentationDetents([.large]).presentationBackground(p.card)
         }
     }
@@ -61,6 +63,11 @@ struct MachineBlock: View {
     @ViewBuilder
     private func typeRow(_ t: MachineType) -> some View {
         let mine = store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, loading: spec.loading)
+        // Yours the other way loaded (a plate-loaded one while Stack is picked): its last weights
+        // show too, with how it's loaded, and tapping it switches over.
+        let otherWay = mine.isEmpty
+            ? Loading.allCases.filter { $0 != spec.loading }.flatMap { store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, loading: $0) }
+            : []
         let on = pickedType == t
         if on && !mine.isEmpty {
             // Yours, then Another one for a second machine of this kind.
@@ -78,8 +85,9 @@ struct MachineBlock: View {
                 HStack(spacing: 10) {
                     Text(t.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                     Spacer(minLength: 4)
-                    if let v = mine.first, let last = lastText(v) {
-                        Text(last).font(.system(size: 12.5)).foregroundStyle(p.muted).lineLimit(1)
+                    if let v = mine.first ?? otherWay.first, let last = lastText(v) {
+                        let way = mine.isEmpty ? v.loading.map { capitalized($0.label) + " - " } ?? "" : ""
+                        Text(way + last).font(.system(size: 12.5)).foregroundStyle(p.muted).lineLimit(1)
                     }
                     if on { check }
                 }

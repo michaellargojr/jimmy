@@ -22,9 +22,11 @@ struct VariationPill: View {
     @Environment(\.palette) private var p
     let parts: [String]
     var size: Size = .regular
+    /// Grey, for a variation you don't have yet (a one-tap shortcut to add it).
+    var muted: Bool = false
 
-    /// Font size, height, side padding and corner radius.
-    private var metrics: (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) {
+    /// Font size, height, side padding and corner radius for a size.
+    private func metrics(_ size: Size) -> (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) {
         switch size {
         case .small: return (12.5, 24, 8, 7)
         case .regular: return (14, 30, 11, 8)
@@ -32,23 +34,35 @@ struct VariationPill: View {
         }
     }
 
+    /// Its own size when there's room. On a narrow screen it steps down a size, then to small,
+    /// and only as a last resort shrinks its words, so it never runs past the edge.
     var body: some View {
-        let m = metrics
+        ViewThatFits(in: .horizontal) {
+            row(size).fixedSize(horizontal: true, vertical: false)
+            row(size == .large ? .regular : size).fixedSize(horizontal: true, vertical: false)
+            row(.small).fixedSize(horizontal: true, vertical: false)
+            row(.small, squeeze: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(parts.joined(separator: ", "))
+    }
+
+    private func row(_ size: Size, squeeze: Bool = false) -> some View {
+        let m = metrics(size)
         let line: CGFloat = size == .small ? 1 : 1.5
-        HStack(spacing: 0) {
+        let ink = muted ? p.secondary : p.accent
+        return HStack(spacing: 0) {
             ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
                 if i > 0 {
-                    Rectangle().fill(p.accent.opacity(0.45)).frame(width: line).padding(.vertical, (m.height * 0.23).rounded())
+                    Rectangle().fill(ink.opacity(0.45)).frame(width: line).padding(.vertical, (m.height * 0.23).rounded())
                 }
-                Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
-                    .padding(.horizontal, m.pad)
+                Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(ink).lineLimit(1)
+                    .minimumScaleFactor(squeeze ? 0.6 : 1)
+                    .padding(.horizontal, squeeze ? 6 : m.pad)
             }
         }
         .frame(height: m.height)
-        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(p.accent.opacity(0.7), lineWidth: line))
-        .fixedSize(horizontal: true, vertical: false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(parts.joined(separator: ", "))
+        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(ink.opacity(muted ? 0.5 : 0.7), lineWidth: line))
     }
 }
 
@@ -260,10 +274,18 @@ struct FlowRow: Layout {
 
     private struct Line { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
 
+    /// A view at its own size; one wider than the row is offered the row's width, so it fits.
+    private func fit(_ v: LayoutSubview, width: CGFloat) -> (size: CGSize, proposal: ProposedViewSize) {
+        let ideal = v.sizeThatFits(.unspecified)
+        guard width.isFinite, ideal.width > width else { return (ideal, .unspecified) }
+        let proposal = ProposedViewSize(width: width, height: nil)
+        return (v.sizeThatFits(proposal), proposal)
+    }
+
     private func lines(_ subviews: Subviews, width: CGFloat) -> [Line] {
         var out = [Line()]
         for (i, v) in subviews.enumerated() {
-            let size = v.sizeThatFits(.unspecified)
+            let size = fit(v, width: width).size
             let line = out[out.count - 1]
             let wide = line.items.isEmpty ? size.width : line.width + spacing + size.width
             if wide > width && !line.items.isEmpty {
@@ -288,8 +310,8 @@ struct FlowRow: Layout {
         for line in lines(subviews, width: bounds.width) {
             var x = bounds.minX
             for i in line.items {
-                let size = subviews[i].sizeThatFits(.unspecified)
-                subviews[i].place(at: CGPoint(x: x, y: y + (line.height - size.height) / 2), proposal: .unspecified)
+                let (size, proposal) = fit(subviews[i], width: bounds.width)
+                subviews[i].place(at: CGPoint(x: x, y: y + (line.height - size.height) / 2), proposal: proposal)
                 x += size.width + spacing
             }
             y += line.height + lineSpacing

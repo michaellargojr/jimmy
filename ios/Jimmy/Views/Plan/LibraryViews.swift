@@ -172,9 +172,9 @@ struct BasePageView: View {
                     Section {
                         ForEach(suggested, id: \.self) { s in
                             Button { store.makeVariation(base: e, spec: s) } label: {
-                                HStack {
-                                    Text(variationLabel(s, legs: e.isLegs)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
-                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted) }
+                                HStack(spacing: 8) {
+                                    VariationPill(parts: variationChipWords(s, legs: e.isLegs), size: .small, muted: true)
+                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1) }
                                     Spacer()
                                     Image(systemName: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
                                 }

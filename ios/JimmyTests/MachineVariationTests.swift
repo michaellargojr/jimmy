@@ -27,6 +27,23 @@ import Testing
         #expect(machineTypes(forBase: "Leg Press").first?.loading == .plates)
     }
 
+    @Test func aPositionDropsMachinesThatNeverComeThatWay() {
+        let pull = machineTypes(forBase: "Pulldown")
+        #expect(pull.filter { $0.allows(nil) }.count == 4)
+        #expect(pull.filter { $0.allows(.kneeling) }.isEmpty)
+        #expect(pull.filter { $0.allows(.seated) }.count == 4)
+        #expect(pull.filter { $0.allows(.chestSupported) }.map(\.name) == ["Iso-lateral pulldown", "High row"])
+        let calf = machineTypes(forBase: "Calf Raise")
+        #expect(calf.filter { $0.allows(.standing) }.map(\.name) == ["Standing calf raise", "Donkey calf raise"])
+        #expect(machineTypes(forBase: "Leg Curl").filter { $0.allows(.kneeling) }.map(\.name) == ["Kneeling leg curl"])
+        // Every kind says where it's used, so no position slips through unchecked.
+        for name in machineTypeBases {
+            for t in machineTypes(forBase: name) { #expect(t.position != nil || !t.positions.isEmpty, "\(name): \(t.name)") }
+        }
+        // A shortcut reads like a chip.
+        #expect(variationChipWords(VariationSpec(family: .machine, arms: .two, loading: .stack), legs: false) == ["Machine", "Stack", "Two arms"])
+    }
+
     @Test func platesAndStackAreSeparateVariations() {
         let pull = Exercise(name: "Pulldown", muscleGroup: .Back)
         let s = store([pull], [])

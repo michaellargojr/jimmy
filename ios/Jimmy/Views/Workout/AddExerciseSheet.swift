@@ -88,7 +88,7 @@ struct AddExerciseSheet: View {
                 .padding(12)
                 .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                 .foregroundStyle(p.text)
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 6) {
                     ForEach(hits) { h in
                         Button { open(h.base) } label: {
@@ -191,7 +191,7 @@ struct AddExerciseSheet: View {
         let needsName = naming != nil && machineName(machineText) == nil
         let call = variationCall(b, verdict: verdict)
         let asVariation = call.map { flipped ? !$0.appPicksVariation : $0.appPicksVariation }
-        return ScrollView {
+        return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(b.name).font(.system(size: 26, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
@@ -209,9 +209,9 @@ struct AddExerciseSheet: View {
                     VStack(spacing: 6) {
                         ForEach(suggested, id: \.self) { s in
                             Button { let v = store.makeVariation(base: b, spec: s); finish(v, nil) } label: {
-                                HStack {
-                                    Text(variationLabel(s, legs: b.isLegs)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
-                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted) }
+                                HStack(spacing: 8) {
+                                    VariationPill(parts: variationChipWords(s, legs: b.isLegs), size: .small, muted: true)
+                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1) }
                                     Spacer()
                                     Image(systemName: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
                                 }
@@ -241,12 +241,14 @@ struct AddExerciseSheet: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     if !needsName {
-                        HStack(spacing: 10) {
+                        FlowRow(spacing: 10, lineSpacing: 6) {
                             if let call, let asVariation {
                                 Text(asVariation ? "New variation" : "New style").font(.system(size: 14, weight: .semibold)).foregroundStyle(p.accent)
+                                    .fixedSize().frame(minHeight: 24)
                                 if asVariation { specPill(call.variation, base: b) }
                             } else {
                                 Text(verdictText(verdict, base: b)).font(.system(size: 14, weight: .semibold)).foregroundStyle(verdictColor(verdict))
+                                    .fixedSize().frame(minHeight: 24)
                                 if variation.family == .machine, verdict == .newVariation { specPill(variation, base: b) }
                             }
                         }
@@ -324,8 +326,7 @@ struct AddExerciseSheet: View {
 
     /// The variation a pick makes, as its chip: "Machine | Iso-lateral | D Stars | One arm".
     private func specPill(_ s: VariationSpec, base b: Exercise) -> some View {
-        VariationPill(parts: variationParts(family: s.family, arms: s.arms, position: s.position, tag: s.tag, machine: s.machine, loading: s.loading, legs: b.isLegs)
-            .map { capitalized($0) }, size: .small)
+        VariationPill(parts: variationChipWords(s, legs: b.isLegs), size: .small)
     }
 
     private func variationRow(_ v: Version) -> some View {

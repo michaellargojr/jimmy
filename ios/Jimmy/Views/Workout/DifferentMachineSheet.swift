@@ -19,7 +19,7 @@ struct DifferentMachineSheet: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Text("Different machine").font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)

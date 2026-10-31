@@ -121,6 +121,12 @@ func variationLabel(_ v: Version, legs: Bool) -> String {
     variationLabel(family: v.family, arms: v.arms, position: v.position, tag: v.tag, machine: v.machine, loading: v.loading, legs: legs)
 }
 
+/// A variation's words for its chip, each starting with a capital: "Machine", "Stack", "Two arms".
+func variationChipWords(_ s: VariationSpec, legs: Bool) -> [String] {
+    variationParts(family: s.family, arms: s.arms, position: s.position, tag: s.tag, machine: s.machine, loading: s.loading, legs: legs)
+        .map { capitalized($0) }
+}
+
 func variationLabel(_ s: VariationSpec, legs: Bool) -> String {
     variationLabel(family: s.family, arms: s.arms, position: s.position, tag: s.tag, machine: s.machine, loading: s.loading, legs: legs)
 }
