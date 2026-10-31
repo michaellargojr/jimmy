@@ -184,7 +184,7 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
     private let bar = Version(exerciseId: "fr", name: "Front Raise · Barbell", equipment: .barbell, arms: .two)
 
     private func w(_ date: String, _ v: Version, logged: Bool = true) -> Workout {
-        Workout(name: "Shoulders", date: date, items: [WorkoutItem(versionId: v.id, sets: [S(reps: logged ? 10 : nil)])])
+        Workout(name: "Shoulders", date: date, items: [WorkoutItem(versionId: v.id, sets: [S(weight: logged ? 20 : nil, reps: logged ? 10 : nil)])])
     }
 
     @Test func lastThreeTimesNewestFirstSkippingToday() {
