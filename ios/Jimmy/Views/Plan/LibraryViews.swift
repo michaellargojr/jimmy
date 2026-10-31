@@ -84,7 +84,7 @@ struct ExercisesList: View {
         let count = store.variations(of: e.id).count
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(e.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(count > 0 ? p.accent : p.text)
+                Text(e.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                 if !e.primary.isEmpty {
                     Text(capitalizedFirst(e.primary.joined(separator: ", ")))
                         .font(.system(size: 13)).foregroundStyle(p.text.opacity(0.86)).lineLimit(1)

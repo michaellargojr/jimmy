@@ -87,10 +87,13 @@ struct AddExerciseSheet: View {
                         Button { open(h.base) } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(h.base.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(h.mine ? p.accent : p.text)
+                                    Text(h.base.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                                     Text(h.mine ? variationsLine(h.base) : h.base.muscleGroup.label).font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)
                                 }
                                 Spacer()
+                                if h.mine {
+                                    Text("\(store.variations(of: h.base.id).count)").font(.system(size: 14, weight: .heavy)).foregroundStyle(p.accent)
+                                }
                                 Chevron()
                             }
                             .padding(.horizontal, 14).padding(.vertical, 10)
