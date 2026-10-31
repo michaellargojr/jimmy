@@ -136,6 +136,7 @@ struct ExerciseProgressView: View {
             }
             .screen()
             .navigationBarTitleDisplayMode(.inline)
+            .historyUndoBar(versionId: v.id)
         }
     }
 

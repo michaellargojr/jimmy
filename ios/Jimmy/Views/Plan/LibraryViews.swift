@@ -274,6 +274,8 @@ struct VersionEditorView: View {
     @State private var editingStyle: Style? = nil
     @State private var newStyle = false
     @State private var editingRange = false
+    @State private var picking: HistoryPick? = nil
+    @State private var askErase = false
 
     private var version: Version? { store.version(versionId) }
 
@@ -352,6 +354,20 @@ struct VersionEditorView: View {
                         .lineLimit(2...5)
                         .focused($notesFocused)
                 }
+                if !historySessions(v.id, workouts: store.workouts).isEmpty {
+                    Section("History") {
+                        ForEach(HistoryPick.allCases) { pick in
+                            Button { picking = pick } label: {
+                                HStack {
+                                    Text(pick.row).foregroundStyle(p.text)
+                                    Spacer()
+                                    Chevron()
+                                }
+                            }
+                        }
+                        Button(role: .destructive) { askErase = true } label: { Text("Erase history").foregroundStyle(p.danger) }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(p.bg.ignoresSafeArea())
@@ -375,6 +391,7 @@ struct VersionEditorView: View {
                 }
                 .presentationBackground(p.card)
             }
+            .historyActions(versionId: v.id, picking: $picking, erasing: $askErase)
         }
     }
 }
