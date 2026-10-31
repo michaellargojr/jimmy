@@ -92,34 +92,43 @@ struct WorkoutView: View {
         }
     }
 
-    /// Done alone on the left, where a stray thumb is least likely to land. The time sits big in
-    /// the middle so it keeps the pace up; the routine gets its own line so long names fit.
+    /// One row that stays put: Done alone on the left, where a stray thumb is least likely to
+    /// land, the time big in the middle to keep the pace up, then Overview and the gear. Under it a
+    /// block per exercise fills in as you move through the workout.
     private func header(_ w: Workout, paneCount: Int) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 10) {
             ZStack {
                 HStack(spacing: 8) {
                     PillButton(title: "Done", style: .primary) { askEnd = true }
                     Spacer()
-                    iconButton("list.bullet", label: "Overview") { showOverview = true }
+                    iconButton("checklist", label: "Overview") { showOverview = true }
                     iconButton("gearshape", label: "Workout settings") { showSettings = true }
                 }
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
                     let ms = ctx.date.timeIntervalSince1970 * 1000 - (w.startedAt ?? nowMs())
                     Text(elapsedString(ms: ms))
-                        .font(.system(size: 30, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(p.text)
-                        .lineLimit(1).minimumScaleFactor(0.6)
-                        .frame(maxWidth: 150)
+                        .font(.system(size: 28, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(p.text)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                        .frame(maxWidth: 140)
                 }
             }
-            // Only a very long name gets cut, never where you are.
-            HStack(spacing: 0) {
-                Text(w.name).fontWeight(.bold).foregroundStyle(p.text).lineLimit(1)
-                Text(" - \(min((current ?? 0) + 1, max(paneCount, 1))) of \(paneCount)").foregroundStyle(p.secondary).fixedSize()
-            }
-            .font(.system(size: 14)).monospacedDigit()
-            .padding(.horizontal, 8)
+            if paneCount > 0 { progressStrip(at: min(current ?? 0, paneCount - 1), of: paneCount) }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    /// One block per exercise (a superset is one), filled up to the one you're on.
+    private func progressStrip(at index: Int, of count: Int) -> some View {
+        HStack(spacing: 4) {
+            ForEach(0..<count, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(i <= index ? p.accent : p.elevated)
+                    .frame(height: 6)
+            }
+        }
+        .animation(.snappy, value: index)
+        .accessibilityElement()
+        .accessibilityLabel("Exercise \(index + 1) of \(count)")
     }
 
     private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -136,6 +145,12 @@ struct WorkoutView: View {
     private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 12) {
+                // The workout's name lives at the top of the first page and scrolls away with it.
+                if index == 0 {
+                    Text(w.name).font(.system(size: 30, weight: .heavy)).tracking(-0.5).foregroundStyle(p.accent)
+                        .lineLimit(2).minimumScaleFactor(0.8)
+                        .padding(.bottom, 4)
+                }
                 if pane.count > 1, pane.first?.groupId != nil {
                     HStack {
                         Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
