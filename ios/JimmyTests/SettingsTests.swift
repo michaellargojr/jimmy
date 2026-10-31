@@ -18,6 +18,21 @@ import Testing
     }
     @Test func everyColorButOrangeHasItsOwnIcon() {
         #expect(AccentScheme.orange.iconName == nil)
-        #expect(Set(AccentScheme.allCases.compactMap(\.iconName)) == ["AppIcon-Mint", "AppIcon-Ice", "AppIcon-Red"])
+        #expect(Set(AccentScheme.allCases.compactMap(\.iconName)) == ["AppIcon-Mint", "AppIcon-Ice", "AppIcon-Red", "AppIcon-Crimson"])
+    }
+    @Test func signalRedIsNowFlamingoAndStillSavedAsRed() throws {
+        #expect(try scheme("red") == .flamingo)
+        #expect(AccentScheme.flamingo.label == "Flamingo")
+        var s = Settings()
+        s.scheme = .flamingo
+        let json = String(decoding: try JSONEncoder().encode(s), as: UTF8.self)
+        #expect(json.contains(#""scheme":"red""#))
+    }
+    @Test func crimsonIsSavedAndRestored() throws {
+        #expect(try scheme("crimson") == .crimson)
+        #expect(AccentScheme.crimson.label == "Crimson")
+    }
+    @Test func noColorNameSaysRed() {
+        #expect(AccentScheme.allCases.allSatisfy { !$0.label.lowercased().contains("red") })
     }
 }
