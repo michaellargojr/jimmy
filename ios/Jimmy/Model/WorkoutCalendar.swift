@@ -108,3 +108,38 @@ func summaryItems(_ w: Workout) -> [WorkoutItem] { w.items.filter { $0.sets.cont
 
 /// Done sets (warm-ups never count), the same count as the Workouts list.
 func doneSetCount(_ w: Workout) -> Int { w.items.flatMap { $0.sets }.filter { $0.isDone }.count }
+
+/// The numbers under a month's grid.
+struct MonthStats: Equatable {
+    /// Finished workouts in the month.
+    var count: Int
+    /// Workouts per week: the whole month for a past month, the days so far for this one
+    /// (counted as at least a week, so one workout on the 1st reads 1 a week, not 7).
+    var perWeek: Double
+    /// Average length of the workouts that have a start and end time; nil when none do.
+    var minutes: Int?
+}
+
+func monthStats(_ byDay: [String: [Workout]], month day: String, today t: String = today()) -> MonthStats {
+    let start = monthStart(day)
+    let workouts = byDay.filter { monthStart($0.key) == start }.flatMap { $0.value }
+    let length = mondayCalendar.range(of: .day, in: .month, for: dayDate(start))?.count ?? 30
+    let days = monthStart(t) == start ? (Int(t.suffix(2)) ?? length) : length
+    let lengths = workouts.compactMap(\.durationMinutes)
+    let minutes = lengths.isEmpty ? nil : Int((Double(lengths.reduce(0, +)) / Double(lengths.count)).rounded())
+    return MonthStats(count: workouts.count, perWeek: Double(workouts.count) / (Double(max(days, 7)) / 7), minutes: minutes)
+}
+
+/// "5 Workouts Completed", "1 Workout Completed".
+func completedText(_ n: Int) -> String { n == 1 ? "1 Workout Completed" : "\(n) Workouts Completed" }
+
+/// "1.1 Workouts per Week", "2 Workouts per Week", "1 Workout per Week" (one decimal, whole numbers without it).
+func perWeekText(_ x: Double) -> String {
+    let r = (x * 10).rounded() / 10
+    if r == 1 { return "1 Workout per Week" }
+    let n = r == r.rounded() ? String(Int(r)) : String(format: "%.1f", r)
+    return "\(n) Workouts per Week"
+}
+
+/// "52 min per Workout".
+func minutesPerWorkoutText(_ m: Int) -> String { "\(m) min per Workout" }

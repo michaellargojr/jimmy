@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// History > Calendar. Month: one month at a time, arrows or a sideways swipe to change it.
+/// History > Calendar. Month: one month at a time, arrows or a sideways swipe to change it, with
+/// workouts completed, workouts per week and minutes per workout in the accent under the grid.
 /// Week: every week since the first workout, each a strip like Home's This week, with
 /// This week at the bottom. A day with a finished workout is filled with the accent; today has
 /// an outline. Tap a lit day for a summary that slides up, with See details opening that
@@ -115,7 +116,7 @@ struct CalendarHistoryView: View {
 
     private func monthGridView(_ start: String, _ byDay: [String: [Workout]]) -> some View {
         let cells = monthGrid(start)
-        let count = byDay.filter { monthStart($0.key) == start }.reduce(0) { $0 + $1.value.count }
+        let stats = monthStats(byDay, month: start)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 ForEach(weekDays(start), id: \.self) { d in
@@ -138,9 +139,13 @@ struct CalendarHistoryView: View {
                     }
                 }
             }
-            if count > 0 {
-                Text(count == 1 ? "1 workout" : "\(count) workouts")
-                    .font(.system(size: 14)).foregroundStyle(p.muted).padding(.top, 6)
+            if stats.count > 0 {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(completedText(stats.count))
+                    Text(perWeekText(stats.perWeek))
+                    if let m = stats.minutes { Text(minutesPerWorkoutText(m)) }
+                }
+                .font(.system(size: 14)).monospacedDigit().foregroundStyle(p.accent).padding(.top, 6)
             }
         }
     }

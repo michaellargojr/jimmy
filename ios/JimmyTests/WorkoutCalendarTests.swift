@@ -111,3 +111,41 @@ private func finished(_ date: String, _ name: String = "W", startedAt: Double = 
         #expect(topSet(logged)?.valueText == "45×6")
     }
 }
+
+@Suite struct CalendarMonthStatsTests {
+    private func timed(_ date: String, minutes: Double) -> Workout {
+        Workout(name: "W", date: date, startedAt: 1_000_000, endedAt: 1_000_000 + minutes * 60_000)
+    }
+
+    @Test func pastMonthAveragesOverTheWholeMonth() {
+        let byDay = workoutsByDay(["2026-10-01", "2026-10-09", "2026-10-15", "2026-10-23", "2026-10-30"].map { timed($0, minutes: 60) })
+        let s = monthStats(byDay, month: "2026-10-12", today: "2026-11-05")
+        #expect(s.count == 5)
+        #expect(perWeekText(s.perWeek) == "1.1 Workouts per Week")   // 5 over 31 days
+        #expect(s.minutes == 60)
+    }
+
+    @Test func thisMonthCountsTheDaysSoFarButAtLeastAWeek() {
+        let early = monthStats(workoutsByDay([timed("2026-11-01", minutes: 50)]), month: "2026-11-01", today: "2026-11-03")
+        #expect(perWeekText(early.perWeek) == "1 Workout per Week")
+        let mid = monthStats(workoutsByDay(["2026-11-02", "2026-11-06", "2026-11-11"].map { timed($0, minutes: 50) }), month: "2026-11-01", today: "2026-11-14")
+        #expect(perWeekText(mid.perWeek) == "1.5 Workouts per Week")
+    }
+
+    @Test func averageLengthSkipsWorkoutsWithoutTimes() {
+        let untimed = Workout(name: "Old", date: "2026-10-05", endedAt: 5)
+        let s = monthStats(workoutsByDay([timed("2026-10-01", minutes: 60), timed("2026-10-02", minutes: 45), untimed]), month: "2026-10-01", today: "2026-11-01")
+        #expect(s.count == 3)
+        #expect(s.minutes == 53)   // 52.5 rounds up
+        #expect(monthStats(workoutsByDay([untimed]), month: "2026-10-01", today: "2026-11-01").minutes == nil)
+    }
+
+    @Test func texts() {
+        #expect(completedText(1) == "1 Workout Completed")
+        #expect(completedText(5) == "5 Workouts Completed")
+        #expect(perWeekText(2) == "2 Workouts per Week")
+        #expect(perWeekText(0.96) == "1 Workout per Week")
+        #expect(perWeekText(0.23) == "0.2 Workouts per Week")
+        #expect(minutesPerWorkoutText(52) == "52 min per Workout")
+    }
+}
