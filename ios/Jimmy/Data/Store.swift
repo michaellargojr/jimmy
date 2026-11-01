@@ -19,6 +19,8 @@ final class AppStore {
     var loaded = false
     /// The last copy, move or erase of a history, while its Undo bar shows. Never saved.
     var historyUndo: HistoryUndo?
+    /// The last routine saved from the split page, while its Undo bar shows. Never saved.
+    var routineUndo: RoutineUndo?
 
     /// Backups to a folder in iCloud Drive. See Backup.swift.
     let backups: Backups
@@ -129,13 +131,8 @@ final class AppStore {
     /// The routine to suggest next: the one after the last finished routine in the active split,
     /// or the one you have gone longest without.
     var upNextRoutine: Routine? {
-        if let split = activeSplit, !split.routineIds.isEmpty {
-            let ids = split.routineIds
-            if let last = finishedWorkouts.first(where: { $0.routineId != nil && ids.contains($0.routineId!) }),
-               let idx = ids.firstIndex(of: last.routineId!) {
-                return routine(ids[(idx + 1) % ids.count])
-            }
-            return routine(ids[0])
+        if let split = activeSplit, let i = upNextSlot(in: split, finished: finishedWorkouts) {
+            return routine(split.routineIds[i])
         }
         return routines.sorted { a, b in
             (routineLast(a, workouts: workouts)?.date ?? "0") < (routineLast(b, workouts: workouts)?.date ?? "0")

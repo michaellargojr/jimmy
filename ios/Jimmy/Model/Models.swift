@@ -575,6 +575,12 @@ struct Split: Codable, Identifiable, Hashable {
     var goals: SplitGoals?
     /// The last coverage report, kept so the cards never wait for the network.
     var coverage: CoverageReport?
+    /// Routines swapped out with "Save as new routine", old id to new, so their workouts
+    /// keep their place for Up next (see RoutineCopies.swift).
+    var replaced: [String: String]?
+    /// Routines made with New routine on this split's page. Editing one from here saves
+    /// without asking, unless another split uses it too.
+    var madeHere: [String]?
 
     init(id: String = uid(), name: String, routineIds: [String] = []) {
         self.id = id; self.name = name; self.routineIds = routineIds
