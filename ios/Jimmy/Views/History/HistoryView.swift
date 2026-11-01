@@ -3,21 +3,32 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
+    /// 0 Calendar (first, opens by default), 1 Routines (named like Plan), 2 Exercises.
     @State private var segment = 0
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 ScreenTitle("History") {
-                    Text(Date().formatted(.dateTime.month(.wide))).font(.system(size: 14)).foregroundStyle(p.muted)
+                    if segment == 0 {
+                        CalendarModeSwitch()
+                    } else {
+                        Text(Date().formatted(.dateTime.month(.wide))).font(.system(size: 14)).foregroundStyle(p.muted)
+                    }
                 }
                 HStack(spacing: 8) {
-                    Chip(text: "Workouts", on: segment == 0) { segment = 0 }
-                    Chip(text: "Exercises", on: segment == 1) { segment = 1 }
+                    Chip(text: "Calendar", on: segment == 0) { segment = 0 }
+                    Chip(text: "Routines", on: segment == 1) { segment = 1 }
+                    Chip(text: "Exercises", on: segment == 2) { segment = 2 }
                     Spacer()
                 }
                 .padding(.horizontal, 16).padding(.bottom, 6)
-                if segment == 0 { WorkoutsHistoryList() } else { ExercisesHistoryList() }
+                switch segment {
+                case 0: CalendarHistoryView { w in path.append(w) }
+                case 1: WorkoutsHistoryList()
+                default: ExercisesHistoryList()
+                }
             }
             .screen()
             .toolbar(.hidden, for: .navigationBar)
@@ -95,8 +106,12 @@ struct WorkoutRow: View {
             .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(workout.name).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                Text([workout.durationMinutes.map { "\($0) min" }, "\(workout.items.count) exercises", "\(sets) sets"].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 13)).foregroundStyle(p.muted)
+                // On a small phone the full line would wrap, so the exercise count goes first.
+                let minutes = workout.durationMinutes.map { "\($0) min" }
+                ViewThatFits(in: .horizontal) {
+                    subline([minutes, "\(workout.items.count) exercises", "\(sets) sets"])
+                    subline([minutes, "\(sets) sets"])
+                }
             }
             Spacer()
             if up > 0 { Badge(text: "\(up) up", kind: .up) }
@@ -104,6 +119,10 @@ struct WorkoutRow: View {
             else { Badge(text: "held") }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    private func subline(_ parts: [String?]) -> some View {
+        Text(parts.compactMap { $0 }.joined(separator: " - ")).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1)
     }
 }
 
