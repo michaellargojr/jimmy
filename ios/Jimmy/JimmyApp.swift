@@ -4,6 +4,8 @@ import SwiftUI
 struct JimmyApp: App {
     @State private var store = AppStore()
     @State private var nav = AppNav()
+    /// The lock screen card while a workout runs.
+    @State private var activity: WorkoutActivity?
 
     var body: some Scene {
         WindowGroup {
@@ -12,6 +14,11 @@ struct JimmyApp: App {
                 .keyboardDismissal()
                 .environment(store)
                 .environment(nav)
+                // A tap on the lock screen card opens the app at your set, even after only a
+                // short look away, since the tap is a clear ask.
+                .onOpenURL { url in
+                    if url.scheme == "jimmy", store.activeWorkout != nil { nav.openWorkoutAtSet() }
+                }
                 .onAppear {
                     if !store.loaded { store.load() }
                     #if DEBUG
@@ -44,6 +51,10 @@ struct JimmyApp: App {
                     }
                     if let i = args.firstIndex(of: "-openTab"), i + 1 < args.count, args[i + 1] == "workout" { nav.tab = .workout }
                     #endif
+                    if activity == nil {
+                        activity = WorkoutActivity(store: store)
+                        activity?.start()
+                    }
                 }
         }
     }
