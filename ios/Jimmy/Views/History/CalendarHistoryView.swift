@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// History > Calendar: a month (or one week) of day tiles. A day with a finished workout is
-/// filled with the accent, like Home's This week; today has an outline. Tap a lit day for a
-/// summary that slides up, with See details opening that workout's page.
+/// History > Calendar. Month: one month at a time, arrows or a sideways swipe to change it.
+/// Week: every week since the first workout, each a strip like Home's This week, with
+/// This week at the bottom. A day with a finished workout is filled with the accent; today has
+/// an outline. Tap a lit day for a summary that slides up, with See details opening that
+/// workout's page.
 struct CalendarHistoryView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -18,21 +20,46 @@ struct CalendarHistoryView: View {
 
     var body: some View {
         let byDay = workoutsByDay(store.workouts)
-        let bounds = calendarBounds(byDay.keys, mode)
-        let start = periodStart(anchor, mode)
-        ScrollView {
+        // A plain container (not a Group), so the sheet sits on one view whichever mode shows.
+        VStack(spacing: 0) {
+            switch mode {
+            case .month: months(byDay)
+            case .week: weeks(byDay)
+            }
+        }
+        .background(p.bg.ignoresSafeArea())
+        .sheet(item: $picked, onDismiss: {
+            if let w = pending { pending = nil; open(w) }
+        }) { pick in
+            WorkoutDaySummary(day: pick.day) { w in pending = w; picked = nil }
+                .presentationDetents([.fraction(0.72), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(p.card)
+        }
+        #if DEBUG
+        // Screenshots on a test simulator: -calendarAnchor 2026-10-15 -calendarPick 2026-10-23
+        // (-historyCalendarMode week sets the switch, since it's stored in user defaults).
+        .onAppear {
+            let d = UserDefaults.standard
+            if let a = d.string(forKey: "calendarAnchor") { anchor = a }
+            if let k = d.string(forKey: "calendarPick") { picked = DayPick(day: k) }
+        }
+        #endif
+    }
+
+    // MARK: Month
+
+    private func months(_ byDay: [String: [Workout]]) -> some View {
+        let bounds = calendarBounds(byDay.keys, .month)
+        let start = monthStart(anchor)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                periodRow(start: start, bounds: bounds)
+                monthRow(start: start, bounds: bounds)
                 // A ZStack, so the old and new month overlap while they slide.
                 ZStack(alignment: .topLeading) {
-                    Group {
-                        switch mode {
-                        case .month: monthView(start, byDay)
-                        case .week: weekView(start, byDay)
-                        }
-                    }
-                    .id("\(mode.rawValue)-\(start)")
-                    .transition(.push(from: forward ? .trailing : .leading))
+                    monthGridView(start, byDay)
+                        .id(start)
+                        .transition(.push(from: forward ? .trailing : .leading))
                 }
                 .contentShape(Rectangle())
                 .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { v in
@@ -46,49 +73,23 @@ struct CalendarHistoryView: View {
             .padding(.bottom, 24)
             .clipped()
         }
-        .background(p.bg.ignoresSafeArea())
-        .sheet(item: $picked, onDismiss: {
-            if let w = pending { pending = nil; open(w) }
-        }) { pick in
-            WorkoutDaySummary(day: pick.day) { w in pending = w; picked = nil }
-                .presentationDetents([.fraction(0.72), .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(p.card)
-        }
-        .onChange(of: modeRaw) { _, raw in
-            anchor = anchorAfterSwitch(anchor, to: CalendarMode(rawValue: raw) ?? .month, days: byDay.keys)
-        }
-        #if DEBUG
-        // Screenshots on a test simulator: -calendarAnchor 2026-10-15 -calendarPick 2026-10-23
-        // (-historyCalendarMode week sets the switch, since it's stored in user defaults).
-        .onAppear {
-            let d = UserDefaults.standard
-            if let a = d.string(forKey: "calendarAnchor") { anchor = a }
-            if let k = d.string(forKey: "calendarPick") { picked = DayPick(day: k) }
-        }
-        #endif
     }
 
-    // MARK: Month or week title, with arrows
-
-    private func periodRow(start: String, bounds: ClosedRange<String>) -> some View {
-        HStack(spacing: 8) {
+    /// "October 2026" with the arrows.
+    private func monthRow(start: String, bounds: ClosedRange<String>) -> some View {
+        let t = monthTitle(start)
+        return HStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if mode == .month {
-                    let t = monthTitle(start)
-                    Text(t.month).foregroundStyle(p.text)
-                    Text(t.year).foregroundStyle(p.muted)
-                } else {
-                    Text(weekTitle(start)).foregroundStyle(p.text)
-                }
+                Text(t.month).foregroundStyle(p.text)
+                Text(t.year).foregroundStyle(p.muted)
             }
             .font(.system(size: 22, weight: .heavy))
             .tracking(-0.3)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             Spacer(minLength: 8)
-            arrow("chevron.left", label: mode == .month ? "Earlier month" : "Earlier week", enabled: start > bounds.lowerBound) { step(-1, bounds: bounds) }
-            arrow("chevron.right", label: mode == .month ? "Later month" : "Later week", enabled: start < bounds.upperBound) { step(1, bounds: bounds) }
+            arrow("chevron.left", label: "Earlier month", enabled: start > bounds.lowerBound) { step(-1, bounds: bounds) }
+            arrow("chevron.right", label: "Later month", enabled: start < bounds.upperBound) { step(1, bounds: bounds) }
         }
     }
 
@@ -106,24 +107,19 @@ struct CalendarHistoryView: View {
     }
 
     private func step(_ by: Int, bounds: ClosedRange<String>) {
-        let next = calendarStep(anchor, mode, by: by)
+        let next = calendarStep(anchor, .month, by: by)
         guard bounds.contains(next) else { return }
         forward = by > 0
-        withAnimation(.snappy(duration: 0.28)) {
-            // The current month or week keeps today as its anchor, so a switch lands on this week.
-            anchor = next == periodStart(today(), mode) ? today() : next
-        }
+        withAnimation(.snappy(duration: 0.28)) { anchor = next }
     }
 
-    // MARK: Month
-
-    private func monthView(_ start: String, _ byDay: [String: [Workout]]) -> some View {
+    private func monthGridView(_ start: String, _ byDay: [String: [Workout]]) -> some View {
         let cells = monthGrid(start)
         let count = byDay.filter { monthStart($0.key) == start }.reduce(0) { $0 + $1.value.count }
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                ForEach(0..<7, id: \.self) { i in
-                    Text(weekdayLetters(weekDays(start)[i]))
+                ForEach(weekDays(start), id: \.self) { d in
+                    Text(weekdayLetters(d))
                         .font(.system(size: 12, weight: .bold)).foregroundStyle(p.muted)
                         .frame(maxWidth: .infinity)
                 }
@@ -136,7 +132,7 @@ struct CalendarHistoryView: View {
                             if let d = cells[r * 7 + c] {
                                 DayTile(day: d, workouts: byDay[d] ?? [], style: .number) { picked = DayPick(day: d) }
                             } else {
-                                Color.clear.frame(maxWidth: .infinity).frame(height: DayTile.monthHeight)
+                                Color.clear.frame(maxWidth: .infinity).frame(height: DayTile.Style.number.height)
                             }
                         }
                     }
@@ -151,25 +147,28 @@ struct CalendarHistoryView: View {
 
     // MARK: Week
 
-    private func weekView(_ start: String, _ byDay: [String: [Workout]]) -> some View {
-        let days = weekDays(start)
-        let list = days.reversed().flatMap { byDay[$0] ?? [] }
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 6) {
-                ForEach(days, id: \.self) { d in
-                    DayTile(day: d, workouts: byDay[d] ?? [], style: .weekdayAndNumber) { picked = DayPick(day: d) }
-                }
-            }
-            VStack(spacing: 10) {
-                ForEach(list) { w in
-                    NavigationLink(value: w) {
-                        WorkoutRow(workout: w)
-                            .background(p.card, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+    /// Every week from the first workout's to this one, oldest on top; opens at This week.
+    private func weeks(_ byDay: [String: [Workout]]) -> some View {
+        let t = today()
+        let starts = weekStarts(from: byDay.keys.min() ?? t, to: t)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 22) {
+                ForEach(starts, id: \.self) { s in
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(weekLabel(s, today: t))
+                        HStack(spacing: 8) {
+                            ForEach(weekDays(s), id: \.self) { d in
+                                DayTile(day: d, workouts: byDay[d] ?? [], style: .weekday) { picked = DayPick(day: d) }
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
         }
+        .defaultScrollAnchor(.bottom)
     }
 }
 
@@ -180,9 +179,11 @@ struct DayPick: Identifiable { let day: String; var id: String { day } }
 
 /// One day. Filled with the accent when a workout finished that day; outlined when it is today.
 struct DayTile: View {
-    enum Style { case number, weekdayAndNumber }
-    static let monthHeight: CGFloat = 46
-    static let weekHeight: CGFloat = 64
+    /// Month tiles show the date; week tiles show the weekday, like Home's This week.
+    enum Style {
+        case number, weekday
+        var height: CGFloat { self == .number ? 46 : 52 }
+    }
 
     @Environment(\.palette) private var p
     let day: String
@@ -196,18 +197,16 @@ struct DayTile: View {
         let isToday = day == t
         let future = day > t
         let fg = lit ? p.onAccent : isToday ? p.text : future ? p.muted.opacity(0.45) : p.muted
-        let tile = VStack(spacing: 2) {
-            if style == .weekdayAndNumber {
-                Text(weekdayLetters(day)).font(.system(size: 11, weight: .bold)).opacity(lit ? 0.75 : 1)
-                Text(dayNumber(day)).font(.system(size: 19, weight: .heavy))
+        let tile = ZStack {
+            if style == .weekday {
+                Text(weekdayLetters(day)).font(.system(size: 12, weight: .bold))
             } else {
-                Text(dayNumber(day)).font(.system(size: lit ? 16 : 15, weight: lit ? .heavy : .semibold))
+                Text(dayNumber(day)).font(.system(size: lit ? 16 : 15, weight: lit ? .heavy : .semibold)).monospacedDigit()
             }
         }
-        .monospacedDigit()
         .foregroundStyle(fg)
         .frame(maxWidth: .infinity)
-        .frame(height: style == .number ? Self.monthHeight : Self.weekHeight)
+        .frame(height: style.height)
         .background(lit ? p.accent : p.card, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.field, style: .continuous).strokeBorder(isToday && !lit ? p.border : .clear, lineWidth: 2))
 

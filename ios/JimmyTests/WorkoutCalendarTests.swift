@@ -74,12 +74,17 @@ private func finished(_ date: String, _ name: String = "W", startedAt: Double = 
         #expect(calendarBounds([String](), .month, today: "2026-11-01") == "2026-11-01"..."2026-11-01")
     }
 
-    @Test func switchingToWeeksLandsOnTheMonthsLastWorkout() {
-        let days = ["2026-10-01", "2026-10-23", "2026-09-21"]
-        #expect(anchorAfterSwitch("2026-10-01", to: .week, days: days, today: "2026-11-01") == "2026-10-23")
-        #expect(anchorAfterSwitch("2026-11-01", to: .week, days: days, today: "2026-11-01") == "2026-11-01")
-        #expect(anchorAfterSwitch("2026-07-01", to: .week, days: days, today: "2026-11-01") == "2026-07-01")
-        #expect(anchorAfterSwitch("2026-10-19", to: .month, days: days, today: "2026-11-01") == "2026-10-19")
+    @Test func weekViewListsEveryWeekOldestFirst() {
+        let s = weekStarts(from: "2026-10-01", to: "2026-11-01")
+        #expect(s == ["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"])
+        #expect(weekStarts(from: "2026-11-01", to: "2026-11-01") == ["2026-10-26"])
+    }
+
+    @Test func weekLabels() {
+        #expect(weekLabel("2026-10-26", today: "2026-11-01") == "This week")
+        #expect(weekLabel("2026-10-19", today: "2026-11-01") == "Last week")
+        #expect(weekLabel("2026-10-12", today: "2026-11-01") == "Oct 12 - 18")
+        #expect(weekLabel("2026-09-28", today: "2026-11-01") == "Sep 28 - Oct 4")
     }
 }
 

@@ -85,12 +85,22 @@ func weekTitle(_ day: String) -> String {
     return "\(f.string(from: a)) - \(end)"
 }
 
-/// Where the calendar lands after a Month | Week switch. Into weeks: this week for the current
-/// month, else the week of that month's last workout, else its first week.
-func anchorAfterSwitch(_ anchor: String, to mode: CalendarMode, days: some Collection<String>, today t: String = today()) -> String {
-    guard mode == .week else { return anchor }
-    if monthStart(anchor) == monthStart(t) { return t }
-    return days.filter { monthStart($0) == monthStart(anchor) }.max() ?? monthStart(anchor)
+/// The Mondays of every week from the one holding `first` to the one holding `last`, oldest first.
+/// Week view lists these, This week at the bottom.
+func weekStarts(from first: String, to last: String) -> [String] {
+    var out: [String] = []
+    var w = weekStart(min(first, last))
+    let end = weekStart(last)
+    while w <= end { out.append(w); w = adding(7, to: w) }
+    return out
+}
+
+/// "This week", "Last week", or the dates: "Oct 12 - 18".
+func weekLabel(_ start: String, today t: String = today()) -> String {
+    let now = weekStart(t)
+    if start == now { return "This week" }
+    if start == adding(-7, to: now) { return "Last week" }
+    return weekTitle(start)
 }
 
 /// The exercises a summary lists: the ones with anything logged, in workout order.
