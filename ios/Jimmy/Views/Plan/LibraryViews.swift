@@ -139,7 +139,6 @@ struct BasePageView: View {
     var body: some View {
         if let e = base {
             let mine = store.variations(of: e.id)
-            let suggested = (libraryBase(named: e.name)?.variations ?? []).filter { s in !mine.contains { $0.key == s.key } }
             List {
                 Section {
                     MuscleTags(primary: e.primary, secondary: e.secondary)
@@ -166,24 +165,6 @@ struct BasePageView: View {
                 Section {
                     PillButton(title: "Add variation", style: .primary, icon: "plus", full: true) { adding = true }
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                }
-                // Shortcuts under the button: one tap adds a common variation.
-                if !suggested.isEmpty {
-                    Section {
-                        ForEach(suggested, id: \.self) { s in
-                            Button { store.makeVariation(base: e, spec: s) } label: {
-                                HStack {
-                                    Text(variationLabel(s, legs: e.isLegs)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
-                                    if let n = s.nick { Text(n).font(.system(size: 12)).foregroundStyle(p.muted) }
-                                    Spacer()
-                                    Image(systemName: "plus").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
-                                }
-                                .padding(.horizontal, 16).padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                            .rowCard(p)
-                        }
-                    }
                 }
             }
             .cardList()
@@ -307,6 +288,16 @@ struct VersionEditorView: View {
                     }
                     .listRowBackground(Color.clear)
                 }
+                if v.family == .machine {
+                    // Plates or Stack: the app's guess for machines you had before, switchable here.
+                    Section {
+                        LoadingSwitch(loading: v.loading, disabled: Set(Loading.allCases.filter { !store.canSetLoading(v, $0) })) { l in
+                            store.setLoading(v.id, l)
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                    }
+                }
                 Section("Styles") {
                     ForEach(styles) { s in
                         Button { editingStyle = s } label: {
@@ -405,13 +396,17 @@ struct StyleEditorSheet: View {
     let style: Style?
     @State private var spec = StyleSpec()
     @State private var name = ""
+    /// You switched the app's pick for a machine name (style or its own variation).
+    @State private var flipped = false
+    @State private var askOwnVariation = false
     var onSave: ((Style) -> Void)? = nil
+    /// A new machine name saved as its own variation: the variation, and the rest of the style on it.
+    var onVariation: ((Version, Style?) -> Void)? = nil
 
-    init(version: Version, style: Style?, onSave: ((Style) -> Void)? = nil) {
-        self.version = version; self.style = style; self.onSave = onSave
+    init(version: Version, style: Style?, onSave: ((Style) -> Void)? = nil, onVariation: ((Version, Style?) -> Void)? = nil) {
+        self.version = version; self.style = style; self.onSave = onSave; self.onVariation = onVariation
         if let s = style {
-            _spec = State(initialValue: StyleSpec(attachment: s.attachment, cableHeight: s.cableHeight.flatMap { CableHeight(rawValue: $0) },
-                                                  benchAngle: s.benchAngle, barType: s.barType, grip: s.grip, machine: s.machine))
+            _spec = State(initialValue: StyleSpec(s))
             _name = State(initialValue: s.name ?? "")
         }
     }
@@ -439,9 +434,22 @@ struct StyleEditorSheet: View {
                     }
                 }
                 let preview = name.isEmpty ? spec.label : name
-                Text(preview.isEmpty ? "Pick at least one thing" : preview).font(.system(size: 15, weight: .semibold)).foregroundStyle(preview.isEmpty ? p.muted : p.accent)
+                let own = splitOption
+                if let own {
+                    // A new style can be its own variation instead: the app's pick lit, yours to switch.
+                    VariationOrStyle(asVariation: own.asVariation) { v in flipped = v != own.appPick }
+                } else {
+                    Text(preview.isEmpty ? "Pick at least one thing" : preview).font(.system(size: 15, weight: .semibold)).foregroundStyle(preview.isEmpty ? p.muted : p.accent)
+                }
                 PillButton(title: "Save", style: .primary, full: true) {
                     guard !preview.isEmpty else { return }
+                    if let own, own.asVariation, let b = store.base(of: version) {
+                        let nv = store.makeVariation(base: b, spec: own.spec, like: version)
+                        let st = store.makeStyle(for: nv, spec: own.rest)
+                        onVariation?(nv, st)
+                        dismiss()
+                        return
+                    }
                     var s = style ?? spec.style(for: version.id)
                     s.attachment = spec.attachment; s.cableHeight = spec.cableHeight?.rawValue; s.benchAngle = spec.benchAngle
                     s.barType = spec.barType; s.grip = spec.grip; s.machine = spec.machine
@@ -450,9 +458,36 @@ struct StyleEditorSheet: View {
                     onSave?(s)
                     dismiss()
                 }
+                // A style that turned out to need its own weights.
+                if let s = style, !s.label.isEmpty {
+                    PillButton(title: "Make it its own variation", style: .secondary, full: true) { askOwnVariation = true }
+                        .padding(.top, 10)
+                }
             }
             .padding(16)
         }
         .scrollDismissesKeyboard(.interactively)
+        .confirmationDialog("Make it its own variation?", isPresented: $askOwnVariation, titleVisibility: .visible) {
+            Button("Make it its own variation") {
+                if let s = style { store.makeStyleOwnVariation(s.id) }
+                dismiss()
+            }
+            Button("Keep as style", role: .cancel) {}
+        } message: {
+            if let s = style {
+                let n = store.styleSessions(s.id)
+                if n > 0 { Text(n == 1 ? "1 session goes with it" : "\(n) sessions go with it") }
+            }
+        }
+    }
+
+    /// A new style can be its own variation instead. The app picks a style (everything starts as
+    /// one) unless it names another kind from the machine list.
+    private var splitOption: (spec: VariationSpec, rest: StyleSpec, appPick: Bool, asVariation: Bool)? {
+        guard style == nil, let b = store.base(of: version) else { return nil }
+        let types = machineTypes(forBase: b.name)
+        guard let own = ownVariation(of: spec, name: name, beside: version, types: types) else { return nil }
+        let pick = styleNameIsOwnVariation(spec.machine, beside: version, types: types)
+        return (own.spec, own.rest, pick, flipped ? !pick : pick)
     }
 }

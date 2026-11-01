@@ -31,6 +31,10 @@ struct WorkoutStartView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     ScreenTitle("Workout")
+                    // The app noticed a style that needs its own weights. Here, after you finish, not mid-set.
+                    if let offer = store.splitOffers.first {
+                        SplitOfferCard(offer: offer).padding(.horizontal, 16)
+                    }
                     if let next = store.upNextRoutine {
                         SectionLabel("Up next").padding(.horizontal, 16)
                         routineRow(next, highlight: true).padding(.horizontal, 16)

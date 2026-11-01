@@ -17,6 +17,7 @@ struct ExerciseCardView: View {
     @State private var showNote = false
     @State private var editVersion = false
     @State private var newStyle = false
+    @State private var differentMachine = false
     @State private var showFormCues = false
     @State private var showRange = false
     @State private var customRange = false
@@ -68,7 +69,14 @@ struct ExerciseCardView: View {
                     .presentationDetents([.large]).presentationBackground(p.bg)
             }
             .sheet(isPresented: $newStyle) {
-                StyleEditorSheet(version: v, style: nil) { s in update { $0.styleId = s.id } }
+                // A new style can be its own variation instead; the card moves to it.
+                StyleEditorSheet(version: v, style: nil,
+                                 onSave: { s in update { $0.styleId = s.id } },
+                                 onVariation: { nv, s in update { $0.versionId = nv.id; $0.styleId = s?.id } })
+                    .presentationDetents([.large]).presentationBackground(p.card)
+            }
+            .sheet(isPresented: $differentMachine) {
+                DifferentMachineSheet(version: v) { nv in update { $0.versionId = nv.id; $0.styleId = nil } }
                     .presentationDetents([.large]).presentationBackground(p.card)
             }
             .sheet(isPresented: $customRange) {
@@ -212,6 +220,9 @@ struct ExerciseCardView: View {
         Section {
             Button { toggleSkip() } label: { Label(item?.skipped == true ? "Unskip" : "Skip today", systemImage: "forward") }
             Button { onSwap() } label: { Label("Swap for another", systemImage: "arrow.left.arrow.right") }
+            if v.family == .machine {
+                Button { differentMachine = true } label: { Label("Different machine", systemImage: "rectangle.2.swap") }
+            }
         }
         Section {
             Button { onAddAfter() } label: { Label("Add exercise", systemImage: "plus") }

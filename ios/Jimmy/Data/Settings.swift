@@ -94,6 +94,8 @@ struct Settings: Codable, Hashable {
     var repTemplate: RepTemplate = .standard
     var activeSplitId: String?
     var watchVersionId: String?
+    /// Styles you kept as styles when the app offered to make them their own variation.
+    var keptStyles: [String] = []
 
     init() {}
 
@@ -119,5 +121,6 @@ struct Settings: Codable, Hashable {
         repTemplate = (try? c.decode(RepTemplate.self, forKey: .repTemplate)) ?? .standard
         activeSplitId = try c.decodeIfPresent(String.self, forKey: .activeSplitId)
         watchVersionId = try c.decodeIfPresent(String.self, forKey: .watchVersionId)
+        keptStyles = (try? c.decode([String].self, forKey: .keptStyles)) ?? []
     }
 }
