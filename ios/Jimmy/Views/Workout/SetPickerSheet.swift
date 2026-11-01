@@ -305,13 +305,17 @@ struct WheelPicker<V: Hashable>: View {
             ScrollView(.vertical) {
                 VStack(spacing: 0) {
                     ForEach(Array(values.enumerated()), id: \.element) { i, v in
-                        let d = CGFloat(abs(i - at))
+                        // Worked out before the modifier chain: with the literals and CGFloat mixed in
+                        // there, Xcode 26's type-checker gave up ("unable to type-check in reasonable time").
+                        let d = Double(abs(i - at))
+                        let fade = max(0.25, 1 - d * 0.32)
+                        let shrink = CGFloat(max(0.76, 1 - d * 0.1))
                         Text(label(v))
                             .font(.system(size: 26, weight: .semibold)).monospacedDigit()
                             .foregroundStyle(p.text)
                             .frame(maxWidth: .infinity).frame(height: rh)
-                            .opacity(max(0.25, 1 - d * 0.32))
-                            .scaleEffect(max(0.76, 1 - d * 0.1))
+                            .opacity(fade)
+                            .scaleEffect(shrink)
                             .contentShape(Rectangle())
                             .onTapGesture { withAnimation(.snappy) { scrolled = v } }
                     }
