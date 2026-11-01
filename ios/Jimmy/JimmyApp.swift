@@ -29,6 +29,8 @@ struct RootView: View {
     @Environment(\.colorScheme) private var systemScheme
     @State private var visited: Set<AppTab> = [.home]
     @State private var keyboardUp = false
+    /// The phone's own bottom safe area: the home indicator's, or 0 with a Home button.
+    @State private var deviceBottom: CGFloat = 0
 
     private var isDark: Bool {
         switch store.settings.appearance {
@@ -42,23 +44,24 @@ struct RootView: View {
         @Bindable var nav = nav
         let p = Palette.make(scheme: store.settings.scheme, dark: isDark)
         // Each tab is built the first time it's opened and then kept, so it stays where you left it.
-        GeometryReader { geo in
-            ZStack {
-                page(.home) { HomeView() }
-                page(.plan) { PlanView() }
-                page(.workout) { WorkoutTab() }
-                page(.history) { HistoryView() }
-                page(.settings) { SettingsView() }
-            }
-            .background(p.bg.ignoresSafeArea())
-            // The extra spacing lets the last thing on a page scroll clear of the Workout tile.
-            .safeAreaInset(edge: .bottom, spacing: 16) {
-                // Out of the way while typing, like the system bar.
-                if !keyboardUp {
-                    // Floats low, a little into the home indicator's space, like the system's bar.
-                    JimmyTabBar(tab: $nav.tab)
-                        .padding(.bottom, geo.safeAreaInsets.bottom > 0 ? -13 : 8)
-                }
+        ZStack {
+            page(.home) { HomeView() }
+            page(.plan) { PlanView() }
+            page(.workout) { WorkoutTab() }
+            page(.history) { HistoryView() }
+            page(.settings) { SettingsView() }
+        }
+        .background(p.bg.ignoresSafeArea())
+        // Every page, pushed ones included, keeps room under the bar for its last row.
+        .background(TabBarRoomSetter(deviceBottom: $deviceBottom))
+        .overlay(alignment: .bottom) {
+            // Out of the way while typing, like the system bar.
+            if !keyboardUp {
+                // Placed from the bottom of the screen, below the room the pages keep for it.
+                JimmyTabBar(tab: $nav.tab)
+                    .padding(.bottom, TabBarRoom.lift(device: deviceBottom))
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .ignoresSafeArea(.container, edges: .bottom)
             }
         }
         .onChange(of: nav.tab, initial: true) { _, t in visited.insert(t) }
