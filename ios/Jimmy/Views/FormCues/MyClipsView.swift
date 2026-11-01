@@ -35,16 +35,13 @@ struct MyClipsView: View {
                     Text(clipCountLine(store.clips))
                         .font(.system(size: 14, weight: .semibold)).foregroundStyle(p.secondary)
                 }
-                if pickingFor != nil, list.isEmpty {
+                if list.isEmpty, pending == 0 {
                     Text(store.clips.isEmpty ? "No clips yet." : "Every clip is already on this exercise.")
                         .font(.system(size: 15)).foregroundStyle(p.muted).padding(.top, 8)
                 }
                 LazyVGrid(columns: clipColumns, spacing: 6) {
-                    // In the library the first square adds clips; new ones save right after it.
-                    if pickingFor == nil {
-                        AddClipTile(photos: { showPhotos = true }, files: { showFiles = true })
-                        ForEach(0..<pending, id: \.self) { _ in ClipTilePlaceholder() }
-                    }
+                    // Clips being added from the + button save at the front.
+                    ForEach(0..<pending, id: \.self) { _ in ClipTilePlaceholder() }
                     ForEach(Array(list.enumerated()), id: \.element.id) { i, c in
                         let used = store.usage(of: c.id)
                         Button { tap(c, index: i, list: list) } label: {
@@ -76,6 +73,18 @@ struct MyClipsView: View {
                         dismiss()
                     }
                     .fontWeight(.bold).tint(p.accent).disabled(selected.isEmpty)
+                }
+            } else {
+                // Settings > Jimmy library: add clips straight to the library.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { showPhotos = true } label: { Label("Photos and videos", systemImage: "photo.on.rectangle") }
+                        Button { showFiles = true } label: { Label("Files", systemImage: "folder") }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .tint(p.accent)
+                    .accessibilityLabel("Add clips")
                 }
             }
         }
@@ -116,31 +125,5 @@ struct MyClipsView: View {
         if pickingFor == nil, used.isEmpty {
             Button(role: .destructive) { store.deleteClip(c.id) } label: { Label("Delete", systemImage: "trash") }
         }
-    }
-}
-
-/// The first square of the library grid. Tap it to add clips from Photos or Files.
-struct AddClipTile: View {
-    @Environment(\.palette) private var p
-    let photos: () -> Void
-    let files: () -> Void
-
-    var body: some View {
-        Menu {
-            Button(action: photos) { Label("Photos and videos", systemImage: "photo.on.rectangle") }
-            Button(action: files) { Label("Files", systemImage: "folder") }
-        } label: {
-            Color.clear
-                .aspectRatio(9.0 / 14.0, contentMode: .fit)
-                .overlay { p.accentSoft }
-                .overlay {
-                    Image(systemName: "plus").font(.system(size: 30, weight: .semibold)).foregroundStyle(p.accent)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .accessibilityLabel("Add clips")
     }
 }
