@@ -132,6 +132,14 @@ func paneFinished(_ pane: [WorkoutItem], versions: [Version]) -> Bool {
     }
 }
 
+/// What each exercise in a group is called on its card: "Superset 1", "Superset 2"; "Triset 1" to 3;
+/// "Circuit 1" and on. Numbered so it's clear which one is which when they share a screen.
+func groupLabels(count: Int) -> [String] {
+    guard count >= 2 else { return [] }
+    let name = GroupType.forCount(count).label
+    return (1...count).map { "\(name) \($0)" }
+}
+
 /// Consecutive items sharing a groupId form one pane.
 func panes(_ items: [WorkoutItem]) -> [[WorkoutItem]] {
     var out: [[WorkoutItem]] = []

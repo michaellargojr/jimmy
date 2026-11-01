@@ -95,6 +95,10 @@ struct Settings: Codable, Hashable {
     var homeBlocks: [HomeBlockSetting] = HomeBlockSetting.defaults
     var restTimer: Bool = false
     var restSeconds: Int = 90
+    /// Seconds still on the Workout page before it glides back to your set; 0 never does.
+    var returnAfter: Int = 20
+    /// Covering the top of the phone during a workout turns the screen off, so a pocket can't log a set.
+    var pocketMode: Bool = true
     var rating: SetRating = .activation
     /// Where every new workout starts: Default, Lower, Mid or High.
     var repTemplate: RepTemplate = .standard
@@ -123,6 +127,8 @@ struct Settings: Codable, Hashable {
         homeBlocks = blocks
         restTimer = try c.decodeIfPresent(Bool.self, forKey: .restTimer) ?? false
         restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds) ?? 90
+        returnAfter = try c.decodeIfPresent(Int.self, forKey: .returnAfter) ?? 20
+        pocketMode = try c.decodeIfPresent(Bool.self, forKey: .pocketMode) ?? true
         rating = (try? c.decode(SetRating.self, forKey: .rating)) ?? .activation
         repTemplate = (try? c.decode(RepTemplate.self, forKey: .repTemplate)) ?? .standard
         activeSplitId = try c.decodeIfPresent(String.self, forKey: .activeSplitId)

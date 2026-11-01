@@ -407,12 +407,15 @@ struct SetEntry: Codable, Identifiable, Hashable {
     var side: Side?
     var bar: Bar?
     var note: String?
+    /// When the reps went in (ms since epoch), so the Workout page knows which set was logged last. See Focus.
+    var loggedAt: Double?
 
     init(id: String = uid(), kind: SetKind, unit: WeightUnit, weight: Double? = nil, reps: Int? = nil,
-         plus: Bool = false, partials: Int? = nil, activation: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil) {
+         plus: Bool = false, partials: Int? = nil, activation: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil,
+         loggedAt: Double? = nil) {
         self.id = id; self.kind = kind; self.unit = unit; self.weight = weight; self.reps = reps
         self.plus = plus; self.partials = partials; self.activation = activation; self.intensity = intensity
-        self.side = side; self.bar = bar; self.note = note
+        self.side = side; self.bar = bar; self.note = note; self.loggedAt = loggedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -429,6 +432,7 @@ struct SetEntry: Codable, Identifiable, Hashable {
         side = try c.decodeIfPresent(Side.self, forKey: .side)
         bar = try c.decodeIfPresent(Bar.self, forKey: .bar)
         note = try c.decodeIfPresent(String.self, forKey: .note)
+        loggedAt = try c.decodeIfPresent(Double.self, forKey: .loggedAt)
     }
 
     var hasData: Bool { reps != nil || weight != nil }

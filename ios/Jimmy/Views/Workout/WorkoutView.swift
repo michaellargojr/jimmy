@@ -1,12 +1,17 @@
 import SwiftUI
 
-/// The live workout: one full-screen pane per exercise (or per group), paged vertically.
+/// The live workout: one free scroll, with a pane per exercise (or per group) stacked top to bottom.
 struct WorkoutView: View {
     @Environment(AppStore.self) private var store
+    @Environment(AppNav.self) private var nav
     @Environment(\.palette) private var p
+    @Environment(\.scenePhase) private var scenePhase
     let workoutId: String
 
     @State private var current: Int? = 0
+    /// The touch the page last glided (or landed) for, so a wait with no touch after it glides
+    /// once, not every time the wait passes again.
+    @State private var landedFor: Date? = nil
     @State private var showOverview = false
     @State private var showSettings = false
     @State private var adding: AddTarget? = nil
@@ -19,47 +24,96 @@ struct WorkoutView: View {
     @State private var sureFinish = false
     @State private var sureDiscard = false
     @State private var restEndsAt: Date? = nil
-    /// Each pane's height and the screen's, measured, so a swipe knows where every exercise starts.
-    @State private var paneHeights: [Int: CGFloat] = [:]
+    /// The scroll area's height and each card's, measured, so a landing knows when a card is
+    /// taller than the screen and the open set would be out of sight.
     @State private var pageHeight: CGFloat = 0
+    @State private var cardHeights: [String: CGFloat] = [:]
+    /// Bumped on every glide back to your set, for a light tap of feedback.
+    @State private var glides = 0
+    /// Pocket mode: when the top of the phone was covered (pocket, face down), by the sensor that
+    /// blacks the screen on a call. Uncovered after this long, the page lands on your set.
+    @State private var coveredAt: Date? = nil
+    static let pocketHold: TimeInterval = 2
+
+    /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
+    /// through the bar while you're on this one.
+    static let paneGap: CGFloat = 120
+    /// Extra room above the second and later exercises of a group, on top of the usual 12: 60 in
+    /// all, half the gap under a separate exercise, so each one breathes without leaving the screen.
+    static let groupRoom: CGFloat = 48
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
 
     private var workout: Workout? { store.workout(workoutId) }
+    /// The sensor runs only while this page is the one on screen, with the app in front.
+    private var pocketOn: Bool { store.settings.pocketMode && scenePhase == .active && nav.tab == .workout }
 
     var body: some View {
         if let w = workout {
             let ps = panes(w.items)
             VStack(spacing: 0) {
                 header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
-                // One scroll for the whole workout. Each pane used to be a scroll of its own inside
-                // this one, and the two fought over every up and down swipe. See PaneSnap.
-                ScrollView(.vertical) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
-                            ZStack(alignment: .top) {
-                                // A pane is never shorter than the screen; a longer one simply runs on.
-                                Color.clear
-                                    .containerRelativeFrame(.vertical)
-                                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
-                                paneView(w, pane: pane, index: idx)
+                // One scroll for the whole workout, and a free one: it stops wherever the thumb leaves
+                // it. Each pane used to be a scroll of its own inside this one, and the two fought over
+                // every swipe; then a snap decided where each swipe could stop, and that stuttered.
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
+                                ZStack(alignment: .top) {
+                                    // A pane is never shorter than the screen; a longer one simply runs on.
+                                    Color.clear
+                                        .containerRelativeFrame(.vertical)
+                                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
+                                    paneView(w, pane: pane, index: idx)
+                                }
+                                // Exactly the screen's width. Without it the widest line of Last time
+                                // could stretch the whole page past the edge of a smaller phone.
+                                .containerRelativeFrame(.horizontal)
+                                // Room under each pane, so the next exercise doesn't show through the tab bar.
+                                .padding(.bottom, Self.paneGap)
+                                .id(idx)
                             }
-                            // Exactly the screen's width. Without it the widest line of Last time
-                            // could stretch the whole page past the edge of a smaller phone.
-                            .containerRelativeFrame(.horizontal)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeights[idx] = $0 }
-                            // Room under each pane, so the next exercise doesn't show through the tab bar.
-                            .padding(.bottom, PaneSnap.gap)
-                            .id(idx)
+                            if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
                         }
-                        if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
+                        .scrollTargetLayout()
                     }
-                    .scrollTargetLayout()
+                    .scrollPosition(id: $current, anchor: .top)
+                    .scrollIndicators(.hidden)
+                    // Back to your set: when the page first shows, when asked (the Workout tile, coming
+                    // back from the lock screen), and after a while with no touch while nothing is up.
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { goToSet(w, proxy: proxy, glide: false) }
+                    }
+                    // The first time the scroll area has a size, land again: a landing before layout can miss.
+                    .onChange(of: pageHeight) { was, now in if was == 0, now > 0 { goToSet(w, proxy: proxy, glide: false) } }
+                    .onChange(of: nav.focusRequest) { _, _ in goToSet(w, proxy: proxy, glide: nav.focusGlides) }
+                    .task {
+                        // Once a second: still for long enough, the app in front, nothing up? Then glide back.
+                        while !Task.isCancelled {
+                            try? await Task.sleep(for: .seconds(1))
+                            let wait = store.settings.returnAfter
+                            guard wait > 0, UIApplication.shared.applicationState == .active, nav.tab == .workout,
+                                  Date().timeIntervalSince(nav.lastTouch) >= Double(wait), landedFor != nav.lastTouch,
+                                  !somethingPresented(), let w = store.workout(workoutId) else { continue }
+                            goToSet(w, proxy: proxy, glide: true)
+                        }
+                    }
+                    .sensoryFeedback(.impact(weight: .light), trigger: glides)
+                    // Pocket mode. While the sensor is on, covering it turns the screen off and the phone
+                    // ignores touches, so a pocket can't log a set; uncovering it brings you to your set.
+                    .onChange(of: pocketOn, initial: true) { _, on in UIDevice.current.isProximityMonitoringEnabled = on }
+                    .onDisappear { UIDevice.current.isProximityMonitoringEnabled = false }
+                    .onReceive(NotificationCenter.default.publisher(for: UIDevice.proximityStateDidChangeNotification)) { _ in
+                        if UIDevice.current.proximityState { coveredAt = Date(); return }
+                        guard let since = coveredAt else { return }
+                        coveredAt = nil
+                        if Date().timeIntervalSince(since) >= Self.pocketHold {
+                            nav.lastTouch = Date()
+                            goToSet(w, proxy: proxy, glide: false)
+                        }
+                    }
                 }
-                // One exercise per swipe, with a light touch, landing on its title.
-                .scrollTargetBehavior(PaneSnapBehavior(heights: ps.indices.map { paneHeights[$0] ?? 0 }, page: pageHeight))
-                .scrollPosition(id: $current, anchor: .top)
-                .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
             }
             // The whole page, header included, is held to the screen's width too, whatever the
@@ -182,16 +236,20 @@ struct WorkoutView: View {
                     .lineLimit(2).minimumScaleFactor(0.8)
                     .padding(.bottom, 4)
             }
-            if pane.count > 1, pane.first?.groupId != nil {
-                HStack {
-                    Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
-                    Text("\(pane.count) exercises, rotate through them").font(.system(size: 13)).foregroundStyle(p.muted)
-                }
-            }
-            ForEach(pane) { item in
+            // A group shares the screen: each exercise is numbered, "Triset 1" to 3, and the ones
+            // after the first get room above, so they read as distinct and not one long card.
+            let labels = groupLabels(count: pane.count)
+            ForEach(Array(pane.enumerated()), id: \.element.id) { n, item in
+                // The id is the outermost modifier, as on the panes and the set rows: with the
+                // padding outside it, scrollTo never found the card. So the room between members
+                // hangs under each card but the last, and a landing puts the card's own top up.
                 ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
+                                 groupLabel: pane.count > 1 ? labels[n] : nil,
                                  onSwap: { adding = AddTarget(swapItemId: item.id) },
                                  onAddAfter: { adding = AddTarget(afterItemId: item.id) })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
+                    .padding(.bottom, n < pane.count - 1 ? Self.groupRoom : 0)
+                    .id("item-\(item.id)")
             }
             footer(index: index, panesOf: w)
         }
@@ -239,6 +297,32 @@ struct WorkoutView: View {
         }
     }
 
+    /// Lands on your set (see Focus): that exercise's title at the top of the page. On the very
+    /// first exercise the workout's name stays in view above it. On a card taller than the screen
+    /// the open set sits a third of the way down instead, so it's never out of sight.
+    ///
+    /// The first exercise of a pane lands by the pane's own id, which always resolves; a later
+    /// member of a group lands by its card's id.
+    private func goToSet(_ w: Workout, proxy: ScrollViewProxy, glide: Bool) {
+        landedFor = nav.lastTouch
+        guard let point = Focus.point(w) else { return }
+        let ps = panes(w.items)
+        guard let paneIdx = ps.firstIndex(where: { $0.contains { $0.id == point.itemId } }) else { return }
+        let tall = pageHeight > 0 && (cardHeights[point.itemId] ?? 0) > pageHeight
+        var t = Transaction(animation: glide ? .smooth(duration: 0.55) : nil)
+        t.disablesAnimations = !glide
+        withTransaction(t) {
+            if tall, let setId = point.setId {
+                proxy.scrollTo("set-\(setId)", anchor: UnitPoint(x: 0, y: 0.33))
+            } else if ps[paneIdx].first?.id == point.itemId {
+                proxy.scrollTo(paneIdx, anchor: .top)
+            } else {
+                proxy.scrollTo("item-\(point.itemId)", anchor: .top)
+            }
+        }
+        if glide { glides += 1 }
+    }
+
     private func addVersion(_ v: Version, style: Style?, target: AddTarget) {
         guard var w = workout else { return }
         let item = newItem(for: v, style: style, unit: store.settings.unit, workouts: store.workouts)
@@ -258,18 +342,6 @@ struct WorkoutView: View {
         if let idx = ps.firstIndex(where: { $0.contains { $0.id == item.id } }) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { withAnimation { current = idx } }
         }
-    }
-}
-
-/// Where a swipe on the Workout page lands, worked out by PaneSnap from the measured panes.
-struct PaneSnapBehavior: ScrollTargetBehavior {
-    var heights: [CGFloat]
-    var page: CGFloat
-
-    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-        let page = self.page > 0 ? self.page : context.containerSize.height
-        target.rect.origin.y = PaneSnap.rest(start: context.originalTarget.rect.minY, coast: target.rect.minY,
-                                             heights: heights, page: page, gap: PaneSnap.gap)
     }
 }
 
@@ -365,8 +437,11 @@ struct OverviewSheet: View {
             }
             Button { current = paneIndex; dismiss() } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let gid, first {
-                        Text(GroupType.forCount(w.items.filter { $0.groupId == gid }.count).label.uppercased())
+                    if let gid {
+                        // Every member says which it is, the same way the cards do: "TRISET 2".
+                        let members = w.items.filter { $0.groupId == gid }
+                        let n = (members.firstIndex { $0.id == item.id } ?? 0) + 1
+                        Text("\(GroupType.forCount(members.count).label) \(n)".uppercased())
                             .font(.system(size: 12, weight: .heavy)).tracking(0.6).foregroundStyle(p.accent)
                             .padding(.bottom, 2)
                     }
