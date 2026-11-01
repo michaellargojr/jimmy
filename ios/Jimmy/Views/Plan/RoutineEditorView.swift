@@ -126,7 +126,7 @@ struct RoutineEditorView: View {
                     if let v {
                         VariationChips(tags: store.variationChips(v), size: .small,
                                        note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
-                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "))
+                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "), nickname: store.nickname(v))
                     }
                 }
             }

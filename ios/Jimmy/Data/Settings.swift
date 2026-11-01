@@ -106,6 +106,8 @@ struct Settings: Codable, Hashable {
     var watchVersionId: String?
     /// Styles you kept as styles when the app offered to make them their own variation.
     var keptStyles: [String] = []
+    /// Set once the app has given your existing variations their nicknames, so one you clear stays clear.
+    var nicknamesFilled: Bool = false
 
     init() {}
 
@@ -134,5 +136,6 @@ struct Settings: Codable, Hashable {
         activeSplitId = try c.decodeIfPresent(String.self, forKey: .activeSplitId)
         watchVersionId = try c.decodeIfPresent(String.self, forKey: .watchVersionId)
         keptStyles = (try? c.decode([String].self, forKey: .keptStyles)) ?? []
+        nicknamesFilled = try c.decodeIfPresent(Bool.self, forKey: .nicknamesFilled) ?? false
     }
 }

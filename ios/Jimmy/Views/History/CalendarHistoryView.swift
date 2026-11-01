@@ -285,7 +285,7 @@ struct WorkoutDaySummary: View {
                                     Text(t.valueText).font(.system(size: 16, weight: .bold)).monospacedDigit().foregroundStyle(p.secondary)
                                 }
                             }
-                            VariationChips(tags: store.variationChips(v), size: .small, note: store.style(item.styleId)?.label)
+                            VariationChips(tags: store.variationChips(v), size: .small, note: store.style(item.styleId)?.label, nickname: store.nickname(v))
                         }
                         .padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)

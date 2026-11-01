@@ -117,6 +117,7 @@ struct WorkoutRepRangesSheet: View {
                                 HStack(spacing: 12) {
                                     Text(store.workoutName(v)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
                                         .lineLimit(1).minimumScaleFactor(0.8)
+                                    if let n = store.nickname(v) { NicknameTag(text: n, size: .small) }
                                     Spacer(minLength: 8)
                                     Text(r.text).font(.system(size: 18, weight: .heavy)).monospacedDigit().foregroundStyle(p.accent)
                                 }

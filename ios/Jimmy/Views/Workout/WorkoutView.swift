@@ -447,6 +447,7 @@ struct OverviewSheet: View {
                     }
                     HStack(spacing: 7) {
                         Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).lineLimit(1)
+                        if let n = v.flatMap({ store.nickname($0) }) { NicknameTag(text: n, size: .small) }
                         if item.isDone && item.skipped != true {
                             Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(p.accent)
                         }

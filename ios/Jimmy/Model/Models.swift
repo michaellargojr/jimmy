@@ -247,6 +247,9 @@ struct Version: Codable, Identifiable, Hashable {
     var machine: String?
     /// Plates or stack, for machines. Nil when not known (a machine named before the list).
     var loading: Loading?
+    /// The name people know it by ("Bayesian Curl"), shown as a tag beside the name. Yours to
+    /// type or clear; the app only suggests the few in Nicknames.swift.
+    var nickname: String?
     var cableHeight: Double?
     var benchAngle: Double?
     var repMin: Int
@@ -282,6 +285,7 @@ struct Version: Codable, Identifiable, Hashable {
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
+        nickname = try c.decodeIfPresent(String.self, forKey: .nickname)
         cableHeight = try c.decodeIfPresent(Double.self, forKey: .cableHeight)
         benchAngle = try c.decodeIfPresent(Double.self, forKey: .benchAngle)
         repMin = try c.decodeIfPresent(Int.self, forKey: .repMin) ?? 5
