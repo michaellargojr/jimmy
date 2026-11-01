@@ -45,40 +45,61 @@ enum Card {
     static let muted = Color(hex: 0x8B8E97)
 }
 
-/// Layout A: one thing per line. The workout and clock, the exercise big, its chips, the set,
-/// then last time.
+/// Two big cues on one line, the set and the clock, as big as each other; under them the
+/// exercise and its chips. Nothing else, so it reads at a glance mid-workout.
 struct LockCard: View {
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
         let accent = Color(hex: state.accent)
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(state.workoutName).font(.system(size: 15, weight: .bold)).foregroundStyle(accent).lineLimit(1)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                setCue(accent)
                 Spacer(minLength: 0)
                 // Counts by itself from Start; nothing updates it while you rest.
                 Text(timerInterval: state.startedAt...state.startedAt.addingTimeInterval(24 * 3600), countsDown: false)
-                    .font(.system(size: 15, weight: .heavy)).monospacedDigit().foregroundStyle(Card.text)
+                    .font(.system(size: 48, weight: .heavy)).tracking(-1).monospacedDigit().foregroundStyle(Card.text)
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .multilineTextAlignment(.trailing)
-                    .frame(width: 80, alignment: .trailing)
+                    .frame(maxWidth: 190, alignment: .trailing)
             }
+            .frame(height: 52)
             Text(state.exercise)
-                .font(.system(size: 24, weight: .heavy)).tracking(-0.4).foregroundStyle(Card.text)
+                .font(.system(size: 20, weight: .heavy)).tracking(-0.3).foregroundStyle(Card.text)
                 .lineLimit(1).minimumScaleFactor(0.7)
             if state.groupLabel != nil || !state.tags.isEmpty {
                 HStack(spacing: 6) {
                     if let g = state.groupLabel { GroupChip(text: g, accent: accent, onAccent: Color(hex: state.onAccent)) }
                     if !state.tags.isEmpty { TagChip(parts: state.tags, accent: accent) }
                 }
-                .padding(.top, 2)
             }
-            Text(state.setLine).font(.system(size: 18, weight: .bold)).foregroundStyle(Card.text)
-                .lineLimit(1).minimumScaleFactor(0.8)
-                .padding(.top, 4)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// "of 2", with the side in white for one arm ("of 2 - Left"); a warm-up or drop set by name.
+    private var setRest: Text {
+        guard let of = state.setOf else { return Text(state.setLine).foregroundColor(Card.secondary) }
+        guard let side = state.side else { return Text(of).foregroundColor(Card.secondary) }
+        return Text(of + " - ").foregroundColor(Card.secondary) + Text(side).fontWeight(.heavy).foregroundColor(Card.text)
+    }
+
+    /// "1 of 2", "1 of 2 - Left", "W Warm-up", or a check with "Done" once every set is logged.
+    @ViewBuilder
+    private func setCue(_ accent: Color) -> some View {
+        if state.allDone {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark").font(.system(size: 34, weight: .heavy)).foregroundStyle(accent)
+                Text("Done").font(.system(size: 17, weight: .semibold)).foregroundStyle(Card.secondary)
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(state.setMark ?? "").font(.system(size: 52, weight: .heavy)).monospacedDigit().foregroundStyle(Card.text)
+                setRest.font(.system(size: 17, weight: .semibold)).lineLimit(1).fixedSize()
+            }
+        }
     }
 }
 
