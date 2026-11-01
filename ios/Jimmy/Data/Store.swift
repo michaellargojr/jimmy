@@ -25,6 +25,9 @@ final class AppStore {
 
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?
+    /// Set when jimmy.json is there but can't be read and couldn't be copied aside. Saving would
+    /// replace it, so nothing is saved until a restore or a reset replaces the data on purpose.
+    private(set) var savesPaused = false
 
     /// A store with its own file (tests) keeps its backup folder in memory, so it never
     /// writes into the folder the app on this device backs up to.
@@ -141,16 +144,39 @@ final class AppStore {
 
     // MARK: Load and save
 
+    /// Read jimmy.json. With no file yet (a new install) Jimmy starts from the seed. A file that is
+    /// there but can't be read is never overwritten: it is copied aside first, and if even that
+    /// fails, saving pauses so the file stays as it is.
     func load() {
-        if let data = try? Data(contentsOf: fileURL), let s = try? Snapshot.decode(data) {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            resetToSeed()
+            loaded = true
+            return
+        }
+        do {
+            let s = try Snapshot.decode(Data(contentsOf: fileURL))
             apply(s)
             if splits.isEmpty, !routines.isEmpty { seedSplitFromRoutines() }
             if s.version < 2 { migrateToLibraryV2(); markDirty() }
             if fillMachineLoading() { markDirty() }
-        } else {
+        } catch {
+            print("Jimmy: couldn't read \(fileURL.lastPathComponent): \(error)")
+            let kept = Self.keepAside(fileURL)
             resetToSeed()
+            if !kept { savesPaused = true }
         }
         loaded = true
+    }
+
+    /// Copy a file that couldn't be read to "jimmy-unreadable-<date and time>.json" beside it.
+    /// Returns false when the copy couldn't be made.
+    static func keepAside(_ url: URL, at date: Date = Date()) -> Bool {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        let name = url.deletingPathExtension().lastPathComponent + "-unreadable-" + f.string(from: date) + "." + url.pathExtension
+        let copy = url.deletingLastPathComponent().appendingPathComponent(name)
+        return (try? FileManager.default.copyItem(at: url, to: copy)) != nil
     }
 
     private func apply(_ s: Snapshot) {
@@ -180,6 +206,7 @@ final class AppStore {
     }
 
     func saveNow() {
+        guard !savesPaused else { return }
         do {
             let data = try snapshot().encoded()
             try data.write(to: fileURL, options: .atomic)
@@ -189,6 +216,7 @@ final class AppStore {
     }
 
     func resetToSeed() {
+        savesPaused = false
         let keepIdeas = ideas
         let keepSettings = settings
         let s = buildSeed()
@@ -202,6 +230,7 @@ final class AppStore {
 
     /// Replace everything with an export. Ideas are kept if the import has none.
     func importSnapshot(_ s: Snapshot) {
+        savesPaused = false
         let keepIdeas = ideas
         let keepSettings = settings
         apply(s)
