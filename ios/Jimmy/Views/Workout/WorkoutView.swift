@@ -113,9 +113,9 @@ struct WorkoutView: View {
 
     /// One row that stays put: Start, then Done, alone on the left, where a stray thumb is least
     /// likely to land, the time big in the middle to keep the pace up, then Overview and the gear.
-    /// Under it a block per exercise fills in once that exercise is done; tap one to go there.
+    /// Under it a block per exercise fills in once that exercise is done.
     private func header(_ w: Workout, finished: [Bool]) -> some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 10) {
             ZStack {
                 HStack(spacing: 8) {
                     // Picking a workout doesn't start the clock; Start does, and then Done takes its place.
@@ -138,8 +138,7 @@ struct WorkoutView: View {
             }
             if !finished.isEmpty { progressStrip(finished) }
         }
-        // The strip's taller tap row makes its own room underneath.
-        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, finished.isEmpty ? 8 : 0)
+        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
 
     /// The time, big. Grey at 0:00 until Start.
@@ -150,27 +149,18 @@ struct WorkoutView: View {
             .frame(maxWidth: 140)
     }
 
-    /// One block per exercise (a superset is one), filled when all its sets are checked. The one
-    /// on screen is white. Tapping a block jumps straight to that exercise, for when a swipe won't do.
+    /// One block per exercise (a superset is one), filled when all its sets are checked.
     private func progressStrip(_ finished: [Bool]) -> some View {
-        let here = min(max(current ?? 0, 0), finished.count - 1)
-        return HStack(spacing: 4) {
+        HStack(spacing: 4) {
             ForEach(finished.indices, id: \.self) { i in
-                Button { withAnimation(.snappy) { current = i } } label: {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(i == here ? p.text : finished[i] ? p.accent : p.elevated)
-                        .frame(height: 10)
-                        // The block is thin; the tap reaches well above and below it.
-                        .frame(maxWidth: .infinity, minHeight: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Exercise \(i + 1) of \(finished.count)\(finished[i] ? ", done" : "")")
-                .accessibilityAddTraits(i == here ? .isSelected : [])
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(finished[i] ? p.accent : p.elevated)
+                    .frame(height: 6)
             }
         }
         .animation(.snappy, value: finished)
-        .animation(.snappy, value: here)
+        .accessibilityElement()
+        .accessibilityLabel("\(finished.filter { $0 }.count) of \(finished.count) exercises done")
     }
 
     private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
