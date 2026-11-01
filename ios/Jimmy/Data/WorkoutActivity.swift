@@ -19,6 +19,10 @@ final class WorkoutActivity {
     private let store: AppStore
     private var shown: Shown?
     private var started = false
+    /// The first card of each app launch is a new one. A card left from before can be stuck
+    /// unseen (the system once took it but never put it on screen), and updating it wouldn't
+    /// bring it back; the app is open then, so the swap happens out of sight.
+    private var fresh = true
 
     init(store: AppStore) { self.store = store }
 
@@ -44,9 +48,9 @@ final class WorkoutActivity {
     private func sync(_ want: Shown?) {
         if want == shown, shown != nil { return }
         let all = Activity<WorkoutActivityAttributes>.activities
-        let mine = all.first { a in
+        let mine: Activity<WorkoutActivityAttributes>? = fresh ? nil : all.first(where: { a in
             a.attributes.workoutId == want?.workoutId && (a.activityState == .active || a.activityState == .stale)
-        }
+        })
         // Finish, Discard, or a card left from another workout: gone at once.
         for a in all where a.id != mine?.id {
             Task { await a.end(nil, dismissalPolicy: .immediate) }
@@ -59,6 +63,7 @@ final class WorkoutActivity {
         } else if ActivityAuthorizationInfo().areActivitiesEnabled {
             do {
                 _ = try Activity.request(attributes: WorkoutActivityAttributes(workoutId: want.workoutId), content: content, pushType: nil)
+                fresh = false
             } catch {
                 print("Jimmy: lock screen card not started: \(error)")
                 shown = nil
