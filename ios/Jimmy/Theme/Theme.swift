@@ -15,9 +15,14 @@ struct Palette: Equatable {
     var onAccent: Color
     var danger: Color
     var isDark: Bool
+    /// Crimson is too dark to put on a near-black button and still read.
+    var deepAccent: Bool = false
 
     var accentSoft: Color { accent.opacity(isDark ? 0.16 : 0.18) }
     var dangerSoft: Color { danger.opacity(0.16) }
+    /// The small button that sits on an accent-filled card, with accent text on it.
+    /// Near-black for most colors; white for Crimson so its text stays readable.
+    var accentPill: Color { deepAccent ? .white : (isDark ? bg : text) }
 
     static func make(scheme: AccentScheme, dark: Bool) -> Palette {
         let accent: Color
@@ -35,16 +40,17 @@ struct Palette: Equatable {
         case (.crimson, true): accent = Color(hex: 0xB01425); onAccent = .white
         case (.crimson, false): accent = Color(hex: 0x8E1020); onAccent = .white
         }
+        let deep = scheme == .crimson
         if dark {
             return Palette(bg: Color(hex: 0x0A0A0D), card: Color(hex: 0x141518), elevated: Color(hex: 0x1F2024),
                            text: Color(hex: 0xF3F4F6), secondary: Color(hex: 0xA1A3AB), muted: Color(hex: 0x8B8E97),
                            line: Color(hex: 0x26272C), border: Color(hex: 0x3A3C44), accent: accent, onAccent: onAccent,
-                           danger: Color(hex: 0xFF8A94), isDark: true)
+                           danger: Color(hex: 0xFF8A94), isDark: true, deepAccent: deep)
         }
         return Palette(bg: Color(hex: 0xF6F7FB), card: .white, elevated: Color(hex: 0xE6E8EF),
                        text: Color(hex: 0x10131C), secondary: Color(hex: 0x4B4F5B), muted: Color(hex: 0x6B7280),
                        line: Color(hex: 0xE3E5EC), border: Color(hex: 0xC9CCD6), accent: accent, onAccent: onAccent,
-                       danger: Color(hex: 0xC8313F), isDark: false)
+                       danger: Color(hex: 0xC8313F), isDark: false, deepAccent: deep)
     }
 
     static func swatch(_ scheme: AccentScheme) -> Color { make(scheme: scheme, dark: true).accent }

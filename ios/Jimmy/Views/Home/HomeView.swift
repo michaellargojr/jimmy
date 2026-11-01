@@ -115,7 +115,7 @@ struct UpNextBlock: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(p.accent)
                     .frame(height: 40).padding(.horizontal, 18)
-                    .background(p.isDark ? p.bg : p.text, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                    .background(p.accentPill, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                     .padding(.top, 10)
             }
             .foregroundStyle(p.onAccent)

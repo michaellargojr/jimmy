@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Jimmy
 
@@ -31,6 +32,13 @@ import Testing
     @Test func crimsonIsSavedAndRestored() throws {
         #expect(try scheme("crimson") == .crimson)
         #expect(AccentScheme.crimson.label == "Crimson")
+    }
+    @Test func crimsonGetsAWhiteStartButton() {
+        for dark in [true, false] {
+            #expect(Palette.make(scheme: .crimson, dark: dark).accentPill == .white)
+            let orange = Palette.make(scheme: .orange, dark: dark)
+            #expect(orange.accentPill == (dark ? orange.bg : orange.text))
+        }
     }
     @Test func noColorNameSaysRed() {
         #expect(AccentScheme.allCases.allSatisfy { !$0.label.lowercased().contains("red") })
