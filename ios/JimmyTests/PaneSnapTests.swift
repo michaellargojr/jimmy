@@ -126,6 +126,14 @@ private func rest(_ start: CGFloat, _ coast: CGFloat, _ heights: [CGFloat]) -> C
 
     @Test func oneSwipePassesAShortOverhang() {
         #expect(rest(0, 220, sliver) == 610)
+        // 60 over, about what a card runs past the screen on a mini: still one swipe (the sliver is 120 here).
+        #expect(rest(0, 220, [660, 600]) == 660)
+        #expect(rest(0, 220, [720, 600]) == 720)
+    }
+
+    @Test func aLongerOverhangStillStopsAtTheEndFirst() {
+        #expect(rest(0, 220, [750, 600]) == 150)
+        #expect(rest(150, 300, [750, 600]) == 750)
     }
 
     @Test func aSmallDragStillShowsTheLastFewPoints() {

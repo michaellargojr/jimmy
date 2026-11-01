@@ -14,10 +14,12 @@ enum PaneSnap {
     /// A light flick is enough; a small drag springs back.
     static let nudge: CGFloat = 0.12
     /// Coming to rest this close to a pane's title or end settles exactly on it, so a swipe never
-    /// stops a few points short and leaves the next one stuck on the same pane. A swipe that starts
-    /// this close to the end counts as starting at the end, so a card only a little taller than the
-    /// screen never spends a whole swipe on its last few points.
+    /// stops a few points short and leaves the next one stuck on the same pane.
     static let magnet: CGFloat = 0.1
+    /// A swipe that starts this close to a pane's end counts as starting at the end (and near its
+    /// title, at the title), so a card only a little taller than the screen never spends a whole
+    /// swipe on its last bit. A small drag still shows that bit; only a longer card stops at its end.
+    static let sliver: CGFloat = 0.2
     /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
     /// through the bar while you're on this one.
     static let gap: CGFloat = 120
@@ -37,7 +39,7 @@ enum PaneSnap {
         // The last offset that still shows a pane: its bottom on the screen's bottom.
         let ends = zip(tops, sizes).map { $0 + $1 - page }
         let last = sizes.count - 1
-        let nudge = page * Self.nudge, magnet = page * Self.magnet
+        let nudge = page * Self.nudge, magnet = page * Self.magnet, sliver = page * Self.sliver
         let eps: CGFloat = 1
 
         // The pane the swipe began on: the last one whose title had reached the top.
@@ -52,9 +54,9 @@ enum PaneSnap {
             return c
         }
 
-        // Within the magnet of this pane's end or title counts as being there.
-        let atEnd = start >= end - max(eps, magnet)
-        let atTop = start <= top + max(eps, magnet)
+        // A sliver from this pane's end or title counts as being there.
+        let atEnd = start >= end - max(eps, sliver)
+        let atTop = start <= top + max(eps, sliver)
 
         let goal: CGFloat
         if start > end + eps {
