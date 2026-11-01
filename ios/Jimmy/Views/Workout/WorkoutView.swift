@@ -255,13 +255,17 @@ struct WorkoutView: View {
             // after the first get room above, so they read as distinct and not one long card.
             let labels = groupLabels(count: pane.count)
             ForEach(Array(pane.enumerated()), id: \.element.id) { n, item in
-                ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
-                                 groupLabel: pane.count > 1 ? labels[n] : nil,
-                                 onSwap: { adding = AddTarget(swapItemId: item.id) },
-                                 onAddAfter: { adding = AddTarget(afterItemId: item.id) })
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
-                    .id("item-\(item.id)")
-                    .padding(.top, n > 0 ? Self.groupRoom : 0)
+                // The card sits in a stack of its own so the landing id is on a plain view. On the
+                // card itself, whose body is conditional, scrollTo never found it.
+                VStack(spacing: 0) {
+                    ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
+                                     groupLabel: pane.count > 1 ? labels[n] : nil,
+                                     onSwap: { adding = AddTarget(swapItemId: item.id) },
+                                     onAddAfter: { adding = AddTarget(afterItemId: item.id) })
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
+                .id("item-\(item.id)")
+                .padding(.top, n > 0 ? Self.groupRoom : 0)
             }
             footer(index: index, panesOf: w)
         }
@@ -312,6 +316,9 @@ struct WorkoutView: View {
     /// Lands on your set (see Focus): that exercise's title at the top of the page. On the very
     /// first exercise the workout's name stays in view above it. On a card taller than the screen
     /// the open set sits a third of the way down instead, so it's never out of sight.
+    ///
+    /// The first exercise of a pane lands by the pane's own id, which always resolves; a later
+    /// member of a group lands by its card's id.
     private func goToSet(_ w: Workout, proxy: ScrollViewProxy, glide: Bool) {
         guard let point = Focus.point(w) else { return }
         let ps = panes(w.items)
@@ -322,8 +329,8 @@ struct WorkoutView: View {
         withTransaction(t) {
             if tall, let setId = point.setId {
                 proxy.scrollTo("set-\(setId)", anchor: UnitPoint(x: 0, y: 0.33))
-            } else if paneIdx == 0, ps[0].first?.id == point.itemId {
-                proxy.scrollTo(0, anchor: .top)
+            } else if ps[paneIdx].first?.id == point.itemId {
+                proxy.scrollTo(paneIdx, anchor: .top)
             } else {
                 proxy.scrollTo("item-\(point.itemId)", anchor: .top)
             }

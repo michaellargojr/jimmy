@@ -17,20 +17,29 @@ struct JimmyApp: App {
                     #if DEBUG
                     // A test simulator can open straight on the Workout tab for screenshots (-openTab workout),
                     // and start the first routine with the next two exercises as a superset and the first
-                    // exercise's sets logged (-demoWorkout all, or -demoWorkout two for only its first two),
-                    // so screenshots can show the landing on your set and the group chips.
+                    // exercise's sets logged (-demoWorkout all, -demoWorkout two for only its first two, or
+                    // -demoWorkout second for all of them plus the first set of the superset's first member,
+                    // so your set is the second member), so screenshots can show the landing and the chips.
                     let args = ProcessInfo.processInfo.arguments
                     if let d = args.firstIndex(of: "-demoWorkout"), store.activeWorkout == nil, let r = store.routines.first {
-                        let two = d + 1 < args.count && args[d + 1] == "two"
+                        let which = d + 1 < args.count ? args[d + 1] : "all"
                         var w = store.startWorkout(from: r)
                         store.startClock(w.id)
                         w = store.workout(w.id) ?? w
-                        for j in w.items[0].sets.indices.prefix(two ? 2 : w.items[0].sets.count) {
+                        for j in w.items[0].sets.indices.prefix(which == "two" ? 2 : w.items[0].sets.count) {
                             w.items[0].sets[j].weight = w.items[0].sets[j].weight ?? 20
                             w.items[0].sets[j].reps = 10
                         }
                         store.put(w)
-                        if w.items.count >= 3 { store.put(makeGroup(w, ids: [w.items[1].id, w.items[2].id])) }
+                        if w.items.count >= 3 {
+                            w = makeGroup(w, ids: [w.items[1].id, w.items[2].id])
+                            store.put(w)
+                            if which == "second", let j = w.items[1].sets.indices.first {
+                                w.items[1].sets[j].weight = w.items[1].sets[j].weight ?? 20
+                                w.items[1].sets[j].reps = 10
+                                store.put(w)
+                            }
+                        }
                         nav.tab = .workout
                     }
                     if let i = args.firstIndex(of: "-openTab"), i + 1 < args.count, args[i + 1] == "workout" { nav.tab = .workout }
