@@ -27,6 +27,10 @@ struct WorkoutView: View {
     @State private var cardHeights: [String: CGFloat] = [:]
     /// Bumped on every glide back to your set, for a light tap of feedback.
     @State private var glides = 0
+    /// Pocket mode: when the top of the phone was covered (pocket, face down), by the sensor that
+    /// blacks the screen on a call. Uncovered after this long, the page lands on your set.
+    @State private var coveredAt: Date? = nil
+    static let pocketHold: TimeInterval = 2
     /// Once a second, to notice when you've been still long enough to go back to your set.
     private let ticks = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -39,6 +43,8 @@ struct WorkoutView: View {
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
 
     private var workout: Workout? { store.workout(workoutId) }
+    /// The sensor runs only while this page is the one on screen, with the app in front.
+    private var pocketOn: Bool { store.settings.pocketMode && scenePhase == .active && nav.tab == .workout }
 
     var body: some View {
         if let w = workout {
@@ -87,6 +93,19 @@ struct WorkoutView: View {
                         goToSet(w, proxy: proxy, glide: true)
                     }
                     .sensoryFeedback(.impact(weight: .light), trigger: glides)
+                    // Pocket mode. While the sensor is on, covering it turns the screen off and the phone
+                    // ignores touches, so a pocket can't log a set; uncovering it brings you to your set.
+                    .onChange(of: pocketOn, initial: true) { _, on in UIDevice.current.isProximityMonitoringEnabled = on }
+                    .onDisappear { UIDevice.current.isProximityMonitoringEnabled = false }
+                    .onReceive(NotificationCenter.default.publisher(for: UIDevice.proximityStateDidChangeNotification)) { _ in
+                        if UIDevice.current.proximityState { coveredAt = Date(); return }
+                        guard let since = coveredAt else { return }
+                        coveredAt = nil
+                        if Date().timeIntervalSince(since) >= Self.pocketHold {
+                            nav.lastTouch = Date()
+                            goToSet(w, proxy: proxy, glide: false)
+                        }
+                    }
                 }
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
             }

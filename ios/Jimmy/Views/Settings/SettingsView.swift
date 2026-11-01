@@ -76,6 +76,10 @@ struct SettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16).padding(.vertical, 14)
                             Divider1()
+                            SettingsRow(title: "Pocket mode", subtitle: "Covered in a pocket, the screen goes dark and taps are ignored.") {
+                                RectToggle(on: Binding(get: { store.settings.pocketMode }, set: { v in store.update { $0.pocketMode = v } }))
+                            }
+                            Divider1()
                             // Where every new workout starts; the gear changes one workout.
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Rep ranges").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)

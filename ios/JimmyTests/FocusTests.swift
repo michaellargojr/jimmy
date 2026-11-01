@@ -140,4 +140,12 @@ private func workout(_ items: [WorkoutItem]) -> Workout { Workout(name: "Arms", 
         let never = try JSONDecoder().decode(Settings.self, from: Data(#"{"id":"settings","returnAfter":0}"#.utf8))
         #expect(never.returnAfter == 0)
     }
+
+    @Test func pocketModeIsOnUnlessTurnedOff() throws {
+        #expect(Settings().pocketMode == true)
+        let old = try JSONDecoder().decode(Settings.self, from: Data(#"{"id":"settings"}"#.utf8))
+        #expect(old.pocketMode == true)
+        let off = try JSONDecoder().decode(Settings.self, from: Data(#"{"id":"settings","pocketMode":false}"#.utf8))
+        #expect(off.pocketMode == false)
+    }
 }
