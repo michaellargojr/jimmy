@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Jimmy
 
@@ -18,6 +19,28 @@ import Testing
     }
     @Test func everyColorButOrangeHasItsOwnIcon() {
         #expect(AccentScheme.orange.iconName == nil)
-        #expect(Set(AccentScheme.allCases.compactMap(\.iconName)) == ["AppIcon-Mint", "AppIcon-Ice", "AppIcon-Red"])
+        #expect(Set(AccentScheme.allCases.compactMap(\.iconName)) == ["AppIcon-Mint", "AppIcon-Ice", "AppIcon-Red", "AppIcon-Crimson"])
+    }
+    @Test func signalRedIsNowFlamingoAndStillSavedAsRed() throws {
+        #expect(try scheme("red") == .flamingo)
+        #expect(AccentScheme.flamingo.label == "Flamingo")
+        var s = Settings()
+        s.scheme = .flamingo
+        let json = String(decoding: try JSONEncoder().encode(s), as: UTF8.self)
+        #expect(json.contains(#""scheme":"red""#))
+    }
+    @Test func crimsonIsSavedAndRestored() throws {
+        #expect(try scheme("crimson") == .crimson)
+        #expect(AccentScheme.crimson.label == "Crimson")
+    }
+    @Test func crimsonGetsAWhiteStartButton() {
+        for dark in [true, false] {
+            #expect(Palette.make(scheme: .crimson, dark: dark).accentPill == .white)
+            let orange = Palette.make(scheme: .orange, dark: dark)
+            #expect(orange.accentPill == (dark ? orange.bg : orange.text))
+        }
+    }
+    @Test func noColorNameSaysRed() {
+        #expect(AccentScheme.allCases.allSatisfy { !$0.label.lowercased().contains("red") })
     }
 }

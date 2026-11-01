@@ -203,6 +203,7 @@ struct SetPickerSheet: View {
                 .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .contentShape(Rectangle())
                 .onTapGesture { noteFocused = true }
+                .keepsKeyboard()
             PillButton(title: "Save", style: .primary, full: true, height: 56) {
                 let t = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                 patch { $0.note = t.isEmpty ? nil : t }

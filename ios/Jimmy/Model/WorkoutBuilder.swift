@@ -36,7 +36,7 @@ func workoutFromRoutine(_ r: Routine, versions: [Version], styles: [Style] = [],
         guard let v = vmap[ri.versionId] else { return nil }
         return newItem(for: v, style: ri.styleId.flatMap { smap[$0] }, unit: unit, workouts: workouts, groupId: ri.groupId)
     }
-    return Workout(name: r.name, date: today(), gymId: gymId, routineId: r.id, startedAt: nowMs(), items: items, groups: r.groups)
+    return Workout(name: r.name, date: today(), gymId: gymId, routineId: r.id, pickedAt: nowMs(), items: items, groups: r.groups)
 }
 
 /// Label for a set row: W, D, 1, 2, and for one arm WL, WR, 1L, 1R, DL ...

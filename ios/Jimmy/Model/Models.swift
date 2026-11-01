@@ -78,6 +78,13 @@ enum Position: String, Codable, CaseIterable, Hashable {
     var usesBench: Bool { self == .seated || self == .lying || self == .armsBehind || self == .chestSupported }
 }
 
+/// How a machine is loaded: plates you hang on it, or a weight stack you set with a pin. The same
+/// machine made both ways needs different weights, so each is its own variation.
+enum Loading: String, Codable, CaseIterable, Hashable {
+    case plates, stack
+    var label: String { self == .plates ? "plates" : "stack" }
+}
+
 /// Which bar: a style, never a variation.
 enum BarType: String, Codable, CaseIterable, Hashable {
     case barbell, ez, smith
@@ -232,10 +239,14 @@ struct Version: Codable, Identifiable, Hashable {
     var arms: Arms
     var position: Position?
     /// Short qualifier when equipment, arms and position do not say enough: "overhead",
-    /// "goblet", "high row", or a machine Michael flipped to its own history ("D Stars").
+    /// "goblet", "high row", a machine type ("iso-lateral"), or a machine Michael flipped to its
+    /// own history ("D Stars").
     var tag: String?
     var attachment: String?
+    /// The name of one machine when you have two of the same type ("D Stars"): each keeps its own history.
     var machine: String?
+    /// Plates or stack, for machines. Nil when not known (a machine named before the list).
+    var loading: Loading?
     var cableHeight: Double?
     var benchAngle: Double?
     var repMin: Int
@@ -251,10 +262,11 @@ struct Version: Codable, Identifiable, Hashable {
     var changes: [VersionChange] = []
 
     init(id: String = uid(), exerciseId: String, name: String, equipment: Equipment, arms: Arms,
-         position: Position? = nil, tag: String? = nil, machine: String? = nil, repMin: Int = 5, repMax: Int = 8,
+         position: Position? = nil, tag: String? = nil, machine: String? = nil, loading: Loading? = nil, repMin: Int = 5, repMax: Int = 8,
          defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
         self.id = id; self.exerciseId = exerciseId; self.name = name; self.equipment = equipment
-        self.arms = arms; self.position = position; self.tag = tag; self.machine = machine; self.repMin = repMin; self.repMax = repMax
+        self.arms = arms; self.position = position; self.tag = tag; self.machine = machine; self.loading = loading
+        self.repMin = repMin; self.repMax = repMax
         self.defaultWarmup = defaultWarmup; self.defaultSets = defaultSets; self.notes = notes
     }
 
@@ -269,6 +281,7 @@ struct Version: Codable, Identifiable, Hashable {
         tag = try c.decodeIfPresent(String.self, forKey: .tag)
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
+        loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
         cableHeight = try c.decodeIfPresent(Double.self, forKey: .cableHeight)
         benchAngle = try c.decodeIfPresent(Double.self, forKey: .benchAngle)
         repMin = try c.decodeIfPresent(Int.self, forKey: .repMin) ?? 5
@@ -286,7 +299,10 @@ struct Version: Codable, Identifiable, Hashable {
     var isBarbell: Bool { family == .bar }
     var repRange: String { "\(repMin) to \(repMax)" }
     /// The fields that make two variations the same one.
-    var key: VariationKey { VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased()) }
+    var key: VariationKey {
+        VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased(), machine: machine?.lowercased(),
+                     loading: family == .machine ? loading : nil)
+    }
 }
 
 struct VariationKey: Hashable {
@@ -294,6 +310,8 @@ struct VariationKey: Hashable {
     var arms: Arms
     var position: Position?
     var tag: String?
+    var machine: String? = nil
+    var loading: Loading? = nil
 }
 
 /// A Style is a way of doing a variation that shares its history: attachment, cable height,
@@ -474,8 +492,10 @@ struct Workout: Codable, Identifiable, Hashable {
     var date: String // YYYY-MM-DD
     var gymId: String?
     var routineId: String?
-    var startedAt: Double? // ms since epoch, as the web app stores it
+    var startedAt: Double? // ms since epoch, as the web app stores it; when Start was tapped
     var endedAt: Double?
+    /// When the workout was picked. The clock waits for Start, so until then startedAt is nil.
+    var pickedAt: Double?
     var notes: String?
     var items: [WorkoutItem]
     var groups: [ExerciseGroup]
@@ -483,11 +503,11 @@ struct Workout: Codable, Identifiable, Hashable {
     var repTemplate: RepTemplate?
 
     init(id: String = uid(), name: String, date: String = today(), gymId: String? = nil, routineId: String? = nil,
-         startedAt: Double? = nil, endedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [], groups: [ExerciseGroup] = [],
-         repTemplate: RepTemplate? = nil) {
+         startedAt: Double? = nil, endedAt: Double? = nil, pickedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [],
+         groups: [ExerciseGroup] = [], repTemplate: RepTemplate? = nil) {
         self.id = id; self.name = name; self.date = date; self.gymId = gymId; self.routineId = routineId
-        self.startedAt = startedAt; self.endedAt = endedAt; self.notes = notes; self.items = items; self.groups = groups
-        self.repTemplate = repTemplate
+        self.startedAt = startedAt; self.endedAt = endedAt; self.pickedAt = pickedAt; self.notes = notes; self.items = items
+        self.groups = groups; self.repTemplate = repTemplate
     }
 
     init(from decoder: Decoder) throws {
@@ -499,13 +519,17 @@ struct Workout: Codable, Identifiable, Hashable {
         routineId = try c.decodeIfPresent(String.self, forKey: .routineId)
         startedAt = try c.decodeIfPresent(Double.self, forKey: .startedAt)
         endedAt = try c.decodeIfPresent(Double.self, forKey: .endedAt)
+        pickedAt = try c.decodeIfPresent(Double.self, forKey: .pickedAt)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         items = try c.decodeIfPresent([WorkoutItem].self, forKey: .items) ?? []
         groups = try c.decodeIfPresent([ExerciseGroup].self, forKey: .groups) ?? []
         repTemplate = try? c.decodeIfPresent(RepTemplate.self, forKey: .repTemplate)
     }
 
-    var isActive: Bool { startedAt != nil && endedAt == nil }
+    /// Picked or running, and not finished.
+    var isActive: Bool { (startedAt != nil || pickedAt != nil) && endedAt == nil }
+    /// Picked, with the clock waiting for Start.
+    var isWaiting: Bool { isActive && startedAt == nil }
     var isFinished: Bool { endedAt != nil }
     var durationMinutes: Int? {
         guard let s = startedAt, let e = endedAt else { return nil }

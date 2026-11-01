@@ -46,7 +46,7 @@ struct RoutineEditorView: View {
                     PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     PillButton(title: "Start this routine", style: .primary, full: true) {
-                        if store.activeWorkout == nil { store.startWorkout(from: r) }
+                        if store.canPickWorkout { store.startWorkout(from: r) }
                         nav.tab = .workout
                     }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)

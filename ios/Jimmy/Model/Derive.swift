@@ -17,7 +17,7 @@ private func hasData(_ item: WorkoutItem) -> Bool { item.sets.contains { $0.hasD
 func sortedNewestFirst(_ ws: [Workout]) -> [Workout] {
     ws.sorted { a, b in
         if a.date != b.date { return a.date > b.date }
-        return (a.startedAt ?? 0) > (b.startedAt ?? 0)
+        return (a.startedAt ?? a.pickedAt ?? 0) > (b.startedAt ?? b.pickedAt ?? 0)
     }
 }
 
