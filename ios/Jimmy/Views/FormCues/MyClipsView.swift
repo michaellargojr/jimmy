@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Every stored clip, newest first. Two uses: pick clips to add to a variation, or look
-/// after the library from Settings (play, see where a clip is used, delete unused ones).
+/// after the library from Settings (add clips, play, see where a clip is used, delete unused ones).
 struct MyClipsView: View {
     enum Mode { case pick(versionId: String), manage }
 
@@ -13,6 +13,10 @@ struct MyClipsView: View {
     @State private var selected: [String] = []
     @State private var playing: FormCuesView.PlayerStart? = nil
     @State private var deleting: String? = nil
+    @State private var showPhotos = false
+    @State private var showFiles = false
+    @State private var pending = 0
+    @State private var importError: String? = nil
 
     private var pickingFor: String? { if case .pick(let id) = mode { return id } else { return nil } }
 
@@ -28,14 +32,19 @@ struct MyClipsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Jimmy library").font(.system(size: 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
-                    Text("\(store.clips.count) clips · \(byteLabel(ClipFiles.totalBytes(store.clips)))")
+                    Text(clipCountLine(store.clips))
                         .font(.system(size: 14, weight: .semibold)).foregroundStyle(p.secondary)
                 }
-                if list.isEmpty {
+                if pickingFor != nil, list.isEmpty {
                     Text(store.clips.isEmpty ? "No clips yet." : "Every clip is already on this exercise.")
                         .font(.system(size: 15)).foregroundStyle(p.muted).padding(.top, 8)
                 }
                 LazyVGrid(columns: clipColumns, spacing: 6) {
+                    // In the library the first square adds clips; new ones save right after it.
+                    if pickingFor == nil {
+                        AddClipTile(photos: { showPhotos = true }, files: { showFiles = true })
+                        ForEach(0..<pending, id: \.self) { _ in ClipTilePlaceholder() }
+                    }
                     ForEach(Array(list.enumerated()), id: \.element.id) { i, c in
                         let used = store.usage(of: c.id)
                         Button { tap(c, index: i, list: list) } label: {
@@ -48,6 +57,9 @@ struct MyClipsView: View {
                         }
                         .contextMenu { menu(c, used: used, index: i, list: list) }
                     }
+                }
+                if let importError {
+                    Text(importError).font(.system(size: 13)).foregroundStyle(p.danger)
                 }
             }
             .padding(16)
@@ -67,7 +79,15 @@ struct MyClipsView: View {
                 }
             }
         }
+        .clipImport(photos: $showPhotos, files: $showFiles, pending: $pending, error: $importError, to: nil)
         .fullScreenCover(item: $playing) { s in ClipPlayerView(clips: s.clips, start: s.index) }
+        #if DEBUG
+        // Screenshots of the saving state: -libraryPending 2
+        .onAppear {
+            let args = ProcessInfo.processInfo.arguments
+            if pickingFor == nil, let i = args.firstIndex(of: "-libraryPending"), i + 1 < args.count, let n = Int(args[i + 1]) { pending = n }
+        }
+        #endif
         .confirmationDialog("Delete this clip?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                             titleVisibility: .visible, presenting: deleting) { id in
             Button("Delete", role: .destructive) { store.deleteClip(id) }
@@ -96,5 +116,31 @@ struct MyClipsView: View {
         if pickingFor == nil, used.isEmpty {
             Button(role: .destructive) { store.deleteClip(c.id) } label: { Label("Delete", systemImage: "trash") }
         }
+    }
+}
+
+/// The first square of the library grid. Tap it to add clips from Photos or Files.
+struct AddClipTile: View {
+    @Environment(\.palette) private var p
+    let photos: () -> Void
+    let files: () -> Void
+
+    var body: some View {
+        Menu {
+            Button(action: photos) { Label("Photos and videos", systemImage: "photo.on.rectangle") }
+            Button(action: files) { Label("Files", systemImage: "folder") }
+        } label: {
+            Color.clear
+                .aspectRatio(9.0 / 14.0, contentMode: .fit)
+                .overlay { p.accentSoft }
+                .overlay {
+                    Image(systemName: "plus").font(.system(size: 30, weight: .semibold)).foregroundStyle(p.accent)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add clips")
     }
 }
