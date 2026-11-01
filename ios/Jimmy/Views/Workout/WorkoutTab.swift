@@ -68,7 +68,7 @@ struct WorkoutStartView: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(highlight ? p.accent : p.onAccent)
                     .frame(height: 36).padding(.horizontal, 14)
-                    .background(highlight ? (p.isDark ? p.bg : p.text) : p.accent, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                    .background(highlight ? p.accentPill : p.accent, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
             .background(highlight ? p.accent : p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))

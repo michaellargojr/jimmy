@@ -4,23 +4,29 @@ enum Appearance: String, Codable, CaseIterable { case dark, light, system }
 
 /// The app's color. Orange is the default; the home-screen icon follows the choice.
 /// A saved scheme that no longer exists (lime, amber) decodes as orange.
+/// Flamingo was called "Signal red"; it is still saved as "red" so existing settings and backups keep it.
 enum AccentScheme: String, Codable, CaseIterable {
-    case orange, mint, ice, red
+    case orange, mint, ice
+    case flamingo = "red"
+    case crimson
     var label: String {
         switch self {
         case .orange: return "Orange"
         case .mint: return "Mint"
         case .ice: return "Ice"
-        case .red: return "Signal red"
+        case .flamingo: return "Flamingo"
+        case .crimson: return "Crimson"
         }
     }
     /// The alternate app icon for this color; nil is the primary (orange) icon.
+    /// Flamingo's icon keeps its old asset name so a phone already showing it stays valid.
     var iconName: String? {
         switch self {
         case .orange: return nil
         case .mint: return "AppIcon-Mint"
         case .ice: return "AppIcon-Ice"
-        case .red: return "AppIcon-Red"
+        case .flamingo: return "AppIcon-Red"
+        case .crimson: return "AppIcon-Crimson"
         }
     }
 }
