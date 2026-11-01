@@ -338,7 +338,7 @@ struct SplitEditorView: View {
     private func inSplitSection(_ s: Split) -> some View {
         Section {
             if s.routineIds.isEmpty {
-                Text("Nothing here yet. New routine below, or Add one of your routines.")
+                Text("Nothing here yet. New routine below, or Add an existing one.")
                     .font(.system(size: 14)).foregroundStyle(p.muted)
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
@@ -393,7 +393,7 @@ struct SplitEditorView: View {
                 }
             }
         } header: {
-            SectionLabel("Add a routine").padding(.leading, 16)
+            SectionLabel("Add an existing routine").padding(.leading, 16)
         } footer: {
             Text("Hold a routine for Rename, Duplicate or Delete. A copy made here joins this split.")
                 .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)

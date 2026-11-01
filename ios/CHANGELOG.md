@@ -13,8 +13,8 @@ How versions and builds move, and who writes the next entry: ios/README.md.
 
 - New routine on a split page offers to take exercises from your other routines: open any routine, tick the exercises you want, from as many routines as you like, and they join the new routine together. A superset ticked whole stays a superset.
 - From my routines is also a button on every routine's page and in the edit sheet on the split page.
-- Hold any routine under Add a routine for Rename, Duplicate or Delete, the same as under In this split. A routine duplicated from the split page joins that split, with Undo.
-- A new split opens its page straight away. While a split has no routines yet, Coverage sits at the bottom, under Goals, In this split, New routine and Add a routine. A split with routines keeps Coverage second.
+- Add a routine is now Add an existing routine. Hold any routine there for Rename, Duplicate or Delete, the same as under In this split. A routine duplicated from the split page joins that split, with Undo.
+- A new split opens its page straight away. While a split has no routines yet, Coverage sits at the bottom, under Goals, In this split, New routine and Add an existing routine. A split with routines keeps Coverage second.
 
 ## 2.2 - Nov 2, 2026
 
