@@ -423,6 +423,8 @@ struct ExerciseCardView: View {
                            onCheck: { check(s, ghost: lastMatch, prev: i > 0 ? item.sets[i - 1] : nil, v: v) },
                            onLabel: { update { $0.sets = cycleSetKind($0.sets, at: i) } },
                            onDelete: { pendingDelete = s.id })
+                    // So the page can land on this set when the card is taller than the screen.
+                    .id("set-\(s.id)")
             }
             Rectangle().fill(p.line).frame(height: 1).padding(.top, 8)
             Button { addSet(v) } label: {

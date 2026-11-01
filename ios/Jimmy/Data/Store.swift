@@ -225,7 +225,13 @@ final class AppStore {
         if let i = list.firstIndex(where: { $0.id == item.id }) { list[i] = item } else { list.append(item) }
     }
 
-    func put(_ w: Workout) { upsert(&workouts, w); markDirty() }
+    /// Every change to a workout passes here, so this is where a set that just got its reps is
+    /// marked with the time; the Workout page lands on the set after the last one marked.
+    func put(_ w: Workout) {
+        var w = w
+        Focus.stamp(&w, before: workout(w.id), now: nowMs())
+        upsert(&workouts, w); markDirty()
+    }
     func deleteWorkout(_ id: String) { workouts.removeAll { $0.id == id }; markDirty() }
     func put(_ r: Routine) { upsert(&routines, r); markDirty() }
     func deleteRoutine(_ id: String) {

@@ -3,7 +3,9 @@ import SwiftUI
 /// The live workout: one free scroll, with a pane per exercise (or per group) stacked top to bottom.
 struct WorkoutView: View {
     @Environment(AppStore.self) private var store
+    @Environment(AppNav.self) private var nav
     @Environment(\.palette) private var p
+    @Environment(\.scenePhase) private var scenePhase
     let workoutId: String
 
     @State private var current: Int? = 0
@@ -19,8 +21,14 @@ struct WorkoutView: View {
     @State private var sureFinish = false
     @State private var sureDiscard = false
     @State private var restEndsAt: Date? = nil
-    /// The scroll area's height, measured, so a landing knows when a card is taller than the screen.
+    /// The scroll area's height and each card's, measured, so a landing knows when a card is
+    /// taller than the screen and the open set would be out of sight.
     @State private var pageHeight: CGFloat = 0
+    @State private var cardHeights: [String: CGFloat] = [:]
+    /// Bumped on every glide back to your set, for a light tap of feedback.
+    @State private var glides = 0
+    /// Once a second, to notice when you've been still long enough to go back to your set.
+    private let ticks = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
     /// through the bar while you're on this one.
@@ -40,29 +48,46 @@ struct WorkoutView: View {
                 // One scroll for the whole workout, and a free one: it stops wherever the thumb leaves
                 // it. Each pane used to be a scroll of its own inside this one, and the two fought over
                 // every swipe; then a snap decided where each swipe could stop, and that stuttered.
-                ScrollView(.vertical) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
-                            ZStack(alignment: .top) {
-                                // A pane is never shorter than the screen; a longer one simply runs on.
-                                Color.clear
-                                    .containerRelativeFrame(.vertical)
-                                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
-                                paneView(w, pane: pane, index: idx)
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
+                                ZStack(alignment: .top) {
+                                    // A pane is never shorter than the screen; a longer one simply runs on.
+                                    Color.clear
+                                        .containerRelativeFrame(.vertical)
+                                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
+                                    paneView(w, pane: pane, index: idx)
+                                }
+                                // Exactly the screen's width. Without it the widest line of Last time
+                                // could stretch the whole page past the edge of a smaller phone.
+                                .containerRelativeFrame(.horizontal)
+                                // Room under each pane, so the next exercise doesn't show through the tab bar.
+                                .padding(.bottom, Self.paneGap)
+                                .id(idx)
                             }
-                            // Exactly the screen's width. Without it the widest line of Last time
-                            // could stretch the whole page past the edge of a smaller phone.
-                            .containerRelativeFrame(.horizontal)
-                            // Room under each pane, so the next exercise doesn't show through the tab bar.
-                            .padding(.bottom, Self.paneGap)
-                            .id(idx)
+                            if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
                         }
-                        if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
+                        .scrollTargetLayout()
                     }
-                    .scrollTargetLayout()
+                    .scrollPosition(id: $current, anchor: .top)
+                    .scrollIndicators(.hidden)
+                    // Back to your set: when the page first shows, when asked (the Workout tile, coming
+                    // back from the lock screen), and after a while with no touch while nothing is up.
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { goToSet(w, proxy: proxy, glide: false) }
+                    }
+                    .onChange(of: nav.focusRequest) { _, _ in goToSet(w, proxy: proxy, glide: nav.focusGlides) }
+                    .onReceive(ticks) { now in
+                        let wait = store.settings.returnAfter
+                        guard wait > 0, scenePhase == .active, nav.tab == .workout,
+                              now.timeIntervalSince(nav.lastTouch) >= Double(wait), !somethingPresented() else { return }
+                        // Counts as a touch, so the next glide waits the full time again.
+                        nav.lastTouch = now
+                        goToSet(w, proxy: proxy, glide: true)
+                    }
+                    .sensoryFeedback(.impact(weight: .light), trigger: glides)
                 }
-                .scrollPosition(id: $current, anchor: .top)
-                .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
             }
             // The whole page, header included, is held to the screen's width too, whatever the
@@ -203,6 +228,8 @@ struct WorkoutView: View {
                                  groupLabel: pane.count > 1 ? labels[n] : nil,
                                  onSwap: { adding = AddTarget(swapItemId: item.id) },
                                  onAddAfter: { adding = AddTarget(afterItemId: item.id) })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
+                    .id("item-\(item.id)")
                     .padding(.top, n > 0 ? Self.groupRoom : 0)
             }
             footer(index: index, panesOf: w)
@@ -249,6 +276,28 @@ struct WorkoutView: View {
             .background(p.elevated)
             .sensoryFeedback(.success, trigger: left == 0) { _, done in done }
         }
+    }
+
+    /// Lands on your set (see Focus): that exercise's title at the top of the page. On the very
+    /// first exercise the workout's name stays in view above it. On a card taller than the screen
+    /// the open set sits a third of the way down instead, so it's never out of sight.
+    private func goToSet(_ w: Workout, proxy: ScrollViewProxy, glide: Bool) {
+        guard let point = Focus.point(w) else { return }
+        let ps = panes(w.items)
+        guard let paneIdx = ps.firstIndex(where: { $0.contains { $0.id == point.itemId } }) else { return }
+        let tall = pageHeight > 0 && (cardHeights[point.itemId] ?? 0) > pageHeight
+        var t = Transaction(animation: glide ? .smooth(duration: 0.55) : nil)
+        t.disablesAnimations = !glide
+        withTransaction(t) {
+            if tall, let setId = point.setId {
+                proxy.scrollTo("set-\(setId)", anchor: UnitPoint(x: 0, y: 0.33))
+            } else if paneIdx == 0, ps[0].first?.id == point.itemId {
+                proxy.scrollTo(0, anchor: .top)
+            } else {
+                proxy.scrollTo("item-\(point.itemId)", anchor: .top)
+            }
+        }
+        if glide { glides += 1 }
     }
 
     private func addVersion(_ v: Version, style: Style?, target: AddTarget) {
