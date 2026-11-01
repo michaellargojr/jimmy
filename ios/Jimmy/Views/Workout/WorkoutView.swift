@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The live workout: one full-screen pane per exercise (or per group), paged vertically.
+/// The live workout: one free scroll, with a pane per exercise (or per group) stacked top to bottom.
 struct WorkoutView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -19,9 +19,12 @@ struct WorkoutView: View {
     @State private var sureFinish = false
     @State private var sureDiscard = false
     @State private var restEndsAt: Date? = nil
-    /// Each pane's height and the screen's, measured, so a swipe knows where every exercise starts.
-    @State private var paneHeights: [Int: CGFloat] = [:]
+    /// The scroll area's height, measured, so a landing knows when a card is taller than the screen.
     @State private var pageHeight: CGFloat = 0
+
+    /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
+    /// through the bar while you're on this one.
+    static let paneGap: CGFloat = 120
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
 
@@ -32,8 +35,9 @@ struct WorkoutView: View {
             let ps = panes(w.items)
             VStack(spacing: 0) {
                 header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
-                // One scroll for the whole workout. Each pane used to be a scroll of its own inside
-                // this one, and the two fought over every up and down swipe. See PaneSnap.
+                // One scroll for the whole workout, and a free one: it stops wherever the thumb leaves
+                // it. Each pane used to be a scroll of its own inside this one, and the two fought over
+                // every swipe; then a snap decided where each swipe could stop, and that stuttered.
                 ScrollView(.vertical) {
                     VStack(spacing: 0) {
                         ForEach(Array(ps.enumerated()), id: \.offset) { idx, pane in
@@ -47,17 +51,14 @@ struct WorkoutView: View {
                             // Exactly the screen's width. Without it the widest line of Last time
                             // could stretch the whole page past the edge of a smaller phone.
                             .containerRelativeFrame(.horizontal)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paneHeights[idx] = $0 }
                             // Room under each pane, so the next exercise doesn't show through the tab bar.
-                            .padding(.bottom, PaneSnap.gap)
+                            .padding(.bottom, Self.paneGap)
                             .id(idx)
                         }
                         if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
                     }
                     .scrollTargetLayout()
                 }
-                // One exercise per swipe, with a light touch, landing on its title.
-                .scrollTargetBehavior(PaneSnapBehavior(heights: ps.indices.map { paneHeights[$0] ?? 0 }, page: pageHeight))
                 .scrollPosition(id: $current, anchor: .top)
                 .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
@@ -268,18 +269,6 @@ struct WorkoutView: View {
         if let idx = ps.firstIndex(where: { $0.contains { $0.id == item.id } }) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { withAnimation { current = idx } }
         }
-    }
-}
-
-/// Where a swipe on the Workout page lands, worked out by PaneSnap from the measured panes.
-struct PaneSnapBehavior: ScrollTargetBehavior {
-    var heights: [CGFloat]
-    var page: CGFloat
-
-    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
-        let page = self.page > 0 ? self.page : context.containerSize.height
-        target.rect.origin.y = PaneSnap.rest(start: context.originalTarget.rect.minY, coast: target.rect.minY,
-                                             heights: heights, page: page, gap: PaneSnap.gap)
     }
 }
 
