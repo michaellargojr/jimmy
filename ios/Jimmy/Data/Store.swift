@@ -20,11 +20,17 @@ final class AppStore {
     /// The last copy, move or erase of a history, while its Undo bar shows. Never saved.
     var historyUndo: HistoryUndo?
 
+    /// Backups to a folder in iCloud Drive. See Backup.swift.
+    let backups: Backups
+
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?
 
-    init(fileURL: URL? = nil) {
+    /// A store with its own file (tests) keeps its backup folder in memory, so it never
+    /// writes into the folder the app on this device backs up to.
+    init(fileURL: URL? = nil, backups: Backups? = nil) {
         self.fileURL = fileURL ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("jimmy.json")
+        self.backups = backups ?? Backups(defaults: fileURL == nil ? UserDefaults.standard : nil)
     }
 
     // MARK: Lookups
@@ -337,7 +343,7 @@ final class AppStore {
         let drop = Set(unlogged(w).map(\.id))
         w.items.removeAll { drop.contains($0.id) }
         w = freezingRepRanges(w, versions: versions) { self.repGroup($0) }
-        if w.items.isEmpty { deleteWorkout(id) } else { put(w) }
+        if w.items.isEmpty { deleteWorkout(id) } else { put(w); backUp() }
     }
 
     // MARK: Library
@@ -475,12 +481,5 @@ final class AppStore {
                 for a in lib.aliases where !exercises[i].aliases.contains(a) { exercises[i].aliases.append(a) }
             }
         }
-    }
-
-    var exportURL: URL? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("jimmy-\(today()).json")
-        guard let data = try? snapshot().encoded() else { return nil }
-        try? data.write(to: url, options: .atomic)
-        return url
     }
 }
