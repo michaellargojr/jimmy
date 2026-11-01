@@ -72,8 +72,8 @@ struct RootView: View {
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var scenePhase
     @State private var visited: Set<AppTab> = [.home]
-    /// Set when the app leaves the screen, so coming back can land on your set.
-    @State private var wasAway = false
+    /// When the app left the screen, so coming back can land on your set if you were gone a while.
+    @State private var awayAt: Date? = nil
     @State private var keyboardUp = false
     /// The phone's own bottom safe area: the home indicator's, or 0 with a Home button.
     @State private var deviceBottom: CGFloat = 0
@@ -116,17 +116,20 @@ struct RootView: View {
         }
         .onChange(of: nav.tab, initial: true) { _, t in visited.insert(t) }
         // A live workout is where you are: the app opens on it, and comes back to it from the lock
-        // screen or another app, already at your set, without a tap on the bar.
+        // screen or another app, already at your set, without a tap on the bar. A quick hop out
+        // and back (shorter than the wait in Settings) leaves the page where you had it, since you
+        // may have been looking ahead; a set always takes longer than that. Never turns this off.
         .onChange(of: store.loaded, initial: true) { _, loaded in
             if loaded, store.activeWorkout != nil { nav.openWorkoutAtSet() }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .background: wasAway = true
+            case .background: awayAt = Date()
             case .active:
-                guard wasAway else { return }
-                wasAway = false
-                if store.activeWorkout != nil { nav.openWorkoutAtSet() }
+                guard let since = awayAt else { return }
+                awayAt = nil
+                let wait = store.settings.returnAfter
+                if wait > 0, store.activeWorkout != nil, Date().timeIntervalSince(since) >= Double(wait) { nav.openWorkoutAtSet() }
             default: break
             }
         }

@@ -35,8 +35,9 @@ struct WorkoutView: View {
     /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
     /// through the bar while you're on this one.
     static let paneGap: CGFloat = 120
-    /// Extra room above the second and later exercises of a group, on top of the usual 12.
-    static let groupRoom: CGFloat = 20
+    /// Extra room above the second and later exercises of a group, on top of the usual 12: 60 in
+    /// all, half the gap under a separate exercise, so each one breathes without leaving the screen.
+    static let groupRoom: CGFloat = 48
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
 
@@ -245,7 +246,7 @@ struct WorkoutView: View {
                     .padding(.bottom, 4)
             }
             // A group shares the screen: each exercise is numbered, "Triset 1" to 3, and the ones
-            // after the first get extra room above, so they read as distinct and not one long card.
+            // after the first get room above, so they read as distinct and not one long card.
             let labels = groupLabels(count: pane.count)
             ForEach(Array(pane.enumerated()), id: \.element.id) { n, item in
                 ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
