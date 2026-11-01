@@ -3,21 +3,32 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
+    /// 0 Calendar (first, opens by default), 1 Workouts, 2 Exercises.
     @State private var segment = 0
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 ScreenTitle("History") {
-                    Text(Date().formatted(.dateTime.month(.wide))).font(.system(size: 14)).foregroundStyle(p.muted)
+                    if segment == 0 {
+                        CalendarModeSwitch()
+                    } else {
+                        Text(Date().formatted(.dateTime.month(.wide))).font(.system(size: 14)).foregroundStyle(p.muted)
+                    }
                 }
                 HStack(spacing: 8) {
-                    Chip(text: "Workouts", on: segment == 0) { segment = 0 }
-                    Chip(text: "Exercises", on: segment == 1) { segment = 1 }
+                    Chip(text: "Calendar", on: segment == 0) { segment = 0 }
+                    Chip(text: "Workouts", on: segment == 1) { segment = 1 }
+                    Chip(text: "Exercises", on: segment == 2) { segment = 2 }
                     Spacer()
                 }
                 .padding(.horizontal, 16).padding(.bottom, 6)
-                if segment == 0 { WorkoutsHistoryList() } else { ExercisesHistoryList() }
+                switch segment {
+                case 0: CalendarHistoryView { w in path.append(w) }
+                case 1: WorkoutsHistoryList()
+                default: ExercisesHistoryList()
+                }
             }
             .screen()
             .toolbar(.hidden, for: .navigationBar)

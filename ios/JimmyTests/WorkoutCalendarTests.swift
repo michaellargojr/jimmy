@@ -1,0 +1,108 @@
+import Foundation
+import Testing
+@testable import Jimmy
+
+// History > Calendar: Monday-first weeks, month grids, paging bounds, and which days light up.
+
+private func entry(_ kind: SetKind = .working, _ weight: Double? = 40, _ reps: Int? = 8) -> SetEntry {
+    SetEntry(kind: kind, unit: .kg, weight: weight, reps: reps)
+}
+private func finished(_ date: String, _ name: String = "W", startedAt: Double = 0, items: [WorkoutItem] = []) -> Workout {
+    Workout(name: name, date: date, startedAt: startedAt, endedAt: startedAt + 3_600_000, items: items)
+}
+
+@Suite struct CalendarWeekTests {
+    @Test func weeksStartOnMonday() {
+        #expect(weekStart("2026-11-01") == "2026-10-26")   // a Sunday belongs to the week before
+        #expect(weekStart("2026-10-26") == "2026-10-26")
+        #expect(weekStart("2026-10-23") == "2026-10-19")
+    }
+
+    @Test func weekDaysRunMondayToSunday() {
+        #expect(weekDays("2026-10-23") == ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"])
+        #expect(weekDays("2026-12-30").last == "2027-01-03")
+    }
+
+    @Test func weekTitles() {
+        #expect(weekTitle("2026-10-21") == "Oct 19 - 25")
+        #expect(weekTitle("2026-11-01") == "Oct 26 - Nov 1")
+        #expect(weekTitle("2026-12-30") == "Dec 28 - Jan 3")
+    }
+}
+
+@Suite struct CalendarMonthTests {
+    @Test func octoberStartsOnThursday() {
+        let g = monthGrid("2026-10-15")
+        #expect(g.count == 35)
+        #expect(g.prefix(3).allSatisfy { $0 == nil })
+        #expect(g[3] == "2026-10-01")
+        #expect(g[33] == "2026-10-31")
+        #expect(g[34] == nil)
+    }
+
+    @Test func novemberNeedsSixRows() {
+        let g = monthGrid("2026-11-01")
+        #expect(g.count == 42)
+        #expect(g[6] == "2026-11-01")
+        #expect(g.compactMap { $0 }.count == 30)
+    }
+
+    @Test func februaryThatStartsOnMondayHasNoPadding() {
+        let g = monthGrid("2027-02-10")
+        #expect(g.count == 28)
+        #expect(g.first == "2027-02-01")
+        #expect(g.last == "2027-02-28")
+    }
+
+    @Test func steppingMonthsAndWeeks() {
+        #expect(calendarStep("2026-10-23", .month, by: -1) == "2026-09-01")
+        #expect(calendarStep("2026-10-23", .month, by: 1) == "2026-11-01")
+        #expect(calendarStep("2026-01-15", .month, by: -1) == "2025-12-01")
+        #expect(calendarStep("2026-10-23", .week, by: 1) == "2026-10-26")
+        #expect(calendarStep("2026-10-23", .week, by: -1) == "2026-10-12")
+    }
+}
+
+@Suite struct CalendarBoundsTests {
+    @Test func pagesFromTheOldestWorkoutToToday() {
+        let days = ["2026-10-23", "2026-08-03"]
+        #expect(calendarBounds(days, .month, today: "2026-11-01") == "2026-08-01"..."2026-11-01")
+        #expect(calendarBounds(days, .week, today: "2026-11-01") == "2026-08-03"..."2026-10-26")
+    }
+
+    @Test func noWorkoutsMeansOnlyToday() {
+        #expect(calendarBounds([String](), .month, today: "2026-11-01") == "2026-11-01"..."2026-11-01")
+    }
+
+    @Test func switchingToWeeksLandsOnTheMonthsLastWorkout() {
+        let days = ["2026-10-01", "2026-10-23", "2026-09-21"]
+        #expect(anchorAfterSwitch("2026-10-01", to: .week, days: days, today: "2026-11-01") == "2026-10-23")
+        #expect(anchorAfterSwitch("2026-11-01", to: .week, days: days, today: "2026-11-01") == "2026-11-01")
+        #expect(anchorAfterSwitch("2026-07-01", to: .week, days: days, today: "2026-11-01") == "2026-07-01")
+        #expect(anchorAfterSwitch("2026-10-19", to: .month, days: days, today: "2026-11-01") == "2026-10-19")
+    }
+}
+
+@Suite struct CalendarDaysTests {
+    @Test func onlyFinishedWorkoutsLightADay() {
+        let open = Workout(name: "In progress", date: "2026-10-31")
+        let byDay = workoutsByDay([finished("2026-10-23"), open])
+        #expect(Set(byDay.keys) == ["2026-10-23"])
+    }
+
+    @Test func twoWorkoutsOnOneDayNewestFirst() {
+        let am = finished("2026-10-23", "Morning", startedAt: 1_000)
+        let pm = finished("2026-10-23", "Evening", startedAt: 50_000_000)
+        #expect(workoutsByDay([am, pm])["2026-10-23"]?.map(\.name) == ["Evening", "Morning"])
+    }
+
+    @Test func summaryListsLoggedExercisesAndCountsDoneSets() {
+        let logged = WorkoutItem(versionId: "a", sets: [entry(.warmup, 20, 12), entry(), entry(.working, 45, 6)])
+        let warmupOnly = WorkoutItem(versionId: "b", sets: [entry(.warmup, 25, 8)])
+        let untouched = WorkoutItem(versionId: "c", sets: [entry(.working, nil, nil)])
+        let w = finished("2026-10-23", items: [logged, warmupOnly, untouched])
+        #expect(summaryItems(w).map(\.versionId) == ["a", "b"])
+        #expect(doneSetCount(w) == 2)
+        #expect(topSet(logged)?.valueText == "45×6")
+    }
+}
