@@ -60,6 +60,7 @@ struct TouchWatch: UIViewRepresentable {
 }
 
 /// True while a sheet, popover, alert or cover is up anywhere, so the page under it stays put.
+@MainActor
 func somethingPresented() -> Bool {
     UIApplication.shared.connectedScenes
         .compactMap { $0 as? UIWindowScene }

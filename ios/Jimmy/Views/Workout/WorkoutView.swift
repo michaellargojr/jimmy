@@ -31,8 +31,6 @@ struct WorkoutView: View {
     /// blacks the screen on a call. Uncovered after this long, the page lands on your set.
     @State private var coveredAt: Date? = nil
     static let pocketHold: TimeInterval = 2
-    /// Once a second, to notice when you've been still long enough to go back to your set.
-    private let ticks = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
     /// through the bar while you're on this one.
@@ -83,14 +81,21 @@ struct WorkoutView: View {
                     .onAppear {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { goToSet(w, proxy: proxy, glide: false) }
                     }
+                    // The first time the scroll area has a size, land again: a landing before layout can miss.
+                    .onChange(of: pageHeight) { was, now in if was == 0, now > 0 { goToSet(w, proxy: proxy, glide: false) } }
                     .onChange(of: nav.focusRequest) { _, _ in goToSet(w, proxy: proxy, glide: nav.focusGlides) }
-                    .onReceive(ticks) { now in
-                        let wait = store.settings.returnAfter
-                        guard wait > 0, scenePhase == .active, nav.tab == .workout,
-                              now.timeIntervalSince(nav.lastTouch) >= Double(wait), !somethingPresented() else { return }
-                        // Counts as a touch, so the next glide waits the full time again.
-                        nav.lastTouch = now
-                        goToSet(w, proxy: proxy, glide: true)
+                    .task {
+                        // Once a second: still for long enough, the app in front, nothing up? Then glide back.
+                        while !Task.isCancelled {
+                            try? await Task.sleep(for: .seconds(1))
+                            let wait = store.settings.returnAfter
+                            guard wait > 0, UIApplication.shared.applicationState == .active, nav.tab == .workout,
+                                  Date().timeIntervalSince(nav.lastTouch) >= Double(wait),
+                                  !somethingPresented(), let w = store.workout(workoutId) else { continue }
+                            // Counts as a touch, so the next glide waits the full time again.
+                            nav.lastTouch = Date()
+                            goToSet(w, proxy: proxy, glide: true)
+                        }
                     }
                     .sensoryFeedback(.impact(weight: .light), trigger: glides)
                     // Pocket mode. While the sensor is on, covering it turns the screen off and the phone
