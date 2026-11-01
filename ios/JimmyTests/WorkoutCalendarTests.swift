@@ -118,11 +118,11 @@ private func finished(_ date: String, _ name: String = "W", startedAt: Double = 
     }
 
     @Test func pastMonthAveragesOverTheWholeMonth() {
-        let byDay = workoutsByDay(["2026-10-01", "2026-10-09", "2026-10-15", "2026-10-23", "2026-10-30"].map { timed($0, minutes: 60) })
+        let byDay = workoutsByDay(["2026-10-01", "2026-10-09", "2026-10-15", "2026-10-23", "2026-10-30"].map { timed($0, minutes: 70) })
         let s = monthStats(byDay, month: "2026-10-12", today: "2026-11-05")
         #expect(s.count == 5)
         #expect(perWeekText(s.perWeek) == "1.1 Workouts per Week")   // 5 over 31 days
-        #expect(s.minutes == 60)
+        #expect(s.minutes == 70)
     }
 
     @Test func thisMonthCountsTheDaysSoFarButAtLeastAWeek() {
@@ -134,10 +134,21 @@ private func finished(_ date: String, _ name: String = "W", startedAt: Double = 
 
     @Test func averageLengthSkipsWorkoutsWithoutTimes() {
         let untimed = Workout(name: "Old", date: "2026-10-05", endedAt: 5)
-        let s = monthStats(workoutsByDay([timed("2026-10-01", minutes: 60), timed("2026-10-02", minutes: 45), untimed]), month: "2026-10-01", today: "2026-11-01")
+        let s = monthStats(workoutsByDay([timed("2026-10-01", minutes: 75), timed("2026-10-02", minutes: 30), untimed]), month: "2026-10-01", today: "2026-11-01")
         #expect(s.count == 3)
         #expect(s.minutes == 53)   // 52.5 rounds up
         #expect(monthStats(workoutsByDay([untimed]), month: "2026-10-01", today: "2026-11-01").minutes == nil)
+    }
+
+    @Test func importedOneHourPlaceholdersAreLeftOut() {
+        // Michael's October: three seeded workouts at exactly 60:00.000, then 93 and 106 min timed live.
+        let seeded = ["2026-10-01", "2026-10-10", "2026-10-15"].map { finished($0) }
+        #expect(seeded.allSatisfy { $0.hasPlaceholderLength })
+        #expect(!timed("2026-10-19", minutes: 60.5).hasPlaceholderLength)
+        let s = monthStats(workoutsByDay(seeded + [timed("2026-10-19", minutes: 93), timed("2026-10-23", minutes: 106)]), month: "2026-10-01", today: "2026-11-01")
+        #expect(s.count == 5)
+        #expect(s.minutes == 100)   // 99.5 rounds up
+        #expect(monthStats(workoutsByDay(seeded), month: "2026-10-01", today: "2026-11-01").minutes == nil)
     }
 
     @Test func texts() {

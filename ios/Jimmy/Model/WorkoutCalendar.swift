@@ -116,8 +116,18 @@ struct MonthStats: Equatable {
     /// Workouts per week: the whole month for a past month, the days so far for this one
     /// (counted as at least a week, so one workout on the 1st reads 1 a week, not 7).
     var perWeek: Double
-    /// Average length of the workouts that have a start and end time; nil when none do.
+    /// Average length of the workouts with a real start and end time; nil when none have one.
     var minutes: Int?
+}
+
+extension Workout {
+    /// Seeded and imported workouts got a stand-in length of exactly one hour (SeedBuilder and the
+    /// web app's import). A timed workout never lands on 3,600,000 ms to the millisecond, so these
+    /// stay out of the minutes average.
+    var hasPlaceholderLength: Bool {
+        guard let s = startedAt, let e = endedAt else { return false }
+        return e - s == 3_600_000
+    }
 }
 
 func monthStats(_ byDay: [String: [Workout]], month day: String, today t: String = today()) -> MonthStats {
@@ -125,7 +135,7 @@ func monthStats(_ byDay: [String: [Workout]], month day: String, today t: String
     let workouts = byDay.filter { monthStart($0.key) == start }.flatMap { $0.value }
     let length = mondayCalendar.range(of: .day, in: .month, for: dayDate(start))?.count ?? 30
     let days = monthStart(t) == start ? (Int(t.suffix(2)) ?? length) : length
-    let lengths = workouts.compactMap(\.durationMinutes)
+    let lengths = workouts.filter { !$0.hasPlaceholderLength }.compactMap(\.durationMinutes)
     let minutes = lengths.isEmpty ? nil : Int((Double(lengths.reduce(0, +)) / Double(lengths.count)).rounded())
     return MonthStats(count: workouts.count, perWeek: Double(workouts.count) / (Double(max(days, 7)) / 7), minutes: minutes)
 }
