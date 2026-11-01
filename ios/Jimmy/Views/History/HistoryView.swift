@@ -3,7 +3,7 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
-    /// 0 Calendar (first, opens by default), 1 Workouts, 2 Exercises.
+    /// 0 Calendar (first, opens by default), 1 Routines (named like Plan), 2 Exercises.
     @State private var segment = 0
     @State private var path = NavigationPath()
 
@@ -19,7 +19,7 @@ struct HistoryView: View {
                 }
                 HStack(spacing: 8) {
                     Chip(text: "Calendar", on: segment == 0) { segment = 0 }
-                    Chip(text: "Workouts", on: segment == 1) { segment = 1 }
+                    Chip(text: "Routines", on: segment == 1) { segment = 1 }
                     Chip(text: "Exercises", on: segment == 2) { segment = 2 }
                     Spacer()
                 }
