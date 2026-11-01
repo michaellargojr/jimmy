@@ -1,5 +1,17 @@
 # Jimmy version history
 
+## 2.1 - Nov 2, 2026
+
+Everything finished so far, merged into one build.
+
+- Machine chips on two lines, and machine screens fit small phones.
+- Colors: Signal red is now Flamingo, and there's a new deep Crimson.
+- Swiping between exercises responds right away, with a Start button, and the Workout page fits small screens.
+- Every page keeps room under the tab bar, so the last row and buttons aren't hidden.
+- History: exercise subtext reads "3 Workouts - Last Oct 23" everywhere.
+- History: a workout calendar as the first segment.
+- The keyboard closes when you tap away or scroll, on every page and sheet.
+
 ## 2.0 - Nov 1, 2026
 
 The first version on Michael's iPhone, installed from Xcode with a free Apple ID.
@@ -7,6 +19,7 @@ The first version on Michael's iPhone, installed from Xcode with a free Apple ID
 - Backup to a folder in iCloud Drive after every finished workout, with Restore (Settings > Backup).
 - Floating tab bar with the Workout tile in the middle.
 - The Oct 19 and Oct 23 workouts from the old web app merged into his data.
+- Machines as their own variations: a machine list, Plates or Stack, and Help me choose.
 
 ## 1 - Oct 23 to Oct 31, 2026
 
