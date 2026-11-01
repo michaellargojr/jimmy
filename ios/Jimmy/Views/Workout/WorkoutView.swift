@@ -62,6 +62,9 @@ struct WorkoutView: View {
                 .scrollIndicators(.hidden)
                 if let end = restEndsAt, store.settings.restTimer { restBar(end) }
             }
+            // The whole page, header included, is held to the screen's width too, whatever the
+            // tab bar around it offers, so nothing can lay it out wider than the phone.
+            .containerRelativeFrame(.horizontal)
             .background(p.bg.ignoresSafeArea())
             .sheet(isPresented: $showOverview, onDismiss: {
                 if let t = pendingAdd { pendingAdd = nil; adding = t }
