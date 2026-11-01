@@ -182,6 +182,10 @@ struct SplitEditorView: View {
     @State private var newName = ""
     @State private var created: Routine? = nil
     @State private var editing: SlotEdit? = nil
+    @State private var duplicating: Routine? = nil
+    @State private var justMade: Routine? = nil
+    @State private var renamingRoutine: Routine? = nil
+    @State private var routineName = ""
     @Environment(\.editMode) private var editMode
 
     /// One spot of the cycle opened in the edit sheet.
@@ -222,6 +226,13 @@ struct SplitEditorView: View {
                         }
                         .buttonStyle(.plain)
                         .rowCard(p)
+                        .contextMenu {
+                            if let r = store.routine(rid) {
+                                RoutineMenu(rename: { routineName = r.name; renamingRoutine = r },
+                                            duplicate: { duplicating = r },
+                                            remove: { var ss = s; if ss.routineIds.indices.contains(i) { ss.routineIds.remove(at: i) }; store.put(ss) })
+                            }
+                        }
                     }
                     .onMove { from, to in var ss = s; ss.routineIds.move(fromOffsets: from, toOffset: to); store.put(ss) }
                     .onDelete { idx in var ss = s; ss.routineIds.remove(atOffsets: idx); store.put(ss) }
@@ -290,6 +301,21 @@ struct SplitEditorView: View {
                 RoutineDraftSheet(mode: .edit(splitId: s.id, slot: e.slot), routine: e.routine, takenNames: store.routines.map(\.name))
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
+            }
+            // The copy opens once the sheet has gone, or the push is lost under it.
+            .sheet(item: $duplicating, onDismiss: { created = justMade; justMade = nil }) { r in
+                RoutineDraftSheet(mode: .duplicate, routine: r, takenNames: store.routines.map(\.name)) { justMade = $0 }
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            .alert("Rename routine", isPresented: Binding(get: { renamingRoutine != nil }, set: { if !$0 { renamingRoutine = nil } })) {
+                TextField("Name", text: $routineName)
+                Button("Save") {
+                    let n = routineName.trimmingCharacters(in: .whitespaces)
+                    if var r = renamingRoutine, !n.isEmpty { r.name = n; store.put(r) }
+                    renamingRoutine = nil
+                }
+                Button("Cancel", role: .cancel) { renamingRoutine = nil }
             }
             .routineUndoBar(splitId: s.id)
             #if DEBUG

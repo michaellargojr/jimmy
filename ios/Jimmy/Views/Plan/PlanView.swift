@@ -146,6 +146,8 @@ struct RoutinesList: View {
     @State private var duplicating: Routine? = nil
     @State private var justMade: Routine? = nil
     @State private var created: Routine? = nil
+    @State private var renaming: Routine? = nil
+    @State private var newName = ""
 
     var body: some View {
         List {
@@ -163,6 +165,7 @@ struct RoutinesList: View {
                     .padding(.horizontal, 18).padding(.vertical, 14)
                 }
                 .rowCard(p, radius: Radius.card)
+                .contextMenu { RoutineMenu(rename: { newName = r.name; renaming = r }, duplicate: { duplicating = r }, delete: { store.deleteRoutine(r.id) }) }
                 .swipeActions {
                     Button(role: .destructive) { store.deleteRoutine(r.id) } label: { Label("Delete", systemImage: "trash") }
                     Button { duplicating = r } label: { Label("Duplicate", systemImage: "doc.on.doc") }.tint(Color(hex: 0x4A4C55))
@@ -182,5 +185,30 @@ struct RoutinesList: View {
                 .presentationBackground(p.card)
         }
         .navigationDestination(item: $created) { c in RoutineEditorView(routineId: c.id) }
+        .alert("Rename routine", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("Name", text: $newName)
+            Button("Save") {
+                let n = newName.trimmingCharacters(in: .whitespaces)
+                if var r = renaming, !n.isEmpty { r.name = n; store.put(r) }
+                renaming = nil
+            }
+            Button("Cancel", role: .cancel) { renaming = nil }
+        }
+    }
+}
+
+/// What a held routine offers, the same as the ••• menu on its page. Remove takes it out of
+/// one split only; Delete takes it out of the app.
+struct RoutineMenu: View {
+    var rename: () -> Void
+    var duplicate: () -> Void
+    var remove: (() -> Void)? = nil
+    var delete: (() -> Void)? = nil
+
+    var body: some View {
+        Button(action: rename) { Label("Rename", systemImage: "pencil") }
+        Button(action: duplicate) { Label("Duplicate", systemImage: "doc.on.doc") }
+        if let remove { Button(role: .destructive, action: remove) { Label("Remove from split", systemImage: "minus.square") } }
+        if let delete { Button(role: .destructive, action: delete) { Label("Delete routine", systemImage: "trash") } }
     }
 }

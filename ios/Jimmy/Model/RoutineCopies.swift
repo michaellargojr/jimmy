@@ -24,8 +24,11 @@ struct RoutineDraft: Equatable {
 
     var items: [RoutineItem] { rows.map(\.item) }
 
-    mutating func remove(id: String) {
-        rows.removeAll { $0.id == id }
+    mutating func remove(id: String) { remove(ids: [id]) }
+
+    /// Duplicate: the unticked rows leave together, then groups are tidied once.
+    mutating func remove(ids: Set<String>) {
+        rows.removeAll { ids.contains($0.id) }
         tidyGroups()
     }
 

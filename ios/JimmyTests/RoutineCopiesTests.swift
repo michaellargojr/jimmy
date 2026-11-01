@@ -29,6 +29,20 @@ import Testing
         #expect(!d.matches(r))
     }
 
+    @Test func untickedRowsLeaveTogether() {
+        let g = ExerciseGroup(id: "g", type: .triset)
+        let r = Routine(name: "Arms", items: [RoutineItem(versionId: "a", groupId: "g"), RoutineItem(versionId: "b", groupId: "g"),
+                                              RoutineItem(versionId: "c", groupId: "g"), RoutineItem(versionId: "d")], groups: [g])
+        var d = RoutineDraft(r, name: "Arms 2")
+        d.remove(ids: [d.rows[0].id, d.rows[3].id])
+        // Two of the triset stay together as a group of two.
+        #expect(d.items.map(\.versionId) == ["b", "c"])
+        #expect(d.items.allSatisfy { $0.groupId == "g" })
+        #expect(d.groups == [g])
+        let copy = d.routine()
+        #expect(copy.name == "Arms 2" && copy.items.count == 2)
+    }
+
     @Test func moveIsSwiftUIsMove() {
         let r = Routine(name: "R", items: ["a", "b", "c", "d"].map { RoutineItem(versionId: $0) })
         var d = RoutineDraft(r)

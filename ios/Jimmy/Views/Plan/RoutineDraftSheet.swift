@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// One sheet for two jobs, so both work the same way:
-/// - Duplicate: name the copy, remove, reorder or add exercises, then Create routine.
-/// - Edit from the split page: remove, reorder or add, then Done. A routine taken from the
+/// One sheet for two jobs:
+/// - Duplicate (Michael's pick A): name the copy, untick the exercises to leave out, Create routine.
+/// - Edit from the split page (pick 2): remove, reorder or add, then Done. A routine taken from the
 ///   routine list asks first: Save as new routine, Update it, or Discard changes.
 /// Nothing is saved until Create or Done.
 struct RoutineDraftSheet: View {
@@ -20,6 +20,8 @@ struct RoutineDraftSheet: View {
     var onCreated: (Routine) -> Void = { _ in }
 
     @State private var draft: RoutineDraft
+    /// Duplicate: the rows unticked, left out of the copy.
+    @State private var leftOut: Set<String> = []
     @State private var adding = false
     @State private var asking = false
     @State private var naming = false
@@ -34,7 +36,10 @@ struct RoutineDraftSheet: View {
     }
 
     private var isDuplicate: Bool { mode == .duplicate }
-    private var changed: Bool { !draft.matches(original) || (isDuplicate && draft.name != copyName(original.name, taken: store.routines.map(\.name))) }
+    private var changed: Bool {
+        !draft.matches(original) || !leftOut.isEmpty || (isDuplicate && draft.name != copyName(original.name, taken: store.routines.map(\.name)))
+    }
+    private var kept: Int { draft.rows.count - leftOut.count }
 
     var body: some View {
         ZStack {
@@ -43,10 +48,11 @@ struct RoutineDraftSheet: View {
                 if isDuplicate { nameField }
                 rows
                 if isDuplicate {
-                    PillButton(title: "Create routine", style: .primary, full: true, height: 52) { create() }
-                        .disabled(draft.rows.isEmpty)
-                        .opacity(draft.rows.isEmpty ? 0.4 : 1)
-                        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 12)
+                    PillButton(title: "Create routine", style: .primary, full: true, height: 54) { create() }
+                        .disabled(kept == 0)
+                        .opacity(kept == 0 ? 0.4 : 1)
+                        .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 12)
+                        .background(p.card)
                 }
             }
             if asking { changedPanel }
@@ -65,11 +71,17 @@ struct RoutineDraftSheet: View {
         }
         #if DEBUG
         .task {
-            // -routineDemo ask: drop the second to last exercise, then tap Done.
-            guard !isDuplicate, RoutineDemo.once("ask", for: ["ask"]), draft.rows.count > 1 else { return }
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            draft.remove(id: draft.rows[draft.rows.count - 2].id)
-            done()
+            // -routineDemo duplicate: untick the second to last exercise.
+            // -routineDemo ask: remove it in the edit sheet, then tap Done.
+            guard draft.rows.count > 1 else { return }
+            let target = draft.rows[draft.rows.count - 2].id
+            if isDuplicate {
+                if RoutineDemo.once("untick", for: ["duplicate"]) { leftOut.insert(target) }
+            } else if RoutineDemo.once("ask", for: ["ask"]) {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                draft.remove(id: target)
+                done()
+            }
         }
         #endif
     }
@@ -99,28 +111,82 @@ struct RoutineDraftSheet: View {
                 .font(.system(size: 17, weight: .semibold)).foregroundStyle(p.text)
                 .padding(.horizontal, 14).frame(height: 48)
                 .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-            SectionLabel("Exercises").padding(.leading, 4).padding(.top, 12)
+            HStack {
+                SectionLabel("Exercises")
+                Spacer()
+                Text("\(kept) of \(draft.rows.count)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
+            }
+            .padding(.horizontal, 4).padding(.top, 12)
         }
         .padding(.horizontal, 20).padding(.bottom, 4)
     }
 
     private var rows: some View {
         List {
-            ForEach(draft.rows) { row in rowView(row) }
-                .onMove { from, to in draft.move(from: from, to: to) }
-            PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            if isDuplicate {
+                ForEach(draft.rows) { row in tickRow(row) }
+            } else {
+                ForEach(draft.rows) { row in rowView(row) }
+                    .onMove { from, to in draft.move(from: from, to: to) }
+                PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
     }
 
-    private func rowView(_ row: RoutineDraft.Row) -> some View {
+    private func exerciseName(_ item: RoutineItem) -> String {
+        store.version(item.versionId).map { store.baseName($0) } ?? "Missing exercise"
+    }
+
+    /// Name over its chips (and its superset label), the same in both kinds of row.
+    private func exerciseLabel(_ row: RoutineDraft.Row) -> some View {
         let v = store.version(row.item.versionId)
-        let name = v.map { store.baseName($0) } ?? "Missing exercise"
         let inGroup = row.item.groupId.map { gid in draft.rows.filter { $0.item.groupId == gid }.count } ?? 0
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(exerciseName(row.item)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text)
+            HStack(spacing: 6) {
+                if inGroup > 1 {
+                    Text(GroupType.forCount(inGroup).label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent)
+                }
+                if let v {
+                    VariationChips(tags: store.variationChips(v), size: .small, note: store.style(row.item.styleId)?.label)
+                }
+            }
+        }
+    }
+
+    /// Duplicate: tap anywhere on the row to tick or untick it. Unticked rows stay, dimmed.
+    private func tickRow(_ row: RoutineDraft.Row) -> some View {
+        let on = !leftOut.contains(row.id)
+        return Button {
+            if on { leftOut.insert(row.id) } else { leftOut.remove(row.id) }
+        } label: {
+            HStack(spacing: 12) {
+                RectCheck(on: on, size: 26)
+                exerciseLabel(row).opacity(on ? 1 : 0.45)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(exerciseName(row.item))
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(p.elevated)
+                .padding(.horizontal, 16).padding(.vertical, 3)
+        )
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 3, leading: 28, bottom: 3, trailing: 28))
+    }
+
+    /// Edit from the split page: remove on the left, hold and drag to reorder.
+    private func rowView(_ row: RoutineDraft.Row) -> some View {
+        let name = exerciseName(row.item)
         return HStack(spacing: 12) {
             Button { withAnimation(.snappy) { draft.remove(id: row.id) } } label: {
                 Image(systemName: "minus")
@@ -133,17 +199,7 @@ struct RoutineDraftSheet: View {
             .buttonStyle(.plain)
             .padding(.horizontal, -6)
             .accessibilityLabel("Remove \(name)")
-            VStack(alignment: .leading, spacing: 4) {
-                Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text)
-                HStack(spacing: 6) {
-                    if inGroup > 1 {
-                        Text(GroupType.forCount(inGroup).label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent)
-                    }
-                    if let v {
-                        VariationChips(tags: store.variationChips(v), size: .small, note: store.style(row.item.styleId)?.label)
-                    }
-                }
-            }
+            exerciseLabel(row)
             Spacer(minLength: 0)
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 15, weight: .semibold)).foregroundStyle(p.border)
@@ -165,7 +221,7 @@ struct RoutineDraftSheet: View {
                 .onTapGesture { withAnimation(.snappy) { asking = false } }
             VStack(alignment: .leading, spacing: 10) {
                 Text("\(original.name) changed").font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)
-                Text(routineChanges(from: original.items, to: draft.items) { i in store.version(i.versionId).map { store.baseName($0) } ?? "Missing exercise" })
+                Text(routineChanges(from: original.items, to: draft.items) { exerciseName($0) })
                     .font(.system(size: 15)).foregroundStyle(p.secondary)
                     .padding(.bottom, 8)
                 PillButton(title: "Save as new routine", style: .primary, full: true, height: 52) {
@@ -188,6 +244,7 @@ struct RoutineDraftSheet: View {
     // MARK: Actions
 
     private func create() {
+        draft.remove(ids: leftOut)
         let n = draft.name.trimmingCharacters(in: .whitespaces)
         draft.name = n.isEmpty ? copyName(original.name, taken: store.routines.map(\.name)) : n
         let r = store.createRoutine(from: draft)
