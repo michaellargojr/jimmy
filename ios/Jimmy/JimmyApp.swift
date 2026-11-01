@@ -12,14 +12,28 @@ struct JimmyApp: App {
                 .keyboardDismissal()
                 .environment(store)
                 .environment(nav)
-                .onAppear { if !store.loaded { store.load() } }
-                #if DEBUG
-                // A test simulator can open straight on the Workout tab for screenshots: -openTab workout
                 .onAppear {
+                    if !store.loaded { store.load() }
+                    #if DEBUG
+                    // A test simulator can open straight on the Workout tab for screenshots (-openTab workout),
+                    // and start the first routine with two sets logged and the next two exercises as a
+                    // superset (-demoWorkout), so screenshots can show the landing and the group chips.
                     let args = ProcessInfo.processInfo.arguments
+                    if args.contains("-demoWorkout"), store.activeWorkout == nil, let r = store.routines.first {
+                        var w = store.startWorkout(from: r)
+                        store.startClock(w.id)
+                        w = store.workout(w.id) ?? w
+                        for j in w.items[0].sets.indices.prefix(2) {
+                            w.items[0].sets[j].weight = w.items[0].sets[j].weight ?? 20
+                            w.items[0].sets[j].reps = 10
+                        }
+                        store.put(w)
+                        if w.items.count >= 3 { store.put(makeGroup(w, ids: [w.items[1].id, w.items[2].id])) }
+                        nav.tab = .workout
+                    }
                     if let i = args.firstIndex(of: "-openTab"), i + 1 < args.count, args[i + 1] == "workout" { nav.tab = .workout }
+                    #endif
                 }
-                #endif
         }
     }
 }
