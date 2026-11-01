@@ -35,6 +35,17 @@ extension AppStore {
         routineUndo = undoable ? RoutineUndo(message: "Updated \(old.name)", splitId: splitId, routineBefore: old) : nil
     }
 
+    /// A copy made on the split page joins that split at the end, as a routine made there.
+    /// Undo takes the copy out of the app again.
+    func addCopy(_ r: Routine, toSplit splitId: String) {
+        guard var s = splits.first(where: { $0.id == splitId }) else { return }
+        let before = s
+        s.add(r.id)
+        s.noteMadeHere(r.id)
+        put(s)
+        routineUndo = RoutineUndo(message: "Added \(r.name)", splitId: splitId, splitBefore: before, createdRoutineId: r.id)
+    }
+
     func undoRoutineChange() {
         guard let u = routineUndo else { return }
         if let s = u.splitBefore { put(s) }

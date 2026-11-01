@@ -7,6 +7,15 @@ The note under each heading (build, PRs, install details) is ours and is never p
 How versions and builds move, and who writes the next entry: ios/README.md.
 -->
 
+## 2.3 - Nov 2, 2026
+
+<!-- Build 3. The split page rework from Michael's notes after the 2.2 install (Model/SplitBuilding.swift, Views/Plan/FromRoutinesSheet.swift), on claude/awesome-allen-64bza1. -->
+
+- New routine on a split page offers to take exercises from your other routines: open any routine, tick the exercises you want, from as many routines as you like, and they join the new routine together. A superset ticked whole stays a superset.
+- From my routines is also a button on every routine's page and in the edit sheet on the split page.
+- Hold any routine under Add a routine for Rename, Duplicate or Delete, the same as under In this split. A routine duplicated from the split page joins that split, with Undo.
+- A new split opens its page straight away. While a split has no routines yet, Coverage sits at the bottom, under Goals, In this split, New routine and Add a routine. A split with routines keeps Coverage second.
+
 ## 2.2 - Nov 2, 2026
 
 <!-- Build 2. PRs #24 to #28, the Workout scrolling rework (claude/project-thread-iayncu at ed8ad5e), nicknames (claude/project-thread-3v8j1k at eda86c7) and the lock screen card (claude/project-thread-0mu8do at fea0318, layout C2 draft), merged on claude/awesome-allen-64bza1. Nicknames and the lock screen card had not finished their Mac test run when merged; the GitHub Actions iOS check (.github/workflows/ios.yml) compiles and tests the merged code. Built for Michael's iPhone 12 mini. -->

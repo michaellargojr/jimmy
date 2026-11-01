@@ -45,6 +45,8 @@ struct PlanView: View {
                         let s = Split(name: name.isEmpty ? "New split" : name)
                         store.put(s)
                         if store.splits.count == 1 { store.update { $0.activeSplitId = s.id } }
+                        // Straight onto its page, to put it together.
+                        path.append(s)
                     } else {
                         store.put(Routine(name: name.isEmpty ? "New routine" : name))
                     }
