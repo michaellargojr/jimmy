@@ -9,6 +9,9 @@ struct WorkoutView: View {
     let workoutId: String
 
     @State private var current: Int? = 0
+    /// The panes whose top has scrolled past the upper part of the page. The highest is the one on
+    /// screen, read from the layout itself, so the strip is right however the page got there.
+    @State private var passed: Set<Int> = []
     @State private var showOverview = false
     @State private var showSettings = false
     @State private var adding: AddTarget? = nil
@@ -70,6 +73,9 @@ struct WorkoutView: View {
                                 // Room under each pane, so the next exercise doesn't show through the tab bar.
                                 .padding(.bottom, Self.paneGap)
                                 .id(idx)
+                                .onGeometryChange(for: Bool.self) { $0.frame(in: .scrollView).minY <= pageHeight * 0.4 } action: { on in
+                                    if on { passed.insert(idx) } else { passed.remove(idx) }
+                                }
                             }
                             if ps.isEmpty { emptyPane.containerRelativeFrame([.horizontal, .vertical]).id(0) }
                         }
@@ -206,7 +212,7 @@ struct WorkoutView: View {
     /// One block per exercise (a superset is one), filled when all its sets are checked. The one
     /// on screen is white. Tapping a block jumps straight to that exercise, for when a swipe won't do.
     private func progressStrip(_ finished: [Bool]) -> some View {
-        let here = min(max(current ?? 0, 0), finished.count - 1)
+        let here = min(max(passed.max() ?? 0, 0), finished.count - 1)
         return HStack(spacing: 4) {
             ForEach(finished.indices, id: \.self) { i in
                 Button { withAnimation(.snappy) { current = i } } label: {

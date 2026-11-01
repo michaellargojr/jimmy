@@ -129,7 +129,12 @@ struct RootView: View {
                 guard let since = awayAt else { return }
                 awayAt = nil
                 let wait = store.settings.returnAfter
-                if wait > 0, store.activeWorkout != nil, Date().timeIntervalSince(since) >= Double(wait) { nav.openWorkoutAtSet() }
+                if wait > 0, store.activeWorkout != nil, Date().timeIntervalSince(since) >= Double(wait) {
+                    nav.openWorkoutAtSet()
+                } else {
+                    // Time away doesn't count as sitting still: the wait starts over from here.
+                    nav.lastTouch = Date()
+                }
             default: break
             }
         }
