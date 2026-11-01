@@ -80,7 +80,7 @@ struct VariationPill: View {
     }
 }
 
-/// A variation's chip with an optional quiet note after it ("Rope", "3 sessions"); the note
+/// A variation's chip with an optional quiet note after it ("Rope", "3 Workouts - Last Oct 23"); the note
 /// drops to the next line when there isn't room.
 struct VariationChips: View {
     @Environment(\.palette) private var p

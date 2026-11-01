@@ -52,7 +52,7 @@ struct VariationHistoryCard: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         if let history {
-                            Text("\(monthDay(history.last)) - \(history.sessionsLabel)")
+                            Text(history.summary)
                                 .font(.system(size: 13)).foregroundStyle(p.muted)
                         }
                         if !lastSets.isEmpty {

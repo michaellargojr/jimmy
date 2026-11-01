@@ -186,12 +186,12 @@ struct ExercisesHistoryList: View {
         if tree.isEmpty { emptyText }
     }
 
-    /// The name, when it was last done, and how many variations have history (accent, like Plan).
+    /// The name, "3 Workouts - Last Oct 23", and how many variations have history (accent, like Plan).
     private func baseRow(_ b: BaseHistory) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(b.exercise.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                Text("Last \(monthDay(b.last))").font(.system(size: 12.5)).foregroundStyle(p.muted)
+                Text(b.summary).font(.system(size: 12.5)).foregroundStyle(p.muted)
             }
             Spacer()
             Text("\(b.variations.count)").font(.system(size: 14, weight: .heavy)).foregroundStyle(p.accent)
@@ -214,7 +214,7 @@ struct ExercisesHistoryList: View {
         return HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                VariationChips(tags: store.variationChips(v), size: .small, note: "\(monthDay(h.last)) - \(h.sessionsLabel)")
+                VariationChips(tags: store.variationChips(v), size: .small, note: h.summary)
             }
             Spacer()
             if let t = lastSession(versionId: v.id, workouts: store.finishedWorkouts, versions: store.versions).flatMap({ topSet($0.item) }) {
