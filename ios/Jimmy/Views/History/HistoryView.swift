@@ -186,12 +186,12 @@ struct ExercisesHistoryList: View {
         if tree.isEmpty { emptyText }
     }
 
-    /// The name, when it was last done, and how many variations have history (accent, like Plan).
+    /// The name, "3 Workouts - Last Oct 23", and how many variations have history (accent, like Plan).
     private func baseRow(_ b: BaseHistory) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(b.exercise.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                Text("Last \(monthDay(b.last))").font(.system(size: 12.5)).foregroundStyle(p.muted)
+                Text(b.summary).font(.system(size: 12.5)).foregroundStyle(p.muted)
             }
             Spacer()
             Text("\(b.variations.count)").font(.system(size: 14, weight: .heavy)).foregroundStyle(p.accent)

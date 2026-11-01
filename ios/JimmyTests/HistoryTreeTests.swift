@@ -72,6 +72,10 @@ private struct Fixture {
         let pulldown = back.bases[0]
         #expect(pulldown.variations.map(\.id) == ["p1", "p2"])
         #expect(pulldown.last == "2026-09-21")
+        // p1 on Aug 20 and Sep 21, p2 on Sep 21: two workouts, not three.
+        #expect(pulldown.workouts == 2)
+        #expect(pulldown.summary == "2 Workouts - Last \(monthDay("2026-09-21"))")
+        #expect(back.bases[1].summary == "1 Workout - Last \(monthDay("2026-08-20"))")
     }
 
     @Test func searchKeepsTheGroups() {
