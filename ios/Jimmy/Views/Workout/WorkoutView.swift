@@ -12,6 +12,9 @@ struct WorkoutView: View {
     /// The panes whose top has scrolled past the upper part of the page. The highest is the one on
     /// screen, read from the layout itself, so the strip is right however the page got there.
     @State private var passed: Set<Int> = []
+    /// The touch the page last glided (or landed) for, so a wait with no touch after it glides
+    /// once, not every time the wait passes again.
+    @State private var landedFor: Date? = nil
     @State private var showOverview = false
     @State private var showSettings = false
     @State private var adding: AddTarget? = nil
@@ -97,10 +100,8 @@ struct WorkoutView: View {
                             try? await Task.sleep(for: .seconds(1))
                             let wait = store.settings.returnAfter
                             guard wait > 0, UIApplication.shared.applicationState == .active, nav.tab == .workout,
-                                  Date().timeIntervalSince(nav.lastTouch) >= Double(wait),
+                                  Date().timeIntervalSince(nav.lastTouch) >= Double(wait), landedFor != nav.lastTouch,
                                   !somethingPresented(), let w = store.workout(workoutId) else { continue }
-                            // Counts as a touch, so the next glide waits the full time again.
-                            nav.lastTouch = Date()
                             goToSet(w, proxy: proxy, glide: true)
                         }
                     }
@@ -255,17 +256,16 @@ struct WorkoutView: View {
             // after the first get room above, so they read as distinct and not one long card.
             let labels = groupLabels(count: pane.count)
             ForEach(Array(pane.enumerated()), id: \.element.id) { n, item in
-                // The card sits in a stack of its own so the landing id is on a plain view. On the
-                // card itself, whose body is conditional, scrollTo never found it.
-                VStack(spacing: 0) {
-                    ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
-                                     groupLabel: pane.count > 1 ? labels[n] : nil,
-                                     onSwap: { adding = AddTarget(swapItemId: item.id) },
-                                     onAddAfter: { adding = AddTarget(afterItemId: item.id) })
-                }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
-                .id("item-\(item.id)")
-                .padding(.top, n > 0 ? Self.groupRoom : 0)
+                // The id is the outermost modifier, as on the panes and the set rows: with the
+                // padding outside it, scrollTo never found the card. So the room between members
+                // hangs under each card but the last, and a landing puts the card's own top up.
+                ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
+                                 groupLabel: pane.count > 1 ? labels[n] : nil,
+                                 onSwap: { adding = AddTarget(swapItemId: item.id) },
+                                 onAddAfter: { adding = AddTarget(afterItemId: item.id) })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
+                    .padding(.bottom, n < pane.count - 1 ? Self.groupRoom : 0)
+                    .id("item-\(item.id)")
             }
             footer(index: index, panesOf: w)
         }
@@ -320,6 +320,7 @@ struct WorkoutView: View {
     /// The first exercise of a pane lands by the pane's own id, which always resolves; a later
     /// member of a group lands by its card's id.
     private func goToSet(_ w: Workout, proxy: ScrollViewProxy, glide: Bool) {
+        landedFor = nav.lastTouch
         guard let point = Focus.point(w) else { return }
         let ps = panes(w.items)
         guard let paneIdx = ps.firstIndex(where: { $0.contains { $0.id == point.itemId } }) else { return }
