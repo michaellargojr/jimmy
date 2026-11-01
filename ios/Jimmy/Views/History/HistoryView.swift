@@ -106,8 +106,12 @@ struct WorkoutRow: View {
             .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(workout.name).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                Text([workout.durationMinutes.map { "\($0) min" }, "\(workout.items.count) exercises", "\(sets) sets"].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 13)).foregroundStyle(p.muted)
+                // On a small phone the full line would wrap, so the exercise count goes first.
+                let minutes = workout.durationMinutes.map { "\($0) min" }
+                ViewThatFits(in: .horizontal) {
+                    subline([minutes, "\(workout.items.count) exercises", "\(sets) sets"])
+                    subline([minutes, "\(sets) sets"])
+                }
             }
             Spacer()
             if up > 0 { Badge(text: "\(up) up", kind: .up) }
@@ -115,6 +119,10 @@ struct WorkoutRow: View {
             else { Badge(text: "held") }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    private func subline(_ parts: [String?]) -> some View {
+        Text(parts.compactMap { $0 }.joined(separator: " - ")).font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(1)
     }
 }
 
