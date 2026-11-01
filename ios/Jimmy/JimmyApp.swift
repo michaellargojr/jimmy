@@ -16,14 +16,16 @@ struct JimmyApp: App {
                     if !store.loaded { store.load() }
                     #if DEBUG
                     // A test simulator can open straight on the Workout tab for screenshots (-openTab workout),
-                    // and start the first routine with two sets logged and the next two exercises as a
-                    // superset (-demoWorkout), so screenshots can show the landing and the group chips.
+                    // and start the first routine with the next two exercises as a superset and the first
+                    // exercise's sets logged (-demoWorkout all, or -demoWorkout two for only its first two),
+                    // so screenshots can show the landing on your set and the group chips.
                     let args = ProcessInfo.processInfo.arguments
-                    if args.contains("-demoWorkout"), store.activeWorkout == nil, let r = store.routines.first {
+                    if let d = args.firstIndex(of: "-demoWorkout"), store.activeWorkout == nil, let r = store.routines.first {
+                        let two = d + 1 < args.count && args[d + 1] == "two"
                         var w = store.startWorkout(from: r)
                         store.startClock(w.id)
                         w = store.workout(w.id) ?? w
-                        for j in w.items[0].sets.indices.prefix(2) {
+                        for j in w.items[0].sets.indices.prefix(two ? 2 : w.items[0].sets.count) {
                             w.items[0].sets[j].weight = w.items[0].sets[j].weight ?? 20
                             w.items[0].sets[j].reps = 10
                         }
