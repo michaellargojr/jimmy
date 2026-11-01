@@ -548,6 +548,9 @@ struct SetRowView: View {
     @State private var dx: CGFloat = 0
     @State private var width: CGFloat = 0
     @State private var horizontal: Bool? = nil
+    /// True from the moment a row starts sliding until just after it lets go. The finger lifts over
+    /// whichever box it started on, so without this a swipe could also tick the set or open a picker.
+    @State private var sliding = false
 
     private static let deleteRed = Color(hex: 0xE5484D)
     private var done: Bool { entry.reps != nil && (entry.weight != nil || bodyweight) }
@@ -556,7 +559,7 @@ struct SetRowView: View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
                 // The label stays plain: the check mark alone says a set is done.
-                Button(action: onLabel) {
+                Button(action: unlessSliding(onLabel)) {
                     Text(label)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(entry.kind == .working ? p.secondary : p.muted)
@@ -568,14 +571,14 @@ struct SetRowView: View {
                 .accessibilityLabel("Set \(label)")
                 .accessibilityHint("Changes the set type")
 
-                field(value: entry.weight.map { fmtWeight($0) }, ghost: ghost?.weight.map { fmtWeight($0) }, suffix: entry.unit.label, action: onWeight)
+                field(value: entry.weight.map { fmtWeight($0) }, ghost: ghost?.weight.map { fmtWeight($0) }, suffix: entry.unit.label, action: unlessSliding(onWeight))
                 field(value: entry.reps.map { "\($0)\(entry.plus ? "+" : "")" }, ghost: ghost?.reps.map { "\($0)\(ghost!.plus ? "+" : "")" },
-                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, action: onReps)
-                field(value: entry.rating(rating).map { "\($0)" }, ghost: ghost?.rating(rating).map { "\($0)" }, suffix: nil, action: onRating)
+                      suffix: (entry.partials ?? 0) > 0 ? "p\(entry.partials!)" : nil, action: unlessSliding(onReps))
+                field(value: entry.rating(rating).map { "\($0)" }, ghost: ghost?.rating(rating).map { "\($0)" }, suffix: nil, action: unlessSliding(onRating))
                     .frame(width: 48)
                     .accessibilityLabel("\(rating.title) for set \(label)")
 
-                Button(action: onCheck) {
+                Button(action: unlessSliding(onCheck)) {
                     ZStack {
                         RoundedRectangle(cornerRadius: Radius.field, style: .continuous).fill(done ? p.accent : p.elevated)
                         RoundedRectangle(cornerRadius: Radius.field, style: .continuous).stroke(done ? .clear : p.border, lineWidth: 2)
@@ -612,7 +615,7 @@ struct SetRowView: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // Sideways only: a swipe up or down that starts on a row moves the page, not the row.
-        .sidewaysDrag(swipe, changed: { x in dx = min(0, x) }, ended: { x, predicted in letGo(x, predicted: predicted) })
+        .sidewaysDrag(swipe, changed: { x in slide(x) }, ended: { x, predicted in letGo(x, predicted: predicted) })
         .onChange(of: pendingDelete) { _, pending in
             if !pending { withAnimation(.snappy) { dx = 0 } }
         }
@@ -625,7 +628,7 @@ struct SetRowView: View {
             .onChanged { g in
                 if horizontal == nil { horizontal = abs(g.translation.width) > abs(g.translation.height) * 1.5 }
                 guard horizontal == true else { return }
-                dx = min(0, g.translation.width)
+                slide(g.translation.width)
             }
             .onEnded { g in
                 defer { horizontal = nil }
@@ -634,8 +637,21 @@ struct SetRowView: View {
             }
     }
 
+    /// Follows the finger to the left only.
+    private func slide(_ x: CGFloat) {
+        if abs(x) > 4 { sliding = true }
+        dx = min(0, x)
+    }
+
+    /// A tap on one of the row's boxes, ignored while the row is being swiped.
+    private func unlessSliding(_ action: @escaping () -> Void) -> () -> Void {
+        { if !sliding { action() } }
+    }
+
     /// Far enough, or flung far enough, and it asks to delete; otherwise it springs back.
     private func letGo(_ x: CGFloat, predicted: CGFloat) {
+        // The lifted finger's tap lands right after this; let it pass first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { sliding = false }
         let far = width > 0 && (x < -width * 0.55 || predicted < -width * 0.9)
         if far {
             withAnimation(.snappy) { dx = -width }

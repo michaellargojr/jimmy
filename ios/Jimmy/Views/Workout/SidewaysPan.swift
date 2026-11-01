@@ -39,16 +39,20 @@ struct SidewaysPan: UIGestureRecognizerRepresentable {
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        /// Mostly sideways, or it's the page's swipe.
+        /// Mostly sideways, or it's the page's swipe. Judged by how far the finger has gone, and by
+        /// its speed only if it hasn't measurably moved yet.
         func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
             guard let pan = g as? UIPanGestureRecognizer else { return true }
+            let t = pan.translation(in: pan.view)
             let v = pan.velocity(in: pan.view)
-            return abs(v.x) > abs(v.y) * 1.5
+            let (x, y) = abs(t.x) + abs(t.y) > 0 ? (t.x, t.y) : (v.x, v.y)
+            return abs(x) > abs(y) * 1.5
         }
 
-        /// The page's scroll keeps working alongside, so a sideways swipe never locks it.
+        /// Only the page's scroll runs alongside. Anything else under the finger, like the tap on a
+        /// set's boxes, gives way once the row starts sliding.
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            true
+            other.view is UIScrollView
         }
     }
 }
