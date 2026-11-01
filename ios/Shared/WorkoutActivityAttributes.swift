@@ -25,10 +25,6 @@ struct WorkoutActivityAttributes: ActivityAttributes {
         var setOf: String?
         /// "Left" or "Right" for one arm.
         var side: String?
-        /// The same set last time, written like the app writes sets: "15×15".
-        var lastTime: String?
-        /// No earlier session of this variation.
-        var firstTime: Bool
         var allDone: Bool
         /// The color scheme from Settings: the accent, and the text that sits on it.
         var accent: UInt32

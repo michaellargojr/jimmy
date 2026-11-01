@@ -14,8 +14,7 @@ enum ActivityState {
         let colors = Palette.accentHex(store.settings.scheme, dark: true)
         var state = State(workoutName: w.name, startedAt: Date(timeIntervalSince1970: started / 1000),
                           exercise: store.workoutName(v), tags: store.variationTags(v), groupLabel: groupLabel(item, in: w),
-                          setLine: "All sets done", setMark: nil, setOf: nil, side: nil, lastTime: nil, firstTime: false,
-                          allDone: true, accent: colors.accent, onAccent: colors.onAccent)
+                          setLine: "All sets done", setMark: nil, setOf: nil, side: nil, allDone: true, accent: colors.accent, onAccent: colors.onAccent)
         // Every set logged: the point is the last exercise, with no set.
         guard let setId = point.setId, let s = item.sets.first(where: { $0.id == setId }) else { return state }
         let words = setWords(s, in: item.sets)
@@ -24,14 +23,6 @@ enum ActivityState {
         state.setOf = words.of
         state.side = s.side.map { $0 == .L ? "Left" : "Right" }
         state.setLine = [words.line, state.side].compactMap { $0 }.joined(separator: " - ")
-        // The same set last time, paired the way the Workout card pairs its grey hints.
-        if let last = lastSession(versionId: v.id, styleId: item.styleId, workouts: store.workouts, versions: store.versions, excludeWorkoutId: w.id) {
-            if let match = matchLast(now: s, nowAll: item.sets, lastAll: last.item.sets), match.reps != nil {
-                state.lastTime = match.valueText
-            }
-        } else {
-            state.firstTime = true
-        }
         return state
     }
 

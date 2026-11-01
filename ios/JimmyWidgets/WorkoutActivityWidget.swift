@@ -75,13 +75,6 @@ struct LockCard: View {
             Text(state.setLine).font(.system(size: 18, weight: .bold)).foregroundStyle(Card.text)
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .padding(.top, 4)
-            if let last = state.lastTime {
-                (Text("Last time").font(.system(size: 15, weight: .bold)).foregroundColor(accent)
-                 + Text(" " + last).font(.system(size: 18, weight: .heavy)).foregroundColor(Card.text))
-                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
-            } else if state.firstTime {
-                Text("First time").font(.system(size: 15, weight: .semibold)).foregroundStyle(Card.muted)
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

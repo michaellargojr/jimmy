@@ -44,27 +44,16 @@ private func S(_ id: String, _ kind: SetKind = .working, side: Side? = nil, weig
         #expect(st.setLine == "Warm-up")
         #expect(st.setMark == "W")
         #expect(st.setOf == nil)
-        #expect(st.lastTime == "7.5×12")
         #expect(st.startedAt == Date(timeIntervalSince1970: 1_793_500_000))
         #expect(!st.allDone)
     }
 
-    @Test func afterTwoLoggedItsTheNextSetAndItsLastTime() throws {
+    @Test func afterTwoLoggedItsTheNextSet() throws {
         let w = today([S("w", .warmup, reps: 12, at: 1), S("a", reps: 15, at: 2), S("b")])
         let st = try #require(ActivityState.make(w, store: store([dbPress()], workouts: [lastShoulders(), w])))
         #expect(st.setLine == "Set 2 of 2")
         #expect(st.setMark == "2")
         #expect(st.setOf == "of 2")
-        #expect(st.lastTime == "17.5×8")
-        #expect(!st.firstTime)
-    }
-
-    @Test func firstTimeWhenThereIsNoEarlierSession() throws {
-        let w = today([S("a"), S("b")])
-        let st = try #require(ActivityState.make(w, store: store([dbPress()], workouts: [w])))
-        #expect(st.setLine == "Set 1 of 2")
-        #expect(st.lastTime == nil)
-        #expect(st.firstTime)
     }
 
     @Test func aGroupMemberSaysWhichItIs() throws {
@@ -99,7 +88,6 @@ private func S(_ id: String, _ kind: SetKind = .working, side: Side? = nil, weig
         #expect(st.allDone)
         #expect(st.setLine == "All sets done")
         #expect(st.setMark == nil)
-        #expect(st.lastTime == nil)
         #expect(st.exercise == "Dumbbell Shoulder Press")
     }
 
