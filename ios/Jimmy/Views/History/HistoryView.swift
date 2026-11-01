@@ -137,7 +137,9 @@ struct ExercisesHistoryList: View {
     private var sort: HistorySort { HistorySort(rawValue: sortRaw) ?? .muscle }
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
 
-    private func matches(_ v: Version) -> Bool { trimmed.isEmpty || store.fullName(v).lowercased().contains(trimmed) }
+    private func matches(_ v: Version) -> Bool {
+        trimmed.isEmpty || store.fullName(v).lowercased().contains(trimmed) || (store.nickname(v)?.lowercased().contains(trimmed) ?? false)
+    }
 
     var body: some View {
         let list = variationHistories(versions: store.versions, workouts: store.workouts)
@@ -233,7 +235,7 @@ struct ExercisesHistoryList: View {
         return HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                VariationChips(tags: store.variationChips(v), size: .small, note: h.summary)
+                VariationChips(tags: store.variationChips(v), size: .small, note: h.summary, nickname: store.nickname(v))
             }
             Spacer()
             if let t = lastSession(versionId: v.id, workouts: store.finishedWorkouts, versions: store.versions).flatMap({ topSet($0.item) }) {
@@ -282,7 +284,7 @@ struct WorkoutDetailView: View {
                                                 HStack {
                                                     VStack(alignment: .leading, spacing: 5) {
                                                         Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                                                        VariationChips(tags: store.variationChips(v), size: .small, note: store.style(item.styleId)?.label)
+                                                        VariationChips(tags: store.variationChips(v), size: .small, note: store.style(item.styleId)?.label, nickname: store.nickname(v))
                                                     }
                                                     Spacer()
                                                     switch verdict(item.sets, item.doneRange(v)) {

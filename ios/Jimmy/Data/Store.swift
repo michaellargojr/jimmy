@@ -77,6 +77,25 @@ final class AppStore {
         let names = [namedMachine ? tag : nil, v.machine?.trimmingCharacters(in: .whitespaces)].compactMap { $0 }.filter { !$0.isEmpty }
         return words.joined(separator: " ") + (names.isEmpty ? "" : " (\(names.joined(separator: " - ")))")
     }
+    /// "Bayesian Curl", or nil when the variation has none.
+    func nickname(_ v: Version) -> String? { cleanNickname(v.nickname) }
+    /// The nickname the app would suggest for a variation you have (its styles count for a pec deck).
+    func suggestedNickname(for v: Version) -> String? {
+        suggestNickname(base: baseName(v), family: v.family, position: v.position, tag: v.tag,
+                        styleMachines: styles(of: v.id).compactMap { $0.machine })
+    }
+    /// Gives every variation without a nickname the app's suggestion, once (see Settings.nicknamesFilled).
+    func fillNicknames() {
+        for i in versions.indices where cleanNickname(versions[i].nickname) == nil {
+            if let n = suggestedNickname(for: versions[i]) { versions[i].nickname = n }
+        }
+        settings.nicknamesFilled = true
+    }
+    func setNickname(_ versionId: String, _ text: String?) {
+        guard var v = version(versionId), cleanNickname(v.nickname) != cleanNickname(text) else { return }
+        v.nickname = cleanNickname(text)
+        put(v)
+    }
     /// The Workout subtitle: "Two arms", "One arm - seated", "One leg".
     func armsText(_ v: Version) -> String {
         let legs = base(of: v)?.isLegs ?? false
@@ -147,6 +166,7 @@ final class AppStore {
             if splits.isEmpty, !routines.isEmpty { seedSplitFromRoutines() }
             if s.version < 2 { migrateToLibraryV2(); markDirty() }
             if fillMachineLoading() { markDirty() }
+            if !settings.nicknamesFilled { fillNicknames(); markDirty() }
         } else {
             resetToSeed()
         }
@@ -197,6 +217,7 @@ final class AppStore {
         settings = keepSettings
         settings.activeSplitId = s.splits.first?.id
         fillMachineLoading()
+        fillNicknames()
         markDirty()
     }
 
@@ -210,6 +231,8 @@ final class AppStore {
         if splits.isEmpty { seedSplitFromRoutines() }
         if s.version < 2 { migrateToLibraryV2() }
         fillMachineLoading()
+        // An export from before nicknames gets the suggestions; a newer one keeps what you cleared.
+        if s.settings?.nicknamesFilled != true { fillNicknames() }
         markDirty()
     }
 

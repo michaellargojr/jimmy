@@ -251,7 +251,7 @@ struct WatchExerciseBlock: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(store.baseName(v)).font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                                    VariationChips(tags: store.variationChips(v), size: .small)
+                                    VariationChips(tags: store.variationChips(v), size: .small, nickname: store.nickname(v))
                                 }
                                 Spacer()
                                 Chevron()

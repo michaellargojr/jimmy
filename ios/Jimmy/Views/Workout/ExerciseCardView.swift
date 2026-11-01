@@ -115,9 +115,7 @@ struct ExerciseCardView: View {
     /// "Dumbbell Shoulder Press", then "Two arms" with the rep range, then the style.
     private func titleBlock(_ v: Version, item: WorkoutItem, w: Workout, range: RepRange) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(store.workoutName(v))
-                .font(.system(size: compact ? 23 : 28, weight: .heavy)).tracking(-0.5)
-                .foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)
+            NamedTitle(name: store.workoutName(v), nickname: store.nickname(v), size: compact ? 23 : 28, tag: compact ? .regular : .large)
                 .contextMenu { cardMenu(v) }
             HStack(spacing: 6) {
                 let tags = store.variationTags(v)
@@ -317,6 +315,7 @@ struct ExerciseCardView: View {
                         Text(store.workoutName(o.version)).font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
                         HStack(spacing: 6) {
                             let tags = store.variationTags(o.version)
+                            if let n = store.nickname(o.version) { NicknameTag(text: n) }
                             if !tags.isEmpty { VariationPill(parts: tags) }
                             Text(relativeDays(o.workout.date).lowercased())
                                 .font(.system(size: 14, weight: .bold)).foregroundStyle(p.secondary).lineLimit(1)

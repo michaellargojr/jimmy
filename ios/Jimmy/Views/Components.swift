@@ -87,13 +87,98 @@ struct VariationChips: View {
     let tags: [String]
     var size: VariationPill.Size = .regular
     var note: String? = nil
+    /// The variation's nickname, as a tag before the chip ("Bayesian Curl").
+    var nickname: String? = nil
     var body: some View {
         FlowRow(spacing: 8, lineSpacing: 5) {
+            if let nickname { NicknameTag(text: nickname, size: size) }
             if !tags.isEmpty { VariationPill(parts: tags, size: size) }
             if let note, !note.isEmpty {
                 Text(note).font(.system(size: size == .small ? 12.5 : 14, weight: .semibold)).foregroundStyle(p.muted).lineLimit(1)
             }
         }
+    }
+}
+
+/// A nickname as a soft tag in the theme color ("Bayesian Curl"), beside the plain name. Filled
+/// softly so it never reads as the outlined variation chip or the solid group chip.
+struct NicknameTag: View {
+    @Environment(\.palette) private var p
+    let text: String
+    var size: VariationPill.Size = .regular
+
+    var body: some View {
+        let m: (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) = {
+            switch size {
+            case .small: return (12.5, 24, 8, 7)
+            case .regular: return (14, 30, 11, 8)
+            case .large: return (15, 32, 12, 9)
+            }
+        }()
+        Text(text)
+            .font(.system(size: m.font, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
+            .padding(.horizontal, m.pad).frame(height: m.height)
+            .background(p.accentSoft, in: RoundedRectangle(cornerRadius: m.radius, style: .continuous))
+            .fixedSize()
+            .accessibilityLabel("Nickname, \(text)")
+    }
+}
+
+/// A title with its nickname tag. Both sit on one line when they fit; the title may shrink a
+/// little first, as titles already do, and only then does the tag drop under it.
+struct NamedTitle: View {
+    @Environment(\.palette) private var p
+    let name: String
+    let nickname: String?
+    let size: CGFloat
+    var tag: VariationPill.Size = .large
+
+    var body: some View {
+        if let nickname {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { title(size).fixedSize(); NicknameTag(text: nickname, size: tag) }
+                HStack(spacing: 10) { title(size * NamedTitle.squeeze).fixedSize(); NicknameTag(text: nickname, size: tag) }
+                VStack(alignment: .leading, spacing: 6) {
+                    title(size).lineLimit(2).minimumScaleFactor(0.8)
+                    NicknameTag(text: nickname, size: tag)
+                }
+            }
+        } else {
+            title(size).lineLimit(2).minimumScaleFactor(0.8)
+        }
+    }
+
+    /// How far the title may shrink to keep its tag on the same line.
+    static let squeeze: CGFloat = 0.88
+
+    private func title(_ s: CGFloat) -> some View {
+        Text(name).font(.system(size: s, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
+    }
+}
+
+/// The Nickname field: what you type, with a clear button. Empty means none.
+struct NicknameField: View {
+    @Environment(\.palette) private var p
+    @Binding var text: String
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("None", text: $text)
+                .font(.system(size: 17, weight: .semibold)).foregroundStyle(p.text)
+                .textInputAutocapitalization(.words).autocorrectionDisabled()
+                .submitLabel(.done)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(p.secondary)
+                        .frame(width: 36, height: 36)
+                        .background(p.isDark ? Color(hex: 0x2A2C31) : p.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear nickname")
+            }
+        }
+        .padding(.leading, 14).padding(.trailing, 6)
+        .frame(height: 48)
+        .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
     }
 }
 

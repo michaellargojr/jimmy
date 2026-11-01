@@ -48,7 +48,7 @@ struct VariationHistoryCard: View {
         let points = progressPoints(versionId: version.id, workouts: finished, version: version)
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 9) {
-                VariationPill(parts: store.variationChips(version))
+                VariationChips(tags: store.variationChips(version), nickname: store.nickname(version))
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         if let history {
