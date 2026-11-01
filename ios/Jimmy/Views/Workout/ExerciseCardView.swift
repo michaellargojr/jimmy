@@ -7,6 +7,8 @@ struct ExerciseCardView: View {
     let workoutId: String
     let itemId: String
     var compact: Bool = false
+    /// "Triset 2" when the exercise shares a screen with others; the chip sits above the title.
+    var groupLabel: String? = nil
     var onSwap: () -> Void = {}
     var onAddAfter: () -> Void = {}
 
@@ -113,8 +115,10 @@ struct ExerciseCardView: View {
     // MARK: Title
 
     /// "Dumbbell Shoulder Press", then "Two arms" with the rep range, then the style.
+    /// In a group, its numbered chip comes first, so each exercise on the screen says which it is.
     private func titleBlock(_ v: Version, item: WorkoutItem, w: Workout, range: RepRange) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let groupLabel { Chip(text: groupLabel, on: true, small: true).padding(.bottom, 4) }
             Text(store.workoutName(v))
                 .font(.system(size: compact ? 23 : 28, weight: .heavy)).tracking(-0.5)
                 .foregroundStyle(p.text).lineLimit(2).minimumScaleFactor(0.8)

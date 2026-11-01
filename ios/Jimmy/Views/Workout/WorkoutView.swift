@@ -25,6 +25,8 @@ struct WorkoutView: View {
     /// Empty space under each pane, taller than the tab bar, so the next exercise never shows
     /// through the bar while you're on this one.
     static let paneGap: CGFloat = 120
+    /// Extra room above the second and later exercises of a group, on top of the usual 12.
+    static let groupRoom: CGFloat = 20
 
     struct AddTarget: Identifiable { var id = UUID(); var afterItemId: String?; var swapItemId: String? }
 
@@ -193,16 +195,15 @@ struct WorkoutView: View {
                     .lineLimit(2).minimumScaleFactor(0.8)
                     .padding(.bottom, 4)
             }
-            if pane.count > 1, pane.first?.groupId != nil {
-                HStack {
-                    Chip(text: GroupType.forCount(pane.count).label, on: true, small: true)
-                    Text("\(pane.count) exercises, rotate through them").font(.system(size: 13)).foregroundStyle(p.muted)
-                }
-            }
-            ForEach(pane) { item in
+            // A group shares the screen: each exercise is numbered, "Triset 1" to 3, and the ones
+            // after the first get extra room above, so they read as distinct and not one long card.
+            let labels = groupLabels(count: pane.count)
+            ForEach(Array(pane.enumerated()), id: \.element.id) { n, item in
                 ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
+                                 groupLabel: pane.count > 1 ? labels[n] : nil,
                                  onSwap: { adding = AddTarget(swapItemId: item.id) },
                                  onAddAfter: { adding = AddTarget(afterItemId: item.id) })
+                    .padding(.top, n > 0 ? Self.groupRoom : 0)
             }
             footer(index: index, panesOf: w)
         }
@@ -364,8 +365,11 @@ struct OverviewSheet: View {
             }
             Button { current = paneIndex; dismiss() } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let gid, first {
-                        Text(GroupType.forCount(w.items.filter { $0.groupId == gid }.count).label.uppercased())
+                    if let gid {
+                        // Every member says which it is, the same way the cards do: "TRISET 2".
+                        let members = w.items.filter { $0.groupId == gid }
+                        let n = (members.firstIndex { $0.id == item.id } ?? 0) + 1
+                        Text("\(GroupType.forCount(members.count).label) \(n)".uppercased())
                             .font(.system(size: 12, weight: .heavy)).tracking(0.6).foregroundStyle(p.accent)
                             .padding(.bottom, 2)
                     }

@@ -27,6 +27,13 @@ private func name(_ w: Workout, _ id: String) -> GroupType? {
         #expect(GroupType.forCount(6) == .circuit)
     }
 
+    @Test func everyMemberIsNumbered() {
+        #expect(groupLabels(count: 2) == ["Superset 1", "Superset 2"])
+        #expect(groupLabels(count: 3) == ["Triset 1", "Triset 2", "Triset 3"])
+        #expect(groupLabels(count: 4) == ["Circuit 1", "Circuit 2", "Circuit 3", "Circuit 4"])
+        #expect(groupLabels(count: 1).isEmpty)
+    }
+
     @Test func aStoredNameFollowsTheCount() {
         // Seeded as a circuit, but only two exercises: a superset.
         let w = tidyGroups(workout([item("a", "g"), item("b", "g"), item("c")]))
