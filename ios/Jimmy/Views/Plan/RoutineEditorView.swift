@@ -11,6 +11,9 @@ struct RoutineEditorView: View {
     @State private var name = ""
     @State private var selecting = false
     @State private var selected: Set<Int> = []
+    @State private var duplicating = false
+    @State private var justMade: Routine? = nil
+    @State private var created: Routine? = nil
 
     private var routine: Routine? { store.routine(routineId) }
 
@@ -66,6 +69,7 @@ struct RoutineEditorView: View {
                             Button("Group…") { selecting = true }
                             Menu {
                                 Button { name = r.name; renaming = true } label: { Label("Rename", systemImage: "pencil") }
+                                Button { duplicating = true } label: { Label("Duplicate", systemImage: "doc.on.doc") }
                                 Button(role: .destructive) { dismiss(); store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
                             } label: { Image(systemName: "ellipsis") }
                         }
@@ -82,6 +86,16 @@ struct RoutineEditorView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
+            // The copy opens once the sheet has gone, or the push is lost under it.
+            .sheet(isPresented: $duplicating, onDismiss: { created = justMade; justMade = nil }) {
+                RoutineDraftSheet(mode: .duplicate, routine: r, takenNames: store.routines.map(\.name)) { justMade = $0 }
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            .navigationDestination(item: $created) { c in RoutineEditorView(routineId: c.id) }
+            #if DEBUG
+            .task { if RoutineDemo.once("duplicate", for: ["duplicate"]) { duplicating = true } }
+            #endif
         }
     }
 
@@ -167,6 +181,11 @@ struct SplitEditorView: View {
     @State private var naming = false
     @State private var newName = ""
     @State private var created: Routine? = nil
+    @State private var editing: SlotEdit? = nil
+    @Environment(\.editMode) private var editMode
+
+    /// One spot of the cycle opened in the edit sheet.
+    struct SlotEdit: Identifiable { let id = uid(); let routine: Routine; let slot: Int }
 
     private var split: Split? { store.splits.first { $0.id == splitId } }
 
@@ -188,13 +207,20 @@ struct SplitEditorView: View {
                 }
                 Section {
                     ForEach(Array(s.routineIds.enumerated()), id: \.offset) { i, rid in
-                        HStack(spacing: 12) {
-                            Text("\(i + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 24)
-                            Text(store.routine(rid)?.name ?? "Missing routine").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                            Spacer()
-                            Text("\(store.routine(rid)?.items.count ?? 0) ex").font(.system(size: 13)).foregroundStyle(p.muted)
+                        Button {
+                            if editMode?.wrappedValue != .active, let r = store.routine(rid) { editing = SlotEdit(routine: r, slot: i) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Text("\(i + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 24)
+                                Text(store.routine(rid)?.name ?? "Missing routine").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                Spacer()
+                                Text("\(store.routine(rid)?.items.count ?? 0) ex").font(.system(size: 13)).foregroundStyle(p.muted)
+                                Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.border)
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 12)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .buttonStyle(.plain)
                         .rowCard(p)
                     }
                     .onMove { from, to in var ss = s; ss.routineIds.move(fromOffsets: from, toOffset: to); store.put(ss) }
@@ -209,7 +235,7 @@ struct SplitEditorView: View {
                         HStack {
                             Text(r.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(inSplit.contains(r.id) ? p.muted : p.text)
                             Spacer()
-                            Chip(text: "Add", small: true) { var ss = s; ss.routineIds.append(r.id); store.put(ss) }
+                            Chip(text: "Add", small: true) { var ss = s; ss.add(r.id); store.put(ss) }
                         }
                         .padding(.horizontal, 14).padding(.vertical, 10)
                         .rowCard(p)
@@ -249,7 +275,7 @@ struct SplitEditorView: View {
                     let n = newName.trimmingCharacters(in: .whitespaces)
                     let r = Routine(name: n.isEmpty ? "New routine" : n)
                     store.put(r)
-                    var ss = s; ss.routineIds.append(r.id); store.put(ss)
+                    var ss = s; ss.add(r.id); ss.noteMadeHere(r.id); store.put(ss)
                     created = r
                 }
                 Button("Cancel", role: .cancel) {}
@@ -260,6 +286,19 @@ struct SplitEditorView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
+            .sheet(item: $editing) { e in
+                RoutineDraftSheet(mode: .edit(splitId: s.id, slot: e.slot), routine: e.routine, takenNames: store.routines.map(\.name))
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            .routineUndoBar(splitId: s.id)
+            #if DEBUG
+            .task {
+                if RoutineDemo.once("edit", for: ["edit", "ask"]), let rid = s.routineIds.first, let r = store.routine(rid) {
+                    editing = SlotEdit(routine: r, slot: 0)
+                }
+            }
+            #endif
         }
     }
 }

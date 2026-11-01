@@ -8,11 +8,12 @@ struct PlanView: View {
     @State private var newName = ""
     @State private var naming: Segment? = nil
     @State private var newVersion = false
+    @State private var path = NavigationPath()
 
     enum Segment: String, CaseIterable, Identifiable { case splits = "Splits", routines = "Routines", exercises = "Exercises"; var id: String { rawValue } }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 ScreenTitle("Plan") {
                     PillButton(title: "New", icon: "plus") {
@@ -56,6 +57,18 @@ struct PlanView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
+            #if DEBUG
+            .task(id: store.loaded) {
+                guard store.loaded, RoutineDemo.once("plan", for: ["split", "edit", "ask", "duplicate", "routines"]) else { return }
+                switch RoutineDemo.step {
+                case "routines": segment = .routines
+                case "duplicate":
+                    if let rid = store.activeSplit?.routineIds.first, let r = store.routine(rid) { path.append(r) }
+                default:
+                    if let s = store.activeSplit { path.append(s) }
+                }
+            }
+            #endif
         }
     }
 }
@@ -130,6 +143,9 @@ struct SplitsList: View {
 struct RoutinesList: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
+    @State private var duplicating: Routine? = nil
+    @State private var justMade: Routine? = nil
+    @State private var created: Routine? = nil
 
     var body: some View {
         List {
@@ -138,7 +154,7 @@ struct RoutinesList: View {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(r.name).font(.system(size: 18, weight: .bold)).foregroundStyle(p.text)
-                            Text(r.items.compactMap { store.version($0.versionId).map { store.baseName($0) } }.joined(separator: " · "))
+                            Text(r.items.compactMap { store.version($0.versionId).map { store.baseName($0) } }.joined(separator: " - "))
                                 .font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(2)
                         }
                         Spacer()
@@ -149,6 +165,7 @@ struct RoutinesList: View {
                 .rowCard(p, radius: Radius.card)
                 .swipeActions {
                     Button(role: .destructive) { store.deleteRoutine(r.id) } label: { Label("Delete", systemImage: "trash") }
+                    Button { duplicating = r } label: { Label("Duplicate", systemImage: "doc.on.doc") }.tint(Color(hex: 0x4A4C55))
                 }
             }
             .onMove { from, to in
@@ -158,5 +175,12 @@ struct RoutinesList: View {
             }
         }
         .cardList()
+        // The copy opens once the sheet has gone, or the push is lost under it.
+        .sheet(item: $duplicating, onDismiss: { created = justMade; justMade = nil }) { r in
+            RoutineDraftSheet(mode: .duplicate, routine: r, takenNames: store.routines.map(\.name)) { justMade = $0 }
+                .presentationDetents([.large])
+                .presentationBackground(p.card)
+        }
+        .navigationDestination(item: $created) { c in RoutineEditorView(routineId: c.id) }
     }
 }
