@@ -32,8 +32,11 @@ struct MyClipsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Jimmy library").font(.system(size: 28, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
-                    Text(clipCountLine(store.clips))
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(p.secondary)
+                    // An empty library says so once, below ("No clips yet."), not as "0 clips".
+                    if !store.clips.isEmpty {
+                        Text(clipCountLine(store.clips))
+                            .font(.system(size: 14, weight: .semibold)).foregroundStyle(p.secondary)
+                    }
                 }
                 if list.isEmpty, pending == 0 {
                     Text(store.clips.isEmpty ? "No clips yet." : "Every clip is already on this exercise.")
