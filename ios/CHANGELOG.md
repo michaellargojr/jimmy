@@ -7,6 +7,22 @@ The note under each heading (build, PRs, install details) is ours and is never p
 How versions and builds move, and who writes the next entry: ios/README.md.
 -->
 
+## 2.2 - Nov 2, 2026
+
+<!-- Build 2. PRs #24 to #28, the Workout scrolling rework (claude/project-thread-iayncu at ed8ad5e), nicknames (claude/project-thread-3v8j1k at eda86c7) and the lock screen card (claude/project-thread-0mu8do at fea0318, layout C2 draft), merged on claude/awesome-allen-64bza1. Nicknames and the lock screen card had not finished their Mac test run when merged; the GitHub Actions iOS check (.github/workflows/ios.yml) compiles and tests the merged code. Built for Michael's iPhone 12 mini. -->
+
+- Scrolling through a workout is free, no more snapping.
+- During a workout the app opens on the Workout page at your next set, glides back to it after a pause (Settings > Workout > Back to your set after), and the Workout tile tapped again takes you there.
+- Pocket mode: the screen goes dark in a pocket and comes back on your set.
+- Grouped exercises are labelled Superset 1, 2 (Triset, Circuit) with more space between them.
+- The strip under the clock fills in your color as exercises are finished, and nothing follows your scrolling.
+- A lock screen card during a workout: your set number and the clock, with the exercise and its chips. Tap it to open the app at your set.
+- Nicknames like Bayesian Curl or Pec Deck show as a tag beside the exercise name. Five are filled in for you; edit or clear any in the variation's Defaults or the add sheet.
+- Duplicate a routine, edit routines from the split page, and hold a routine for its options.
+- Add clips to the Jimmy library straight from Settings with the + button.
+- Settings shows the app's version and build at the bottom.
+- Your data file is never replaced if it ever fails to open.
+
 ## 2.1 - Nov 2, 2026
 
 <!-- Build 1. PRs #18 to #23, plus the final versions of #15, #16 and #17, merged into the iOS branch at 4190e0d. Built for Michael's iPhone 12 mini. -->

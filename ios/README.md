@@ -9,6 +9,7 @@ imports here unchanged.
 1. Open `ios/Jimmy.xcodeproj` in Xcode 16 or newer.
 2. Pick an iPhone simulator (or your phone) and press Run.
 3. For a real phone, set your team under Signing & Capabilities once.
+4. The lock screen card is a second target, JimmyWidgets: set the same team on it once. Free signing covers it.
 
 Requires iOS 17.
 
