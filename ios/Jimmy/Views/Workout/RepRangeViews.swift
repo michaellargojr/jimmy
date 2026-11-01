@@ -14,8 +14,21 @@ struct RepRangePicker: View {
     let onTemplate: (RepTemplate) -> Void
     let onRange: (RepRange) -> Void
     let onCustom: () -> Void
+    /// The menu's full height, measured. The popover asks for this much, and when the screen has
+    /// less room under the button (a 375-wide phone, or the button low on the screen) it gets what
+    /// fits and the menu scrolls, so Custom is never cut off out of reach.
+    @State private var fullHeight: CGFloat = 400
 
     var body: some View {
+        ScrollView(.vertical) {
+            menu.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(width: 300)
+        .frame(idealHeight: fullHeight)
+    }
+
+    private var menu: some View {
         VStack(spacing: 0) {
             if templates {
                 VStack(spacing: 0) {
@@ -48,7 +61,6 @@ struct RepRangePicker: View {
             }
             .buttonStyle(.plain)
         }
-        .frame(width: 300)
     }
 
     private func templateRow(_ t: RepTemplate) -> some View {

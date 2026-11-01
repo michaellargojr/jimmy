@@ -492,8 +492,10 @@ struct Workout: Codable, Identifiable, Hashable {
     var date: String // YYYY-MM-DD
     var gymId: String?
     var routineId: String?
-    var startedAt: Double? // ms since epoch, as the web app stores it
+    var startedAt: Double? // ms since epoch, as the web app stores it; when Start was tapped
     var endedAt: Double?
+    /// When the workout was picked. The clock waits for Start, so until then startedAt is nil.
+    var pickedAt: Double?
     var notes: String?
     var items: [WorkoutItem]
     var groups: [ExerciseGroup]
@@ -501,11 +503,11 @@ struct Workout: Codable, Identifiable, Hashable {
     var repTemplate: RepTemplate?
 
     init(id: String = uid(), name: String, date: String = today(), gymId: String? = nil, routineId: String? = nil,
-         startedAt: Double? = nil, endedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [], groups: [ExerciseGroup] = [],
-         repTemplate: RepTemplate? = nil) {
+         startedAt: Double? = nil, endedAt: Double? = nil, pickedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [],
+         groups: [ExerciseGroup] = [], repTemplate: RepTemplate? = nil) {
         self.id = id; self.name = name; self.date = date; self.gymId = gymId; self.routineId = routineId
-        self.startedAt = startedAt; self.endedAt = endedAt; self.notes = notes; self.items = items; self.groups = groups
-        self.repTemplate = repTemplate
+        self.startedAt = startedAt; self.endedAt = endedAt; self.pickedAt = pickedAt; self.notes = notes; self.items = items
+        self.groups = groups; self.repTemplate = repTemplate
     }
 
     init(from decoder: Decoder) throws {
@@ -517,13 +519,17 @@ struct Workout: Codable, Identifiable, Hashable {
         routineId = try c.decodeIfPresent(String.self, forKey: .routineId)
         startedAt = try c.decodeIfPresent(Double.self, forKey: .startedAt)
         endedAt = try c.decodeIfPresent(Double.self, forKey: .endedAt)
+        pickedAt = try c.decodeIfPresent(Double.self, forKey: .pickedAt)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         items = try c.decodeIfPresent([WorkoutItem].self, forKey: .items) ?? []
         groups = try c.decodeIfPresent([ExerciseGroup].self, forKey: .groups) ?? []
         repTemplate = try? c.decodeIfPresent(RepTemplate.self, forKey: .repTemplate)
     }
 
-    var isActive: Bool { startedAt != nil && endedAt == nil }
+    /// Picked or running, and not finished.
+    var isActive: Bool { (startedAt != nil || pickedAt != nil) && endedAt == nil }
+    /// Picked, with the clock waiting for Start.
+    var isWaiting: Bool { isActive && startedAt == nil }
     var isFinished: Bool { endedAt != nil }
     var durationMinutes: Int? {
         guard let s = startedAt, let e = endedAt else { return nil }

@@ -106,6 +106,12 @@ final class AppStore {
     func muscle(of v: Version) -> MuscleGroup? { exercise(v.exerciseId)?.muscleGroup }
 
     var activeWorkout: Workout? { workouts.first { $0.isActive } }
+    /// True when picking a routine starts it: nothing is open, or the open one is still waiting
+    /// for Start with nothing logged, so it gives way.
+    var canPickWorkout: Bool {
+        guard let w = activeWorkout else { return true }
+        return w.isWaiting && !w.items.contains { $0.sets.contains { $0.hasData } }
+    }
     var finishedWorkouts: [Workout] { sortedNewestFirst(workouts.filter { $0.isFinished }) }
     /// The split a routine's coverage is judged on: the active split when it holds the routine, else the first that does.
     func split(containing routineId: String) -> Split? {
@@ -309,8 +315,10 @@ final class AppStore {
 
     // MARK: Workflows
 
+    /// Opens the routine as today's workout. The clock waits for Start.
     @discardableResult
     func startWorkout(from r: Routine) -> Workout {
+        if canPickWorkout, let waiting = activeWorkout { deleteWorkout(waiting.id) }
         var w = workoutFromRoutine(r, versions: versions, styles: styles, unit: settings.unit, workouts: workouts)
         w.repTemplate = settings.repTemplate == .standard ? nil : settings.repTemplate
         put(w)
@@ -319,9 +327,17 @@ final class AppStore {
 
     @discardableResult
     func startQuickWorkout() -> Workout {
-        let w = Workout(name: "Quick workout", startedAt: nowMs(), repTemplate: settings.repTemplate == .standard ? nil : settings.repTemplate)
+        if canPickWorkout, let waiting = activeWorkout { deleteWorkout(waiting.id) }
+        let w = Workout(name: "Quick workout", pickedAt: nowMs(), repTemplate: settings.repTemplate == .standard ? nil : settings.repTemplate)
         put(w)
         return w
+    }
+
+    /// Start: the clock runs from now.
+    func startClock(_ id: String) {
+        guard var w = workout(id), w.startedAt == nil else { return }
+        w.startedAt = nowMs()
+        put(w)
     }
 
     // MARK: Rep ranges
