@@ -36,6 +36,7 @@ struct SettingsView: View {
                                 Text("Mantra").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                                 TextField("Your mantra, bold and plain", text: $store.settings.quote, axis: .vertical)
                                     .lineLimit(1...3)
+                                    .returnCloses($store.settings.quote)
                                     .padding(12)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                                     .foregroundStyle(p.text)
@@ -139,15 +140,12 @@ struct SettingsView: View {
                         VStack(spacing: 0) {
                             HStack(spacing: 8) {
                                 TextField("A bug or a change you want", text: $newIdea)
+                                    .submitLabel(.done)
+                                    .onSubmit(addIdea)
                                     .padding(10)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                                     .foregroundStyle(p.text)
-                                Chip(text: "Add", on: true, small: true) {
-                                    let t = newIdea.trimmingCharacters(in: .whitespaces)
-                                    guard !t.isEmpty else { return }
-                                    store.put(Idea(id: uid(), kind: "feature", text: t, createdAt: nowMs()))
-                                    newIdea = ""
-                                }
+                                Chip(text: "Add", on: true, small: true) { addIdea() }
                             }
                             .padding(16)
                             ForEach(store.ideas.sorted { $0.createdAt > $1.createdAt }) { i in
@@ -309,5 +307,15 @@ struct HomeBlocksView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(p.bg, for: .navigationBar)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { EditButton() } }
+    }
+}
+
+private extension SettingsView {
+    /// Return adds the idea and closes the keyboard; Add keeps it up for the next one.
+    func addIdea() {
+        let t = newIdea.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        store.put(Idea(id: uid(), kind: "feature", text: t, createdAt: nowMs()))
+        newIdea = ""
     }
 }

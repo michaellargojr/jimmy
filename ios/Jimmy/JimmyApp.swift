@@ -8,6 +8,8 @@ struct JimmyApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                // Tap away or scroll to close the keyboard, everywhere.
+                .keyboardDismissal()
                 .environment(store)
                 .environment(nav)
                 .onAppear { if !store.loaded { store.load() } }

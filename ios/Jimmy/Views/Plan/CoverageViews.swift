@@ -43,27 +43,34 @@ struct GoalsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Stays put while the keyboard is up; the field and goals scroll under it.
             HStack {
                 Text("Goals").font(.system(size: 22, weight: .heavy)).foregroundStyle(p.text)
                 Spacer()
                 Button("Done") { save(); dismiss() }.font(.system(size: 15, weight: .semibold)).foregroundStyle(p.accent)
             }
-            TextField("Be as descriptive as possible. What shape do you want to look like?", text: $goals.text, axis: .vertical)
-                .lineLimit(3...8)
-                .focused($focused)
-                .padding(12)
-                .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                .foregroundStyle(p.text)
-                .onChange(of: goals.text) { _, _ in save() }
-            FlowLayout(spacing: 8) {
-                ForEach(SUGGESTED_GOALS) { g in
-                    Chip(text: g.label, on: goals.picks.contains(g.id)) {
-                        if let i = goals.picks.firstIndex(of: g.id) { goals.picks.remove(at: i) } else { goals.picks.append(g.id) }
-                        save()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    TextField("Be as descriptive as possible. What shape do you want to look like?", text: $goals.text, axis: .vertical)
+                        .lineLimit(3...8)
+                        .focused($focused)
+                        .padding(12)
+                        .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                        .foregroundStyle(p.text)
+                        .onChange(of: goals.text) { _, _ in save() }
+                    FlowLayout(spacing: 8) {
+                        ForEach(SUGGESTED_GOALS) { g in
+                            Chip(text: g.label, on: goals.picks.contains(g.id)) {
+                                if let i = goals.picks.firstIndex(of: g.id) { goals.picks.remove(at: i) } else { goals.picks.append(g.id) }
+                                save()
+                            }
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer()
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.immediately)
         }
         .padding(16)
         .background(p.card)
