@@ -16,43 +16,71 @@ struct Card<Content: View>: View {
 
 /// A variation as one collectible chip: its words in the theme color inside one outline, with a
 /// thin line between them, because together they make the variation ("Cable | Two arms").
-/// The muscle tags stay grey; color marks what you chose.
+/// The muscle tags stay grey; color marks what you chose. A chip too long for one line breaks
+/// onto two inside the same outline, always between the machine and how you use it:
+/// "Machine | Plates | High row" over "Two arms | Arms behind".
 struct VariationPill: View {
     enum Size { case small, regular, large }
     @Environment(\.palette) private var p
     let parts: [String]
     var size: Size = .regular
 
-    /// Font size, height, side padding and corner radius.
-    private var metrics: (font: CGFloat, height: CGFloat, pad: CGFloat, radius: CGFloat) {
+    private struct Metrics { let font, height, pad, radius, line: CGFloat }
+    private func metrics(_ size: Size) -> Metrics {
         switch size {
-        case .small: return (12.5, 24, 8, 7)
-        case .regular: return (14, 30, 11, 8)
-        case .large: return (15, 32, 12, 9)
+        case .small: return Metrics(font: 12.5, height: 24, pad: 8, radius: 7, line: 1)
+        case .regular: return Metrics(font: 14, height: 30, pad: 11, radius: 8, line: 1.5)
+        case .large: return Metrics(font: 15, height: 32, pad: 12, radius: 9, line: 1.5)
         }
     }
 
+    /// Where how you use it starts (arms, then position). With none, the middle.
+    private var breakIndex: Int? {
+        guard parts.count > 1 else { return nil }
+        let how = Set([Arms.two, .one].flatMap { [$0.label(legs: false), $0.label(legs: true)] } + Position.allCases.map(\.label))
+        if let i = parts.firstIndex(where: { how.contains($0.lowercased()) }), i > 0 { return i }
+        return (parts.count + 1) / 2
+    }
+
+    /// One line when there's room; else two lines at its own size, then two small lines, and only
+    /// as a last resort smaller words, so it never runs past the edge.
     var body: some View {
-        let m = metrics
-        let line: CGFloat = size == .small ? 1 : 1.5
-        HStack(spacing: 0) {
-            ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
-                if i > 0 {
-                    Rectangle().fill(p.accent.opacity(0.45)).frame(width: line).padding(.vertical, (m.height * 0.23).rounded())
-                }
-                Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
-                    .padding(.horizontal, m.pad)
-            }
+        let two: [[String]] = breakIndex.map { [Array(parts[..<$0]), Array(parts[$0...])] } ?? [parts]
+        ViewThatFits(in: .horizontal) {
+            chip([parts], size).fixedSize(horizontal: true, vertical: false)
+            chip(two, size).fixedSize(horizontal: true, vertical: false)
+            chip(two, .small).fixedSize(horizontal: true, vertical: false)
+            chip(two, .small, squeeze: true)
         }
-        .frame(height: m.height)
-        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(p.accent.opacity(0.7), lineWidth: line))
-        .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(parts.joined(separator: ", "))
     }
+
+    private func chip(_ rows: [[String]], _ size: Size, squeeze: Bool = false) -> some View {
+        let m = metrics(size)
+        let stacked = rows.count > 1
+        let rowHeight = stacked ? m.height - 4 : m.height
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, words in
+                HStack(spacing: 0) {
+                    ForEach(Array(words.enumerated()), id: \.offset) { i, t in
+                        if i > 0 {
+                            Rectangle().fill(p.accent.opacity(0.45)).frame(width: m.line).padding(.vertical, (rowHeight * 0.23).rounded())
+                        }
+                        Text(t).font(.system(size: m.font, weight: .heavy)).foregroundStyle(p.accent).lineLimit(1)
+                            .minimumScaleFactor(squeeze ? 0.6 : 1)
+                            .padding(.horizontal, squeeze ? 6 : m.pad)
+                    }
+                }
+                .frame(height: rowHeight)
+            }
+        }
+        .padding(.vertical, stacked ? 2 : 0)
+        .overlay(RoundedRectangle(cornerRadius: m.radius, style: .continuous).strokeBorder(p.accent.opacity(0.7), lineWidth: m.line))
+    }
 }
 
-/// A variation's chip with an optional quiet note after it ("Rope", "3 sessions"); the note
+/// A variation's chip with an optional quiet note after it ("Rope", "3 Workouts - Last Oct 23"); the note
 /// drops to the next line when there isn't room.
 struct VariationChips: View {
     @Environment(\.palette) private var p
@@ -260,10 +288,18 @@ struct FlowRow: Layout {
 
     private struct Line { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
 
+    /// A view at its own size; one wider than the row is offered the row's width, so it fits.
+    private func fit(_ v: LayoutSubview, width: CGFloat) -> (size: CGSize, proposal: ProposedViewSize) {
+        let ideal = v.sizeThatFits(.unspecified)
+        guard width.isFinite, ideal.width > width else { return (ideal, .unspecified) }
+        let proposal = ProposedViewSize(width: width, height: nil)
+        return (v.sizeThatFits(proposal), proposal)
+    }
+
     private func lines(_ subviews: Subviews, width: CGFloat) -> [Line] {
         var out = [Line()]
         for (i, v) in subviews.enumerated() {
-            let size = v.sizeThatFits(.unspecified)
+            let size = fit(v, width: width).size
             let line = out[out.count - 1]
             let wide = line.items.isEmpty ? size.width : line.width + spacing + size.width
             if wide > width && !line.items.isEmpty {
@@ -288,8 +324,8 @@ struct FlowRow: Layout {
         for line in lines(subviews, width: bounds.width) {
             var x = bounds.minX
             for i in line.items {
-                let size = subviews[i].sizeThatFits(.unspecified)
-                subviews[i].place(at: CGPoint(x: x, y: y + (line.height - size.height) / 2), proposal: .unspecified)
+                let (size, proposal) = fit(subviews[i], width: bounds.width)
+                subviews[i].place(at: CGPoint(x: x, y: y + (line.height - size.height) / 2), proposal: proposal)
                 x += size.width + spacing
             }
             y += line.height + lineSpacing

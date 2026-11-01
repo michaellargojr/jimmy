@@ -43,8 +43,9 @@ private struct Fixture {
         #expect(list.map(\.id) == ["c1", "d1", "p1", "p2", "r1"])
         #expect(list.first { $0.id == "p1" }?.sessions == 2)
         #expect(list.first { $0.id == "p1" }?.last == "2026-09-21")
-        #expect(list.first { $0.id == "p1" }?.sessionsLabel == "2 sessions")
-        #expect(list.first { $0.id == "p2" }?.sessionsLabel == "1 session")
+        #expect(list.first { $0.id == "p1" }?.workoutsLabel == "2 Workouts")
+        #expect(list.first { $0.id == "p2" }?.workoutsLabel == "1 Workout")
+        #expect(list.first { $0.id == "p1" }?.summary == "2 Workouts - Last \(monthDay("2026-09-21"))")
     }
 
     @Test func leavesOutUnloggedAndUnfinished() {
@@ -71,6 +72,10 @@ private struct Fixture {
         let pulldown = back.bases[0]
         #expect(pulldown.variations.map(\.id) == ["p1", "p2"])
         #expect(pulldown.last == "2026-09-21")
+        // p1 on Aug 20 and Sep 21, p2 on Sep 21: two workouts, not three.
+        #expect(pulldown.workouts == 2)
+        #expect(pulldown.summary == "2 Workouts - Last \(monthDay("2026-09-21"))")
+        #expect(back.bases[1].summary == "1 Workout - Last \(monthDay("2026-08-20"))")
     }
 
     @Test func searchKeepsTheGroups() {

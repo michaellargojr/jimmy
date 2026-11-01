@@ -78,7 +78,7 @@ struct UpNextBlock: View {
 
     var body: some View {
         if let active = store.activeWorkout {
-            card(kicker: "In progress", title: active.name,
+            card(kicker: active.isWaiting ? "Ready to start" : "In progress", title: active.name,
                  sub: "\(active.items.count) exercises · \(active.items.filter { $0.isDone }.count) done",
                  button: "Continue workout") { nav.tab = .workout }
         } else if let r = store.upNextRoutine {
@@ -115,7 +115,7 @@ struct UpNextBlock: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(p.accent)
                     .frame(height: 40).padding(.horizontal, 18)
-                    .background(p.isDark ? p.bg : p.text, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                    .background(p.accentPill, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                     .padding(.top, 10)
             }
             .foregroundStyle(p.onAccent)
@@ -226,7 +226,7 @@ struct AllRoutinesBlock: View {
                     }
                     Spacer()
                     Chip(text: "Start", on: true, small: true) {
-                        if store.activeWorkout == nil { store.startWorkout(from: r) }
+                        if store.canPickWorkout { store.startWorkout(from: r) }
                         nav.tab = .workout
                     }
                 }

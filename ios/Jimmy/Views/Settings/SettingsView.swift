@@ -1,12 +1,9 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
-    @State private var importing = false
     @State private var confirmReset = false
-    @State private var importError: String? = nil
     @State private var newIdea = ""
     @State private var apiKey = Keychain.apiKey ?? ""
 
@@ -39,6 +36,7 @@ struct SettingsView: View {
                                 Text("Mantra").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                                 TextField("Your mantra, bold and plain", text: $store.settings.quote, axis: .vertical)
                                     .lineLimit(1...3)
+                                    .returnCloses($store.settings.quote)
                                     .padding(12)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                                     .foregroundStyle(p.text)
@@ -116,20 +114,16 @@ struct SettingsView: View {
                     Group {
                         SectionLabel("Data").padding(.top, 4)
                         VStack(spacing: 0) {
-                            if let url = store.exportURL {
-                                ShareLink(item: url) {
-                                    SettingsRow(title: "Export JSON", subtitle: "\(store.workouts.count) workouts, \(store.versions.count) exercises") { Chevron() }
+                            NavigationLink { BackupView() } label: {
+                                SettingsRow(title: "Backup") {
+                                    Text(backupStatus).font(.system(size: 14)).foregroundStyle(store.backups.failed ? p.danger : p.muted)
+                                    Chevron()
                                 }
-                                .buttonStyle(.plain)
-                            }
-                            Divider1()
-                            NavigationLink { MyClipsView(mode: .manage) } label: {
-                                SettingsRow(title: "Jimmy library", subtitle: "\(store.clips.count) form cue clips, \(byteLabel(ClipFiles.totalBytes(store.clips)))") { Chevron() }
                             }
                             .buttonStyle(.plain)
                             Divider1()
-                            Button { importing = true } label: {
-                                SettingsRow(title: "Import", subtitle: "A Jimmy export from the web app or this one. Replaces everything.") { Chevron() }
+                            NavigationLink { MyClipsView(mode: .manage) } label: {
+                                SettingsRow(title: "Jimmy library", subtitle: "\(store.clips.count) form cue clips, \(byteLabel(ClipFiles.totalBytes(store.clips)))") { Chevron() }
                             }
                             .buttonStyle(.plain)
                             Divider1()
@@ -140,23 +134,18 @@ struct SettingsView: View {
                             .foregroundStyle(p.danger)
                         }
                         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-                        Text("Data lives on this phone in the app's own folder, so iOS backs it up with the phone. Export now and then until sync exists.")
-                            .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 2)
                     }
                     Group {
                         SectionLabel("Ideas (\(store.ideas.count))").padding(.top, 4)
                         VStack(spacing: 0) {
                             HStack(spacing: 8) {
                                 TextField("A bug or a change you want", text: $newIdea)
+                                    .submitLabel(.done)
+                                    .onSubmit(addIdea)
                                     .padding(10)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                                     .foregroundStyle(p.text)
-                                Chip(text: "Add", on: true, small: true) {
-                                    let t = newIdea.trimmingCharacters(in: .whitespaces)
-                                    guard !t.isEmpty else { return }
-                                    store.put(Idea(id: uid(), kind: "feature", text: t, createdAt: nowMs()))
-                                    newIdea = ""
-                                }
+                                Chip(text: "Add", on: true, small: true) { addIdea() }
                             }
                             .padding(16)
                             ForEach(store.ideas.sorted { $0.createdAt > $1.createdAt }) { i in
@@ -181,28 +170,20 @@ struct SettingsView: View {
             }
             .screen()
             .toolbar(.hidden, for: .navigationBar)
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .plainText]) { result in
-                switch result {
-                case .success(let url):
-                    let ok = url.startAccessingSecurityScopedResource()
-                    defer { if ok { url.stopAccessingSecurityScopedResource() } }
-                    do {
-                        let data = try Data(contentsOf: url)
-                        let s = try Snapshot.decode(data)
-                        guard !s.versions.isEmpty else { importError = "That file has no exercises in it. Is it a Jimmy export?"; return }
-                        store.importSnapshot(s)
-                    } catch { importError = "Could not read that file: \(error.localizedDescription)" }
-                case .failure(let e): importError = e.localizedDescription
-                }
-            }
-            .alert("Import failed", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
-                Button("OK") { importError = nil }
-            } message: { Text(importError ?? "") }
             .alert("Reset everything?", isPresented: $confirmReset) {
                 Button("Reset", role: .destructive) { store.resetToSeed() }
                 Button("Cancel", role: .cancel) {}
-            } message: { Text("Workouts, routines and exercises go back to the Notion seed. Export first if you want a copy.") }
+            } message: { Text("Workouts, routines and exercises go back to the Notion seed. Back up first if you want a copy.") }
         }
+    }
+
+    /// "Today, 8:14 PM" after a backup; "Off" until a folder is chosen.
+    private var backupStatus: String {
+        let b = store.backups
+        if !b.hasFolder { return "Off" }
+        if b.failed { return "Failed" }
+        guard let d = b.lastBackupAt else { return "On" }
+        return "\(backupDay(d)), \(backupTime(d))"
     }
 }
 
@@ -326,5 +307,15 @@ struct HomeBlocksView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(p.bg, for: .navigationBar)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { EditButton() } }
+    }
+}
+
+private extension SettingsView {
+    /// Return adds the idea and closes the keyboard; Add keeps it up for the next one.
+    func addIdea() {
+        let t = newIdea.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        store.put(Idea(id: uid(), kind: "feature", text: t, createdAt: nowMs()))
+        newIdea = ""
     }
 }

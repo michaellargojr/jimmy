@@ -20,11 +20,17 @@ final class AppStore {
     /// The last copy, move or erase of a history, while its Undo bar shows. Never saved.
     var historyUndo: HistoryUndo?
 
+    /// Backups to a folder in iCloud Drive. See Backup.swift.
+    let backups: Backups
+
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?
 
-    init(fileURL: URL? = nil) {
+    /// A store with its own file (tests) keeps its backup folder in memory, so it never
+    /// writes into the folder the app on this device backs up to.
+    init(fileURL: URL? = nil, backups: Backups? = nil) {
         self.fileURL = fileURL ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("jimmy.json")
+        self.backups = backups ?? Backups(defaults: fileURL == nil ? UserDefaults.standard : nil)
     }
 
     // MARK: Lookups
@@ -55,7 +61,8 @@ final class AppStore {
     /// "Lateral Raise · Cable · one arm", for lists that show one line.
     func fullName(_ v: Version, styleId: String? = nil) -> String { baseName(v) + " · " + subtitle(v, styleId: styleId) }
     /// The Workout title, built from the blocks: "Dumbbell Shoulder Press", "Cable Overhead Tricep
-    /// Extension". A named machine tag reads last: "Machine Calf Raise (D Stars)". Plan keeps base names.
+    /// Extension". A named machine reads last: "Machine Calf Raise (D Stars)", "Machine Iso-lateral
+    /// Pulldown (D Stars)". Plan keeps base names.
     func workoutName(_ v: Version) -> String {
         var words: [String] = []
         switch v.family {
@@ -67,7 +74,8 @@ final class AppStore {
         let namedMachine = v.family == .machine && tag.first?.isUppercase == true
         if !tag.isEmpty && !namedMachine { words.append(tag.split(separator: " ").map { capitalized(String($0)) }.joined(separator: " ")) }
         words.append(baseName(v))
-        return words.joined(separator: " ") + (namedMachine ? " (\(tag))" : "")
+        let names = [namedMachine ? tag : nil, v.machine?.trimmingCharacters(in: .whitespaces)].compactMap { $0 }.filter { !$0.isEmpty }
+        return words.joined(separator: " ") + (names.isEmpty ? "" : " (\(names.joined(separator: " - ")))")
     }
     /// The Workout subtitle: "Two arms", "One arm - seated", "One leg".
     func armsText(_ v: Version) -> String {
@@ -79,14 +87,16 @@ final class AppStore {
     }
     /// The whole variation as chips: "Cable", "Two arms". For Plan, History and lists.
     func variationChips(_ v: Version) -> [String] {
-        variationParts(family: v.family, arms: v.arms, position: v.position, tag: v.tag, legs: base(of: v)?.isLegs ?? false)
+        variationParts(family: v.family, arms: v.arms, position: v.position, tag: v.tag, machine: v.machine,
+                       loading: v.loading, legs: base(of: v)?.isLegs ?? false)
             .map { capitalized($0) }
     }
     /// The same words as armsText, one per chip: "Two arms", "Seated". The Workout card's title
-    /// already names the equipment, so it shows only these.
+    /// already names the equipment, so it shows only these, plus Plates or Stack for a machine.
     func variationTags(_ v: Version) -> [String] {
         let legs = base(of: v)?.isLegs ?? false
         var tags: [String] = []
+        if v.family == .machine, let l = v.loading { tags.append(capitalized(l.label)) }
         if v.arms == .one || v.family != .body { tags.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { tags.append(capitalized(pos.label)) }
         return tags
@@ -96,6 +106,12 @@ final class AppStore {
     func muscle(of v: Version) -> MuscleGroup? { exercise(v.exerciseId)?.muscleGroup }
 
     var activeWorkout: Workout? { workouts.first { $0.isActive } }
+    /// True when picking a routine starts it: nothing is open, or the open one is still waiting
+    /// for Start with nothing logged, so it gives way.
+    var canPickWorkout: Bool {
+        guard let w = activeWorkout else { return true }
+        return w.isWaiting && !w.items.contains { $0.sets.contains { $0.hasData } }
+    }
     var finishedWorkouts: [Workout] { sortedNewestFirst(workouts.filter { $0.isFinished }) }
     /// The split a routine's coverage is judged on: the active split when it holds the routine, else the first that does.
     func split(containing routineId: String) -> Split? {
@@ -130,6 +146,7 @@ final class AppStore {
             apply(s)
             if splits.isEmpty, !routines.isEmpty { seedSplitFromRoutines() }
             if s.version < 2 { migrateToLibraryV2(); markDirty() }
+            if fillMachineLoading() { markDirty() }
         } else {
             resetToSeed()
         }
@@ -179,6 +196,7 @@ final class AppStore {
         gyms = s.gyms; splits = s.splits; ideas = keepIdeas
         settings = keepSettings
         settings.activeSplitId = s.splits.first?.id
+        fillMachineLoading()
         markDirty()
     }
 
@@ -191,6 +209,7 @@ final class AppStore {
         if s.settings == nil { settings = keepSettings }
         if splits.isEmpty { seedSplitFromRoutines() }
         if s.version < 2 { migrateToLibraryV2() }
+        fillMachineLoading()
         markDirty()
     }
 
@@ -296,8 +315,10 @@ final class AppStore {
 
     // MARK: Workflows
 
+    /// Opens the routine as today's workout. The clock waits for Start.
     @discardableResult
     func startWorkout(from r: Routine) -> Workout {
+        if canPickWorkout, let waiting = activeWorkout { deleteWorkout(waiting.id) }
         var w = workoutFromRoutine(r, versions: versions, styles: styles, unit: settings.unit, workouts: workouts)
         w.repTemplate = settings.repTemplate == .standard ? nil : settings.repTemplate
         put(w)
@@ -306,9 +327,17 @@ final class AppStore {
 
     @discardableResult
     func startQuickWorkout() -> Workout {
-        let w = Workout(name: "Quick workout", startedAt: nowMs(), repTemplate: settings.repTemplate == .standard ? nil : settings.repTemplate)
+        if canPickWorkout, let waiting = activeWorkout { deleteWorkout(waiting.id) }
+        let w = Workout(name: "Quick workout", pickedAt: nowMs(), repTemplate: settings.repTemplate == .standard ? nil : settings.repTemplate)
         put(w)
         return w
+    }
+
+    /// Start: the clock runs from now.
+    func startClock(_ id: String) {
+        guard var w = workout(id), w.startedAt == nil else { return }
+        w.startedAt = nowMs()
+        put(w)
     }
 
     // MARK: Rep ranges
@@ -337,7 +366,7 @@ final class AppStore {
         let drop = Set(unlogged(w).map(\.id))
         w.items.removeAll { drop.contains($0.id) }
         w = freezingRepRanges(w, versions: versions) { self.repGroup($0) }
-        if w.items.isEmpty { deleteWorkout(id) } else { put(w) }
+        if w.items.isEmpty { deleteWorkout(id) } else { put(w); backUp() }
     }
 
     // MARK: Library
@@ -364,11 +393,12 @@ final class AppStore {
 
     /// The variation with these fields, created if needed.
     @discardableResult
-    func makeVariation(base: Exercise, spec: VariationSpec, repMin: Int? = nil, repMax: Int? = nil) -> Version {
+    func makeVariation(base: Exercise, spec given: VariationSpec, repMin: Int? = nil, repMax: Int? = nil) -> Version {
+        let spec = withLoading(given, base: base)
         if let v = findVariation(baseId: base.id, key: spec.key) { return v }
         let name = base.name + " · " + variationLabel(spec, legs: base.isLegs)
         let v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
-                        tag: spec.tag, repMin: repMin ?? 5, repMax: repMax ?? 8)
+                        tag: spec.tag, machine: spec.machine, loading: spec.loading, repMin: repMin ?? 5, repMax: repMax ?? 8)
         put(v)
         return v
     }
@@ -394,7 +424,7 @@ final class AppStore {
     }
 
     func addVerdict(base: Exercise, variation: VariationSpec, style: StyleSpec) -> AddVerdict {
-        guard let v = findVariation(baseId: base.id, key: variation.key) else { return .newVariation }
+        guard let v = findVariation(baseId: base.id, key: withLoading(variation, base: base).key) else { return .newVariation }
         if style.isEmpty { return .existing(v, nil) }
         if let s = findStyle(versionId: v.id, key: style.key) { return .existing(v, s) }
         return .newStyle(v)
@@ -475,12 +505,5 @@ final class AppStore {
                 for a in lib.aliases where !exercises[i].aliases.contains(a) { exercises[i].aliases.append(a) }
             }
         }
-    }
-
-    var exportURL: URL? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("jimmy-\(today()).json")
-        guard let data = try? snapshot().encoded() else { return nil }
-        try? data.write(to: url, options: .atomic)
-        return url
     }
 }
