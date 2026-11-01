@@ -214,7 +214,7 @@ struct ExercisesHistoryList: View {
         return HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text(store.baseName(v)).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                VariationChips(tags: store.variationChips(v), size: .small, note: "\(monthDay(h.last)) - \(h.sessionsLabel)")
+                VariationChips(tags: store.variationChips(v), size: .small, note: h.summary)
             }
             Spacer()
             if let t = lastSession(versionId: v.id, workouts: store.finishedWorkouts, versions: store.versions).flatMap({ topSet($0.item) }) {

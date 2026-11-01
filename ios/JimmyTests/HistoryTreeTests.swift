@@ -43,8 +43,9 @@ private struct Fixture {
         #expect(list.map(\.id) == ["c1", "d1", "p1", "p2", "r1"])
         #expect(list.first { $0.id == "p1" }?.sessions == 2)
         #expect(list.first { $0.id == "p1" }?.last == "2026-09-21")
-        #expect(list.first { $0.id == "p1" }?.sessionsLabel == "2 sessions")
-        #expect(list.first { $0.id == "p2" }?.sessionsLabel == "1 session")
+        #expect(list.first { $0.id == "p1" }?.workoutsLabel == "2 Workouts")
+        #expect(list.first { $0.id == "p2" }?.workoutsLabel == "1 Workout")
+        #expect(list.first { $0.id == "p1" }?.summary == "2 Workouts - Last \(monthDay("2026-09-21"))")
     }
 
     @Test func leavesOutUnloggedAndUnfinished() {

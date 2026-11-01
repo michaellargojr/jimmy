@@ -17,8 +17,10 @@ struct VariationHistory: Identifiable, Hashable {
     var sessions: Int
     /// Day of the latest session, "2026-10-15".
     var last: String
-    /// "1 session", "3 sessions".
-    var sessionsLabel: String { "\(sessions) \(sessions == 1 ? "session" : "sessions")" }
+    /// "1 Workout", "3 Workouts".
+    var workoutsLabel: String { "\(sessions) \(sessions == 1 ? "Workout" : "Workouts")" }
+    /// The line under a variation in History: "3 Workouts - Last Oct 23".
+    var summary: String { "\(workoutsLabel) - Last \(monthDay(last))" }
 }
 
 /// A base exercise and its variations that have history, most recent first.
