@@ -26,7 +26,7 @@ enum EquipmentFamily: String, Codable, CaseIterable, Hashable {
     case dumbbell, cable, machine, bar, body
     var label: String {
         switch self {
-        case .dumbbell: return "Dumbbell"
+        case .dumbbell: return "Dumbbells"
         case .cable: return "Cable"
         case .machine: return "Machine"
         case .bar: return "Bar"
@@ -297,6 +297,9 @@ struct Version: Codable, Identifiable, Hashable {
     var machine: String?
     /// Plates or stack, for machines. Nil when not known (a machine named before the list).
     var loading: Loading?
+    /// One dumbbell held in both hands (an overhead extension, a goblet squat). True only on
+    /// dumbbells; nil is a pair. Needs other weights than a pair, so it's its own variation.
+    var singleDumbbell: Bool?
     /// The name people know it by ("Bayesian Curl"), shown as a tag beside the name. Yours to
     /// type or clear; the app only suggests the few in Nicknames.swift.
     var nickname: String?
@@ -316,9 +319,10 @@ struct Version: Codable, Identifiable, Hashable {
 
     init(id: String = uid(), exerciseId: String, name: String, equipment: Equipment, arms: Arms,
          position: Position? = nil, armPosition: ArmPosition? = nil, tag: String? = nil, machine: String? = nil, loading: Loading? = nil,
-         repMin: Int = 5, repMax: Int = 8, defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
+         singleDumbbell: Bool? = nil, repMin: Int = 5, repMax: Int = 8, defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
         self.id = id; self.exerciseId = exerciseId; self.name = name; self.equipment = equipment
         self.arms = arms; self.position = position; self.armPosition = armPosition; self.tag = tag; self.machine = machine; self.loading = loading
+        self.singleDumbbell = singleDumbbell == true ? true : nil
         self.repMin = repMin; self.repMax = repMax
         self.defaultWarmup = defaultWarmup; self.defaultSets = defaultSets; self.notes = notes
     }
@@ -340,6 +344,7 @@ struct Version: Codable, Identifiable, Hashable {
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
+        singleDumbbell = (try? c.decodeIfPresent(Bool.self, forKey: .singleDumbbell)) == true ? true : nil
         if armPosition == nil, equipment.family != .machine, let a = ArmPosition.fromOldTag(tag) {
             armPosition = a; tag = nil
         }
@@ -359,11 +364,13 @@ struct Version: Codable, Identifiable, Hashable {
 
     var family: EquipmentFamily { equipment.family }
     var isBarbell: Bool { family == .bar }
+    /// One dumbbell in both hands, not a pair.
+    var isSingleDumbbell: Bool { family == .dumbbell && singleDumbbell == true }
     var repRange: String { "\(repMin) to \(repMax)" }
     /// The fields that make two variations the same one.
     var key: VariationKey {
         VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased(), machine: machine?.lowercased(),
-                     loading: family == .machine ? loading : nil, armPosition: armPosition)
+                     loading: family == .machine ? loading : nil, armPosition: armPosition, single: isSingleDumbbell)
     }
 }
 
@@ -375,6 +382,8 @@ struct VariationKey: Hashable {
     var machine: String? = nil
     var loading: Loading? = nil
     var armPosition: ArmPosition? = nil
+    /// One dumbbell in both hands.
+    var single: Bool = false
 }
 
 /// A Style is a way of doing a variation that shares its history: attachment, cable height,
