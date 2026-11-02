@@ -28,6 +28,8 @@ struct GroupSelectBar: View {
     let count: Int
     let makeGroup: () -> Void
     let ungroup: () -> Void
+    /// Behind the bar: the page's background unless a sheet gives its own.
+    var background: Color? = nil
 
     var body: some View {
         if anyGrouped {
@@ -45,7 +47,7 @@ struct GroupSelectBar: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16).padding(.vertical, 8)
-        .background(p.bg)
+        .background(background ?? p.bg)
     }
 }
 
@@ -64,12 +66,13 @@ struct GroupMemberLabel: View {
 
 extension View {
     /// A group's members share one card with an accent edge; loose exercises get a card each.
-    func groupRowCard(_ p: Palette, grouped: Bool, first: Bool, last: Bool) -> some View {
+    /// A sheet already painted in the card color passes its own `fill`.
+    func groupRowCard(_ p: Palette, grouped: Bool, first: Bool, last: Bool, fill: Color? = nil) -> some View {
         let r = Radius.row
         let shape = UnevenRoundedRectangle(topLeadingRadius: first ? r : 0, bottomLeadingRadius: last ? r : 0,
                                            bottomTrailingRadius: last ? r : 0, topTrailingRadius: first ? r : 0, style: .continuous)
         return self.listRowBackground(
-            shape.fill(p.card)
+            shape.fill(fill ?? p.card)
                 .overlay(alignment: .leading) { if grouped { Rectangle().fill(p.accent).frame(width: 3) } }
                 .clipShape(shape)
                 .padding(.horizontal, 16).padding(.top, first ? 5 : 0).padding(.bottom, last ? 5 : 0)

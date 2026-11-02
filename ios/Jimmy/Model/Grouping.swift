@@ -20,6 +20,26 @@ extension RoutineItem: GroupMember {}
 extension Workout: GroupedExercises {}
 extension Routine: GroupedExercises {}
 
+extension RoutineDraft.Row: GroupMember {
+    var groupId: String? {
+        get { item.groupId }
+        set { item.groupId = newValue }
+    }
+}
+
+extension RoutineDraft {
+    /// The sheet's rows as a list that groups, keeping each row's id through every change.
+    struct Rows: GroupedExercises {
+        var items: [Row]
+        var groups: [ExerciseGroup]
+    }
+
+    var groupable: Rows {
+        get { Rows(items: rows, groups: groups) }
+        set { rows = newValue.items; groups = newValue.groups }
+    }
+}
+
 extension GroupedExercises {
     /// The group the exercise at `i` is really in: one it shares with at least one other exercise.
     func liveGroup(at i: Int) -> String? {
@@ -28,10 +48,12 @@ extension GroupedExercises {
     }
 }
 
+/// Where a row sits in its group: whether it starts or ends the shared card, and its number among
+/// the members. Loose rows start and end their own card.
+typealias GroupPlace = (group: String?, first: Bool, last: Bool, members: Int, number: Int)
+
 extension GroupedExercises {
-    /// Where the row at `i` sits in its group: whether it starts or ends the shared card, and its
-    /// number among the members. Loose rows start and end their own card.
-    func groupPlace(at i: Int) -> (group: String?, first: Bool, last: Bool, members: Int, number: Int) {
+    func groupPlace(at i: Int) -> GroupPlace {
         guard let g = liveGroup(at: i) else { return (nil, true, true, 0, 0) }
         let first = i == 0 || items[i - 1].groupId != g
         let last = i == items.count - 1 || items[i + 1].groupId != g

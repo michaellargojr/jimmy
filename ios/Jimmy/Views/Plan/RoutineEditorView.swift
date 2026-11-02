@@ -124,18 +124,9 @@ struct RoutineEditorView: View {
                 if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }
             }
             Button { opened = v } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    if place.group != nil { GroupMemberLabel(members: place.members, number: place.number) }
-                    Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                    if let v {
-                        VariationChips(tags: store.variationChips(v), size: .small,
-                                       note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
-                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "), nickname: store.nickname(v))
-                            .padding(.vertical, 2)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                RoutineItemLabel(item: item, place: place)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .disabled(v == nil)
             Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
@@ -156,6 +147,30 @@ struct RoutineEditorView: View {
         }
         sec.removeAll { prim.contains($0) }
         return (prim, sec)
+    }
+}
+
+/// A routine exercise's name and chips, with its place in a group above: the same on the routine
+/// page and in the routine sheets.
+struct RoutineItemLabel: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.palette) private var p
+    let item: RoutineItem
+    let place: GroupPlace
+
+    private var v: Version? { store.version(item.versionId) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if place.group != nil { GroupMemberLabel(members: place.members, number: place.number) }
+            Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+            if let v {
+                VariationChips(tags: store.variationChips(v), size: .small,
+                               note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
+                                   .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "), nickname: store.nickname(v))
+                    .padding(.vertical, 2)
+            }
+        }
     }
 }
 

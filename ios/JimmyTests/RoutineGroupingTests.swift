@@ -83,4 +83,18 @@ private func group(_ r: Routine, _ v: String) -> String? { r.items.first { $0.ve
     @Test func ticksShiftUpWhenARowIsDeleted() {
         #expect(ticksAfterDelete([0, 2, 3], deleted: [2]) == [0, 2])
     }
+
+    @Test func theSplitSheetsDraftGroupsAndKeepsItsRows() {
+        let r = routine([item("a"), item("b"), item("c")])
+        var d = RoutineDraft(r)
+        let ids = d.rows.map(\.id)
+        d.groupable = makeGroup(d.groupable, at: [0, 2])
+        #expect(d.rows.map(\.id) == [ids[0], ids[2], ids[1]])
+        #expect(d.groupable.liveGroup(at: 0) != nil && d.groupable.liveGroup(at: 0) == d.groupable.liveGroup(at: 1))
+        #expect(d.groups.count == 1 && d.groups.first?.type == .superset)
+        #expect(!d.matches(r))
+        d.groupable = ungroup(d.groupable, at: [1])
+        #expect(d.items.allSatisfy { $0.groupId == nil })
+        #expect(d.groups.isEmpty)
+    }
 }
