@@ -23,7 +23,6 @@ struct RoutineDraftSheet: View {
     /// Duplicate: the rows unticked, left out of the copy.
     @State private var leftOut: Set<String> = []
     @State private var adding = false
-    @State private var fromRoutines = false
     @State private var asking = false
     @State private var naming = false
     @State private var newName = ""
@@ -70,12 +69,7 @@ struct RoutineDraftSheet: View {
         }
         .nameTakenAlert($taken)
         .sheet(isPresented: $adding) {
-            AddExerciseSheet { v, st in draft.append(RoutineItem(versionId: v.id, styleId: st?.id)) }
-                .presentationDetents([.large])
-                .presentationBackground(p.card)
-        }
-        .sheet(isPresented: $fromRoutines) {
-            FromRoutinesSheet(exclude: original.id) { draft.add($0) }
+            RoutineBuilderSheet(mode: .add(to: original.id)) { _, built in draft.add(built) }
                 .presentationDetents([.large])
                 .presentationBackground(p.card)
         }
@@ -143,12 +137,9 @@ struct RoutineDraftSheet: View {
             } else {
                 ForEach(draft.rows) { row in rowView(row) }
                     .onMove { from, to in draft.move(from: from, to: to) }
-                PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
+                PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                PillButton(title: "From my routines", icon: "square.on.square", full: true) { fromRoutines = true }
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
             }
         }
         .listStyle(.plain)

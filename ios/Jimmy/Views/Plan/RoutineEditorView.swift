@@ -14,7 +14,6 @@ struct RoutineEditorView: View {
     @State private var duplicating = false
     @State private var justMade: Routine? = nil
     @State private var created: Routine? = nil
-    @State private var fromRoutines = false
     @State private var taken: NameTaken? = nil
 
     private var routine: Routine? { store.routine(routineId) }
@@ -45,9 +44,7 @@ struct RoutineEditorView: View {
                         .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
                 }
                 Section {
-                    PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    PillButton(title: "From my routines", icon: "square.on.square", full: true) { fromRoutines = true }
+                    PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     PillButton(title: "Start this routine", style: .primary, full: true) {
                         if store.canPickWorkout { store.startWorkout(from: r) }
@@ -93,12 +90,7 @@ struct RoutineEditorView: View {
             }
             .nameTakenAlert($taken)
             .sheet(isPresented: $adding) {
-                AddExerciseSheet { v, st in var rr = r; rr.items.append(RoutineItem(versionId: v.id, styleId: st?.id)); store.put(rr) }
-                    .presentationDetents([.large])
-                    .presentationBackground(p.card)
-            }
-            .sheet(isPresented: $fromRoutines) {
-                FromRoutinesSheet(exclude: r.id) { picked in if var rr = store.routine(r.id) { rr.add(picked); store.put(rr) } }
+                RoutineBuilderSheet(mode: .add(to: r.id)) { _, built in if var rr = store.routine(r.id) { rr.add(built); store.put(rr) } }
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
@@ -194,15 +186,13 @@ struct SplitEditorView: View {
     @State private var renaming = false
     @State private var name = ""
     @State private var goals = false
-    @State private var naming = false
-    @State private var newName = ""
     @State private var created: Routine? = nil
     @State private var editing: SlotEdit? = nil
     @State private var duplicating: Routine? = nil
     @State private var renamingRoutine: Routine? = nil
     @State private var routineName = ""
-    /// A routine just made with New routine, offered exercises from the other routines first.
-    @State private var picking: Routine? = nil
+    /// New routine: the builder is open; the routine it made opens once it has gone.
+    @State private var building = false
     @State private var pendingOpen: Routine? = nil
     /// Decided once, when the page opens: a split with no routines yet is being put together and
     /// keeps that layout until the page is left (splitSections).
@@ -255,31 +245,6 @@ struct SplitEditorView: View {
                 Button("Save") { var ss = s; ss.name = name.trimmingCharacters(in: .whitespaces); if !ss.name.isEmpty { store.put(ss) } }
                 Button("Cancel", role: .cancel) {}
             }
-            .alert("New routine", isPresented: $naming) {
-                TextField("Name", text: $newName)
-                Button("Create") {
-                    let n = newName.trimmingCharacters(in: .whitespaces)
-                    if routineNameTaken(n, in: store.routines) {
-                        let typed = newName
-                        taken = NameTaken(name: n) { newName = typed; naming = true }
-                        return
-                    }
-                    let r = Routine(name: newRoutineName(n, taken: store.routines.map(\.name)))
-                    store.put(r)
-                    var ss = s; ss.add(r.id); ss.noteMadeHere(r.id); store.put(ss)
-                    if store.routines.contains(where: { $0.id != r.id && !$0.items.isEmpty }) {
-                        // The offer waits for the alert to go, or the sheet is lost under it.
-                        pendingOpen = r
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(400))
-                            picking = r
-                        }
-                    } else {
-                        created = r
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            }
             .navigationDestination(item: $created) { r in RoutineEditorView(routineId: r.id) }
             .sheet(isPresented: $goals) {
                 GoalsSheet(splitId: s.id)
@@ -291,10 +256,14 @@ struct SplitEditorView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
-            // Exercises from the other routines for the new routine; it opens once the sheet has gone.
-            .sheet(item: $picking, onDismiss: { created = pendingOpen; pendingOpen = nil }) { r in
-                FromRoutinesSheet(title: "Take from your routines", exclude: r.id) { picked in
-                    if var rr = store.routine(r.id) { rr.add(picked); store.put(rr) }
+            // New routine: built in the sheet, joins this split, and opens once the sheet has gone.
+            .sheet(isPresented: $building, onDismiss: { created = pendingOpen; pendingOpen = nil }) {
+                RoutineBuilderSheet(mode: .create) { name, built in
+                    var r = Routine(name: name)
+                    r.add(built)
+                    store.put(r)
+                    if var ss = store.splits.first(where: { $0.id == splitId }) { ss.add(r.id); ss.noteMadeHere(r.id); store.put(ss) }
+                    pendingOpen = r
                 }
                 .presentationDetents([.large])
                 .presentationBackground(p.card)
@@ -348,7 +317,7 @@ struct SplitEditorView: View {
 
     private var newRoutineSection: some View {
         Section {
-            PillButton(title: "New routine", icon: "plus", full: true) { newName = ""; naming = true }
+            PillButton(title: "New routine", icon: "plus", full: true) { building = true }
                 .listRowBackground(Color.clear).listRowSeparator(.hidden)
         }
     }
