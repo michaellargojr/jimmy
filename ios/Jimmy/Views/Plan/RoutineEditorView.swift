@@ -15,6 +15,7 @@ struct RoutineEditorView: View {
     @State private var justMade: Routine? = nil
     @State private var created: Routine? = nil
     @State private var fromRoutines = false
+    @State private var taken: NameTaken? = nil
 
     private var routine: Routine? { store.routine(routineId) }
 
@@ -81,9 +82,16 @@ struct RoutineEditorView: View {
             }
             .alert("Rename routine", isPresented: $renaming) {
                 TextField("Name", text: $name)
-                Button("Save") { var rr = r; rr.name = name.trimmingCharacters(in: .whitespaces); if !rr.name.isEmpty { store.put(rr) } }
+                Button("Save") {
+                    let n = name.trimmingCharacters(in: .whitespaces)
+                    if routineNameTaken(n, in: store.routines, except: r.id) {
+                        let typed = name
+                        taken = NameTaken(name: n) { name = typed; renaming = true }
+                    } else if var rr = store.routine(r.id), !n.isEmpty { rr.name = n; store.put(rr) }
+                }
                 Button("Cancel", role: .cancel) {}
             }
+            .nameTakenAlert($taken)
             .sheet(isPresented: $adding) {
                 AddExerciseSheet { v, st in var rr = r; rr.items.append(RoutineItem(versionId: v.id, styleId: st?.id)); store.put(rr) }
                     .presentationDetents([.large])
@@ -199,6 +207,7 @@ struct SplitEditorView: View {
     /// Decided once, when the page opens: a split with no routines yet is being put together and
     /// keeps that layout until the page is left (splitSections).
     @State private var creating: Bool? = nil
+    @State private var taken: NameTaken? = nil
     @Environment(\.editMode) private var editMode
 
     /// One spot of the cycle opened in the edit sheet.
@@ -250,7 +259,12 @@ struct SplitEditorView: View {
                 TextField("Name", text: $newName)
                 Button("Create") {
                     let n = newName.trimmingCharacters(in: .whitespaces)
-                    let r = Routine(name: n.isEmpty ? "New routine" : n)
+                    if routineNameTaken(n, in: store.routines) {
+                        let typed = newName
+                        taken = NameTaken(name: n) { newName = typed; naming = true }
+                        return
+                    }
+                    let r = Routine(name: newRoutineName(n, taken: store.routines.map(\.name)))
                     store.put(r)
                     var ss = s; ss.add(r.id); ss.noteMadeHere(r.id); store.put(ss)
                     if store.routines.contains(where: { $0.id != r.id && !$0.items.isEmpty }) {
@@ -295,11 +309,15 @@ struct SplitEditorView: View {
                 TextField("Name", text: $routineName)
                 Button("Save") {
                     let n = routineName.trimmingCharacters(in: .whitespaces)
-                    if var r = renamingRoutine, !n.isEmpty { r.name = n; store.put(r) }
+                    if let r = renamingRoutine, routineNameTaken(n, in: store.routines, except: r.id) {
+                        let typed = routineName
+                        taken = NameTaken(name: n) { routineName = typed; renamingRoutine = r }
+                    } else if var r = renamingRoutine, !n.isEmpty { r.name = n; store.put(r) }
                     renamingRoutine = nil
                 }
                 Button("Cancel", role: .cancel) { renamingRoutine = nil }
             }
+            .nameTakenAlert($taken)
             .routineUndoBar(splitId: s.id)
             .task { if self.creating == nil { self.creating = s.routineIds.isEmpty } }
             #if DEBUG

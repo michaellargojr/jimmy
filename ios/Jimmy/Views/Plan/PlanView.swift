@@ -9,6 +9,7 @@ struct PlanView: View {
     @State private var naming: Segment? = nil
     @State private var newVersion = false
     @State private var path = NavigationPath()
+    @State private var taken: NameTaken? = nil
 
     enum Segment: String, CaseIterable, Identifiable { case splits = "Splits", routines = "Routines", exercises = "Exercises"; var id: String { rawValue } }
 
@@ -47,13 +48,17 @@ struct PlanView: View {
                         if store.splits.count == 1 { store.update { $0.activeSplitId = s.id } }
                         // Straight onto its page, to put it together.
                         path.append(s)
+                    } else if routineNameTaken(name, in: store.routines) {
+                        let typed = newName
+                        taken = NameTaken(name: name) { newName = typed; naming = .routines }
                     } else {
-                        store.put(Routine(name: name.isEmpty ? "New routine" : name))
+                        store.put(Routine(name: newRoutineName(name, taken: store.routines.map(\.name))))
                     }
                     naming = nil
                 }
                 Button("Cancel", role: .cancel) { naming = nil }
             }
+            .nameTakenAlert($taken)
             .sheet(isPresented: $newVersion) {
                 AddExerciseSheet { _, _ in }
                     .presentationDetents([.large])
@@ -150,6 +155,7 @@ struct RoutinesList: View {
     @State private var created: Routine? = nil
     @State private var renaming: Routine? = nil
     @State private var newName = ""
+    @State private var taken: NameTaken? = nil
 
     var body: some View {
         List {
@@ -191,11 +197,15 @@ struct RoutinesList: View {
             TextField("Name", text: $newName)
             Button("Save") {
                 let n = newName.trimmingCharacters(in: .whitespaces)
-                if var r = renaming, !n.isEmpty { r.name = n; store.put(r) }
+                if let r = renaming, routineNameTaken(n, in: store.routines, except: r.id) {
+                    let typed = newName
+                    taken = NameTaken(name: n) { newName = typed; renaming = r }
+                } else if var r = renaming, !n.isEmpty { r.name = n; store.put(r) }
                 renaming = nil
             }
             Button("Cancel", role: .cancel) { renaming = nil }
         }
+        .nameTakenAlert($taken)
     }
 }
 

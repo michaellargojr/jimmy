@@ -81,6 +81,23 @@ func copyName(_ name: String, taken: [String]) -> String {
     return "\(stem) \(n)"
 }
 
+/// Another routine already goes by this name, in any case, spaces at the ends ignored. `except`
+/// is the routine being renamed, which may keep its own name. An empty name is never taken.
+func routineNameTaken(_ name: String, in routines: [Routine], except: String? = nil) -> Bool {
+    let n = name.trimmingCharacters(in: .whitespaces).lowercased()
+    guard !n.isEmpty else { return false }
+    return routines.contains { $0.id != except && $0.name.trimmingCharacters(in: .whitespaces).lowercased() == n }
+}
+
+/// A new routine's name: what was typed, or "New routine" when left empty ("New routine 2" when
+/// that is taken).
+func newRoutineName(_ typed: String, taken: [String]) -> String {
+    let n = typed.trimmingCharacters(in: .whitespaces)
+    if !n.isEmpty { return n }
+    let used = Set(taken.map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
+    return used.contains("new routine") ? copyName("New routine", taken: taken) : "New routine"
+}
+
 /// What changed, in a few plain words: "Removed Upright Row - Added Arnold Press - New order".
 func routineChanges(from old: [RoutineItem], to new: [RoutineItem], name: (RoutineItem) -> String) -> String {
     struct Key: Hashable { var v: String; var s: String? }
