@@ -23,6 +23,9 @@ struct AddExerciseSheet: View {
     @State private var machineText = ""
     /// You switched the app's pick for a machine name (variation or style).
     @State private var flipped = false
+    /// The Nickname field: the app's suggestion (or the matching variation's nickname) until you type in it.
+    @State private var nick = ""
+    @State private var nickTyped = false
     @FocusState private var focused: Bool
 
     init(base: Exercise? = nil, title: String? = nil, onPick: @escaping (Version, Style?) -> Void) {
@@ -141,6 +144,7 @@ struct AddExerciseSheet: View {
         else { variation = VariationSpec(family: .dumbbell) }
         style = StyleSpec()
         naming = nil; machineText = ""; flipped = false
+        nick = ""; nickTyped = false
     }
 
     /// From Plan: start on a common variation you don't have yet, so Add makes something new.
@@ -152,6 +156,7 @@ struct AddExerciseSheet: View {
         else { variation = VariationSpec(family: .dumbbell) }
         style = StyleSpec()
         naming = nil; machineText = ""; flipped = false
+        nick = ""; nickTyped = false
     }
 
     // MARK: New base: pick the muscle group
@@ -169,6 +174,7 @@ struct AddExerciseSheet: View {
                     Button {
                         chosen = store.addBase(name: name, group: g)
                         variation = VariationSpec(family: .dumbbell); style = StyleSpec()
+                        nick = ""; nickTyped = false
                     } label: {
                         Text(g.label).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                             .frame(maxWidth: .infinity).frame(height: 48)
@@ -190,6 +196,7 @@ struct AddExerciseSheet: View {
         let needsName = naming != nil && machineName(machineText) == nil
         let call = variationCall(b, verdict: verdict)
         let asVariation = call.map { flipped ? !$0.appPicksVariation : $0.appPicksVariation }
+        let autoNick = autoNickname(b, verdict: verdict, call: call, asVariation: asVariation)
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
@@ -208,6 +215,10 @@ struct AddExerciseSheet: View {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel("Variation")
                         VariationFields(legs: b.isLegs, spec: $variation)
+                        Rectangle().fill(p.line).frame(height: 1).padding(.vertical, 2)
+                        SectionLabel("Nickname")
+                        NicknameField(text: Binding(get: { nickTyped ? nick : (autoNick ?? "") },
+                                                    set: { nick = $0; nickTyped = true }))
                     }
                 }
                 if showMachines {
@@ -242,7 +253,7 @@ struct AddExerciseSheet: View {
                         }
                     }
                     let have = base != nil && verdict.isExisting && call == nil
-                    PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false) }
+                    PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false, autoNick: autoNick) }
                         .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
                 }
             }
@@ -287,22 +298,46 @@ struct AddExerciseSheet: View {
         return nil
     }
 
-    private func add(_ b: Exercise, call: VariationCall?, asVariation: Bool) {
+    private func add(_ b: Exercise, call: VariationCall?, asVariation: Bool, autoNick: String?) {
+        let had = Set(store.versions.map(\.id))
+        let done: (Version, Style?) -> Void = { v, s in
+            // A new variation takes what the field shows; one you have changes only if you typed.
+            if !had.contains(v.id) || nickTyped { store.setNickname(v.id, nickTyped ? nick : autoNick) }
+            finish(store.version(v.id) ?? v, s)
+        }
         if let call {
             if asVariation {
                 let v = store.makeVariation(base: b, spec: call.variation, like: call.target)
-                finish(v, store.makeStyle(for: v, spec: call.rest))
+                done(v, store.makeStyle(for: v, spec: call.rest))
             } else {
                 var st = style
                 if naming != nil { st.machine = machineName(machineText) }
-                finish(call.target, store.makeStyle(for: call.target, spec: st))
+                done(call.target, store.makeStyle(for: call.target, spec: st))
             }
         } else if variation.family == .machine {
             let v = store.makeVariation(base: b, spec: variation, like: nil)
-            finish(v, store.makeStyle(for: v, spec: style))
+            done(v, store.makeStyle(for: v, spec: style))
         } else {
             let (v, s) = store.resolve(base: b, variation: variation, style: style)
-            finish(v, s)
+            done(v, s)
+        }
+    }
+
+    /// What the Nickname field shows until you type: a variation you have keeps its own
+    /// nickname (or none); a new one gets the app's suggestion when every block matches.
+    private func autoNickname(_ b: Exercise, verdict: AppStore.AddVerdict, call: VariationCall?, asVariation: Bool?) -> String? {
+        if let call, let asVariation {
+            guard asVariation else { return store.nickname(call.target) }
+            return suggestNickname(base: b.name, family: call.variation.family, position: call.variation.position,
+                                   tag: call.variation.tag, styleMachines: [call.rest.machine].compactMap { $0 })
+        }
+        switch verdict {
+        case .existing(let v, _), .newStyle(let v):
+            return store.nickname(v)
+        case .newVariation:
+            let named = naming != nil ? machineName(machineText) : nil
+            return suggestNickname(base: b.name, family: variation.family, position: variation.position,
+                                   tag: variation.tag, styleMachines: [style.machine, named].compactMap { $0 })
         }
     }
 
@@ -318,7 +353,7 @@ struct AddExerciseSheet: View {
             Button { finish(v, lastStyle(v)) } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
-                        VariationChips(tags: store.variationChips(v))
+                        VariationChips(tags: store.variationChips(v), nickname: store.nickname(v))
                         if let last {
                             Text("\(last.daysAgo == 0 ? "today" : "\(last.daysAgo)d ago") - " + last.item.sets.filter { $0.isDone }.prefix(3).map { $0.formatted }.joined(separator: ", "))
                                 .font(.system(size: 12)).foregroundStyle(p.muted).lineLimit(1)

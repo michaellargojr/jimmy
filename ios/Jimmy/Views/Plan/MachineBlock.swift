@@ -108,7 +108,7 @@ struct MachineBlock: View {
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
-                    VariationChips(tags: store.variationChips(v), size: .small)
+                    VariationChips(tags: store.variationChips(v), size: .small, nickname: store.nickname(v))
                     if let last = lastText(v) {
                         Text(last).font(.system(size: 12.5)).foregroundStyle(p.muted).lineLimit(1)
                     }

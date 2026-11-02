@@ -24,22 +24,28 @@ struct Palette: Equatable {
     /// Near-black for most colors; white for Crimson so its text stays readable.
     var accentPill: Color { deepAccent ? .white : (isDark ? bg : text) }
 
-    static func make(scheme: AccentScheme, dark: Bool) -> Palette {
-        let accent: Color
-        let onAccent: Color
+    /// The accent and the text that sits on it, as hex, for places outside SwiftUI's colors:
+    /// the lock screen card gets them as numbers.
+    static func accentHex(_ scheme: AccentScheme, dark: Bool) -> (accent: UInt32, onAccent: UInt32) {
         switch (scheme, dark) {
-        case (.orange, true): accent = Color(hex: 0xFFB84D); onAccent = Color(hex: 0x0A0A0D)
-        case (.orange, false): accent = Color(hex: 0xC77A00); onAccent = .white
-        case (.mint, true): accent = Color(hex: 0x5DD68C); onAccent = Color(hex: 0x0A0A0D)
-        case (.mint, false): accent = Color(hex: 0x1F9B5A); onAccent = .white
-        case (.ice, true): accent = Color(hex: 0x5EB5FF); onAccent = Color(hex: 0x0A0A0D)
-        case (.ice, false): accent = Color(hex: 0x1F6FD0); onAccent = .white
-        case (.flamingo, true): accent = Color(hex: 0xFF5F6D); onAccent = Color(hex: 0x0A0A0D)
-        case (.flamingo, false): accent = Color(hex: 0xC8313F); onAccent = .white
+        case (.orange, true): return (0xFFB84D, 0x0A0A0D)
+        case (.orange, false): return (0xC77A00, 0xFFFFFF)
+        case (.mint, true): return (0x5DD68C, 0x0A0A0D)
+        case (.mint, false): return (0x1F9B5A, 0xFFFFFF)
+        case (.ice, true): return (0x5EB5FF, 0x0A0A0D)
+        case (.ice, false): return (0x1F6FD0, 0xFFFFFF)
+        case (.flamingo, true): return (0xFF5F6D, 0x0A0A0D)
+        case (.flamingo, false): return (0xC8313F, 0xFFFFFF)
         // Crimson is dark enough that white reads better on it than black, in both modes.
-        case (.crimson, true): accent = Color(hex: 0xB01425); onAccent = .white
-        case (.crimson, false): accent = Color(hex: 0x8E1020); onAccent = .white
+        case (.crimson, true): return (0xB01425, 0xFFFFFF)
+        case (.crimson, false): return (0x8E1020, 0xFFFFFF)
         }
+    }
+
+    static func make(scheme: AccentScheme, dark: Bool) -> Palette {
+        let hex = accentHex(scheme, dark: dark)
+        let accent = Color(hex: hex.accent)
+        let onAccent = hex.onAccent == 0xFFFFFF ? Color.white : Color(hex: hex.onAccent)
         let deep = scheme == .crimson
         if dark {
             return Palette(bg: Color(hex: 0x0A0A0D), card: Color(hex: 0x141518), elevated: Color(hex: 0x1F2024),

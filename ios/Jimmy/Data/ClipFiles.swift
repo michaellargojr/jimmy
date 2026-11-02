@@ -273,3 +273,8 @@ func clipDuration(_ s: Double?) -> String? {
 func byteLabel(_ b: Int) -> String {
     ByteCountFormatter.string(fromByteCount: Int64(b), countStyle: .file)
 }
+
+/// "1 clip - 4.1 MB", "5 clips - 46 MB"
+func clipCountLine(_ clips: [Clip]) -> String {
+    "\(clips.count) \(clips.count == 1 ? "clip" : "clips") - \(byteLabel(ClipFiles.totalBytes(clips)))"
+}
