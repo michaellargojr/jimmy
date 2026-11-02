@@ -191,7 +191,7 @@ struct BasePageView: View {
         let styles = store.styles(of: v.id)
         return HStack {
             VStack(alignment: .leading, spacing: 8) {
-                VariationChips(tags: store.variationChips(v))
+                VariationChips(tags: store.variationChips(v), nickname: store.nickname(v))
                 Text([last.map { "\($0.daysAgo == 0 ? "today" : "\($0.daysAgo)d ago")" + (topSet($0.item).map { " - \($0.formatted)" } ?? "") },
                       styles.isEmpty ? nil : "\(styles.count) style\(styles.count == 1 ? "" : "s")",
                       "\(v.repMin)-\(v.repMax) rep range"].compactMap { $0 }.joined(separator: " - "))
@@ -251,6 +251,8 @@ struct VersionEditorView: View {
     // every keystroke re-sorted the list behind this screen and knocked the keyboard away.
     @FocusState private var notesFocused: Bool
     @State private var draftNotes = ""
+    @FocusState private var nickFocused: Bool
+    @State private var draftNick = ""
     @State private var loaded = false
     @State private var editingStyle: Style? = nil
     @State private var newStyle = false
@@ -262,7 +264,12 @@ struct VersionEditorView: View {
 
     private func loadDrafts() {
         guard !loaded, let v = version else { return }
-        draftNotes = v.notes ?? ""; loaded = true
+        draftNotes = v.notes ?? ""; draftNick = v.nickname ?? ""; loaded = true
+    }
+
+    private func commitNick() {
+        guard loaded else { return }
+        store.setNickname(versionId, draftNick)
     }
 
     private func commitNotes() {
@@ -279,7 +286,7 @@ struct VersionEditorView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(store.baseName(v)).font(.system(size: 24, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
-                        VariationChips(tags: store.variationChips(v))
+                        VariationChips(tags: store.variationChips(v), nickname: store.nickname(v))
                         if let e = store.base(of: v) {
                             SectionLabel("Muscles").padding(.top, 8)
                             MuscleTags(primary: regionOverrides(base: e.name, variation: v)?.primary ?? e.primary,
@@ -339,6 +346,17 @@ struct VersionEditorView: View {
                     }
                     Stepper("Working sets \(v.defaultSets)", value: b.defaultSets, in: 1...8)
                     Toggle("Warm-up set", isOn: b.defaultWarmup)
+                    HStack(spacing: 12) {
+                        Text("Nickname").foregroundStyle(p.text)
+                        TextField("None", text: $draftNick)
+                            .multilineTextAlignment(.trailing)
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundStyle(p.accent)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .focused($nickFocused)
+                    }
                 }
                 Section("Notes") {
                     TextField("Setup, what to watch", text: $draftNotes, axis: .vertical)
@@ -368,7 +386,8 @@ struct VersionEditorView: View {
             .toolbarBackground(p.bg, for: .navigationBar)
             .onAppear(perform: loadDrafts)
             .onChange(of: notesFocused) { _, _ in commitNotes() }
-            .onDisappear(perform: commitNotes)
+            .onChange(of: nickFocused) { _, f in if !f { commitNick() } }
+            .onDisappear { commitNotes(); commitNick() }
             .sheet(item: $editingStyle) { s in
                 StyleEditorSheet(version: v, style: s).presentationDetents([.large]).presentationBackground(p.card)
             }

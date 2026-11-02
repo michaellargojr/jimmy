@@ -13,7 +13,7 @@ struct SplitOfferCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(st.label) runs \(offer.heavier ? "heavier" : "lighter")")
                         .font(.system(size: 20, weight: .heavy)).tracking(-0.3).foregroundStyle(p.text)
-                    VariationChips(tags: store.variationChips(v), size: .small)
+                    VariationChips(tags: store.variationChips(v), size: .small, nickname: store.nickname(v))
                 }
                 HStack(spacing: 10) {
                     tile(st.label, offer.styleSet, accent: true)

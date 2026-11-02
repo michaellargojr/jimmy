@@ -11,6 +11,10 @@ struct RoutineEditorView: View {
     @State private var name = ""
     @State private var selecting = false
     @State private var selected: Set<Int> = []
+    @State private var duplicating = false
+    @State private var justMade: Routine? = nil
+    @State private var created: Routine? = nil
+    @State private var fromRoutines = false
 
     private var routine: Routine? { store.routine(routineId) }
 
@@ -42,6 +46,8 @@ struct RoutineEditorView: View {
                 Section {
                     PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    PillButton(title: "From my routines", icon: "square.on.square", full: true) { fromRoutines = true }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     PillButton(title: "Start this routine", style: .primary, full: true) {
                         if store.canPickWorkout { store.startWorkout(from: r) }
                         nav.tab = .workout
@@ -66,6 +72,7 @@ struct RoutineEditorView: View {
                             Button("Group…") { selecting = true }
                             Menu {
                                 Button { name = r.name; renaming = true } label: { Label("Rename", systemImage: "pencil") }
+                                Button { duplicating = true } label: { Label("Duplicate", systemImage: "doc.on.doc") }
                                 Button(role: .destructive) { dismiss(); store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
                             } label: { Image(systemName: "ellipsis") }
                         }
@@ -82,6 +89,21 @@ struct RoutineEditorView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
+            .sheet(isPresented: $fromRoutines) {
+                FromRoutinesSheet(exclude: r.id) { picked in if var rr = store.routine(r.id) { rr.add(picked); store.put(rr) } }
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            // The copy opens once the sheet has gone, or the push is lost under it.
+            .sheet(isPresented: $duplicating, onDismiss: { created = justMade; justMade = nil }) {
+                RoutineDraftSheet(mode: .duplicate, routine: r, takenNames: store.routines.map(\.name)) { justMade = $0 }
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            .navigationDestination(item: $created) { c in RoutineEditorView(routineId: c.id) }
+            #if DEBUG
+            .task { if RoutineDemo.once("duplicate", for: ["duplicate"]) { duplicating = true } }
+            #endif
         }
     }
 
@@ -112,7 +134,7 @@ struct RoutineEditorView: View {
                     if let v {
                         VariationChips(tags: store.variationChips(v), size: .small,
                                        note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
-                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "))
+                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "), nickname: store.nickname(v))
                     }
                 }
             }
@@ -167,55 +189,36 @@ struct SplitEditorView: View {
     @State private var naming = false
     @State private var newName = ""
     @State private var created: Routine? = nil
+    @State private var editing: SlotEdit? = nil
+    @State private var duplicating: Routine? = nil
+    @State private var renamingRoutine: Routine? = nil
+    @State private var routineName = ""
+    /// A routine just made with New routine, offered exercises from the other routines first.
+    @State private var picking: Routine? = nil
+    @State private var pendingOpen: Routine? = nil
+    /// Decided once, when the page opens: a split with no routines yet is being put together and
+    /// keeps that layout until the page is left (splitSections).
+    @State private var creating: Bool? = nil
+    @Environment(\.editMode) private var editMode
+
+    /// One spot of the cycle opened in the edit sheet.
+    struct SlotEdit: Identifiable { let id = uid(); let routine: Routine; let slot: Int }
 
     private var split: Split? { store.splits.first { $0.id == splitId } }
 
     var body: some View {
         if let s = split {
             let inSplit = Set(s.routineIds)
+            let creating = self.creating ?? s.routineIds.isEmpty
             List {
-                Section {
-                    Button { goals = true } label: { GoalsRow(goals: s.goals ?? SplitGoals()) }
-                        .buttonStyle(.plain)
-                        .rowCard(p, radius: Radius.card)
-                }
-                Section {
-                    CoverageCard(splitId: s.id).rowCard(p, radius: Radius.card)
-                }
-                Section {
-                    PillButton(title: "New routine", icon: "plus", full: true) { newName = ""; naming = true }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                }
-                Section {
-                    ForEach(Array(s.routineIds.enumerated()), id: \.offset) { i, rid in
-                        HStack(spacing: 12) {
-                            Text("\(i + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 24)
-                            Text(store.routine(rid)?.name ?? "Missing routine").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                            Spacer()
-                            Text("\(store.routine(rid)?.items.count ?? 0) ex").font(.system(size: 13)).foregroundStyle(p.muted)
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 12)
-                        .rowCard(p)
+                ForEach(splitSections(creating: creating), id: \.self) { section in
+                    switch section {
+                    case .goals: goalsSection(s)
+                    case .coverage: coverageSection(s)
+                    case .newRoutine: newRoutineSection
+                    case .inSplit: inSplitSection(s)
+                    case .addRoutine: addRoutineSection(s, inSplit: inSplit)
                     }
-                    .onMove { from, to in var ss = s; ss.routineIds.move(fromOffsets: from, toOffset: to); store.put(ss) }
-                    .onDelete { idx in var ss = s; ss.routineIds.remove(atOffsets: idx); store.put(ss) }
-                } header: {
-                    SectionLabel("In this split").padding(.leading, 16)
-                } footer: {
-                    Text("A routine can appear more than once, for example Push, Pull, Legs, Push, Pull, Legs.").font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
-                }
-                Section {
-                    ForEach(store.routines) { r in
-                        HStack {
-                            Text(r.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(inSplit.contains(r.id) ? p.muted : p.text)
-                            Spacer()
-                            Chip(text: "Add", small: true) { var ss = s; ss.routineIds.append(r.id); store.put(ss) }
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 10)
-                        .rowCard(p)
-                    }
-                } header: {
-                    SectionLabel("Add a routine").padding(.leading, 16)
                 }
                 Section {
                     if store.activeSplit?.id != s.id {
@@ -249,8 +252,17 @@ struct SplitEditorView: View {
                     let n = newName.trimmingCharacters(in: .whitespaces)
                     let r = Routine(name: n.isEmpty ? "New routine" : n)
                     store.put(r)
-                    var ss = s; ss.routineIds.append(r.id); store.put(ss)
-                    created = r
+                    var ss = s; ss.add(r.id); ss.noteMadeHere(r.id); store.put(ss)
+                    if store.routines.contains(where: { $0.id != r.id && !$0.items.isEmpty }) {
+                        // The offer waits for the alert to go, or the sheet is lost under it.
+                        pendingOpen = r
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(400))
+                            picking = r
+                        }
+                    } else {
+                        created = r
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             }
@@ -260,6 +272,131 @@ struct SplitEditorView: View {
                     .presentationDetents([.large])
                     .presentationBackground(p.card)
             }
+            .sheet(item: $editing) { e in
+                RoutineDraftSheet(mode: .edit(splitId: s.id, slot: e.slot), routine: e.routine, takenNames: store.routines.map(\.name))
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            // Exercises from the other routines for the new routine; it opens once the sheet has gone.
+            .sheet(item: $picking, onDismiss: { created = pendingOpen; pendingOpen = nil }) { r in
+                FromRoutinesSheet(title: "Take from your routines", exclude: r.id) { picked in
+                    if var rr = store.routine(r.id) { rr.add(picked); store.put(rr) }
+                }
+                .presentationDetents([.large])
+                .presentationBackground(p.card)
+            }
+            // A copy made here joins the split, with Undo. The page stays put.
+            .sheet(item: $duplicating) { r in
+                RoutineDraftSheet(mode: .duplicate, routine: r, takenNames: store.routines.map(\.name)) { store.addCopy($0, toSplit: s.id) }
+                    .presentationDetents([.large])
+                    .presentationBackground(p.card)
+            }
+            .alert("Rename routine", isPresented: Binding(get: { renamingRoutine != nil }, set: { if !$0 { renamingRoutine = nil } })) {
+                TextField("Name", text: $routineName)
+                Button("Save") {
+                    let n = routineName.trimmingCharacters(in: .whitespaces)
+                    if var r = renamingRoutine, !n.isEmpty { r.name = n; store.put(r) }
+                    renamingRoutine = nil
+                }
+                Button("Cancel", role: .cancel) { renamingRoutine = nil }
+            }
+            .routineUndoBar(splitId: s.id)
+            .task { if self.creating == nil { self.creating = s.routineIds.isEmpty } }
+            #if DEBUG
+            .task {
+                if RoutineDemo.once("edit", for: ["edit", "ask"]), let rid = s.routineIds.first, let r = store.routine(rid) {
+                    editing = SlotEdit(routine: r, slot: 0)
+                }
+            }
+            #endif
+        }
+    }
+
+    // MARK: Sections
+
+    private func goalsSection(_ s: Split) -> some View {
+        Section {
+            Button { goals = true } label: { GoalsRow(goals: s.goals ?? SplitGoals()) }
+                .buttonStyle(.plain)
+                .rowCard(p, radius: Radius.card)
+        }
+    }
+
+    private func coverageSection(_ s: Split) -> some View {
+        Section {
+            CoverageCard(splitId: s.id).rowCard(p, radius: Radius.card)
+        }
+    }
+
+    private var newRoutineSection: some View {
+        Section {
+            PillButton(title: "New routine", icon: "plus", full: true) { newName = ""; naming = true }
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+        }
+    }
+
+    private func inSplitSection(_ s: Split) -> some View {
+        Section {
+            if s.routineIds.isEmpty {
+                Text("Nothing here yet. New routine below, or Add an existing one.")
+                    .font(.system(size: 14)).foregroundStyle(p.muted)
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
+            ForEach(Array(s.routineIds.enumerated()), id: \.offset) { i, rid in
+                Button {
+                    if editMode?.wrappedValue != .active, let r = store.routine(rid) { editing = SlotEdit(routine: r, slot: i) }
+                } label: {
+                    HStack(spacing: 12) {
+                        Text("\(i + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 24)
+                        Text(store.routine(rid)?.name ?? "Missing routine").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                        Spacer()
+                        Text("\(store.routine(rid)?.items.count ?? 0) ex").font(.system(size: 13)).foregroundStyle(p.muted)
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.border)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .rowCard(p)
+                .contextMenu {
+                    if let r = store.routine(rid) {
+                        RoutineMenu(rename: { routineName = r.name; renamingRoutine = r },
+                                    duplicate: { duplicating = r },
+                                    remove: { var ss = s; if ss.routineIds.indices.contains(i) { ss.routineIds.remove(at: i) }; store.put(ss) })
+                    }
+                }
+            }
+            .onMove { from, to in var ss = s; ss.routineIds.move(fromOffsets: from, toOffset: to); store.put(ss) }
+            .onDelete { idx in var ss = s; ss.routineIds.remove(atOffsets: idx); store.put(ss) }
+        } header: {
+            SectionLabel("In this split").padding(.leading, 16)
+        } footer: {
+            Text("A routine can appear more than once, for example Push, Pull, Legs, Push, Pull, Legs. Tap one to edit it; hold one for Rename, Duplicate or Remove.")
+                .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
+        }
+    }
+
+    private func addRoutineSection(_ s: Split, inSplit: Set<String>) -> some View {
+        Section {
+            ForEach(store.routines) { r in
+                HStack {
+                    Text(r.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(inSplit.contains(r.id) ? p.muted : p.text)
+                    Spacer()
+                    Chip(text: "Add", small: true) { var ss = s; ss.add(r.id); store.put(ss) }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .rowCard(p)
+                .contextMenu {
+                    RoutineMenu(rename: { routineName = r.name; renamingRoutine = r },
+                                duplicate: { duplicating = r },
+                                delete: { store.deleteRoutine(r.id) })
+                }
+            }
+        } header: {
+            SectionLabel("Add an existing routine").padding(.leading, 16)
+        } footer: {
+            Text("Hold a routine for Rename, Duplicate or Delete. A copy made here joins this split.")
+                .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
         }
     }
 }

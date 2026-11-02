@@ -247,6 +247,9 @@ struct Version: Codable, Identifiable, Hashable {
     var machine: String?
     /// Plates or stack, for machines. Nil when not known (a machine named before the list).
     var loading: Loading?
+    /// The name people know it by ("Bayesian Curl"), shown as a tag beside the name. Yours to
+    /// type or clear; the app only suggests the few in Nicknames.swift.
+    var nickname: String?
     var cableHeight: Double?
     var benchAngle: Double?
     var repMin: Int
@@ -282,6 +285,7 @@ struct Version: Codable, Identifiable, Hashable {
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
+        nickname = try c.decodeIfPresent(String.self, forKey: .nickname)
         cableHeight = try c.decodeIfPresent(Double.self, forKey: .cableHeight)
         benchAngle = try c.decodeIfPresent(Double.self, forKey: .benchAngle)
         repMin = try c.decodeIfPresent(Int.self, forKey: .repMin) ?? 5
@@ -407,12 +411,15 @@ struct SetEntry: Codable, Identifiable, Hashable {
     var side: Side?
     var bar: Bar?
     var note: String?
+    /// When the reps went in (ms since epoch), so the Workout page knows which set was logged last. See Focus.
+    var loggedAt: Double?
 
     init(id: String = uid(), kind: SetKind, unit: WeightUnit, weight: Double? = nil, reps: Int? = nil,
-         plus: Bool = false, partials: Int? = nil, activation: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil) {
+         plus: Bool = false, partials: Int? = nil, activation: Int? = nil, intensity: Int? = nil, side: Side? = nil, bar: Bar? = nil, note: String? = nil,
+         loggedAt: Double? = nil) {
         self.id = id; self.kind = kind; self.unit = unit; self.weight = weight; self.reps = reps
         self.plus = plus; self.partials = partials; self.activation = activation; self.intensity = intensity
-        self.side = side; self.bar = bar; self.note = note
+        self.side = side; self.bar = bar; self.note = note; self.loggedAt = loggedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -429,6 +436,7 @@ struct SetEntry: Codable, Identifiable, Hashable {
         side = try c.decodeIfPresent(Side.self, forKey: .side)
         bar = try c.decodeIfPresent(Bar.self, forKey: .bar)
         note = try c.decodeIfPresent(String.self, forKey: .note)
+        loggedAt = try c.decodeIfPresent(Double.self, forKey: .loggedAt)
     }
 
     var hasData: Bool { reps != nil || weight != nil }
@@ -575,6 +583,12 @@ struct Split: Codable, Identifiable, Hashable {
     var goals: SplitGoals?
     /// The last coverage report, kept so the cards never wait for the network.
     var coverage: CoverageReport?
+    /// Routines swapped out with "Save as new routine", old id to new, so their workouts
+    /// keep their place for Up next (see RoutineCopies.swift).
+    var replaced: [String: String]?
+    /// Routines made with New routine on this split's page. Editing one from here saves
+    /// without asking, unless another split uses it too.
+    var madeHere: [String]?
 
     init(id: String = uid(), name: String, routineIds: [String] = []) {
         self.id = id; self.name = name; self.routineIds = routineIds

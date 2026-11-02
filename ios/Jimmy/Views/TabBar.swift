@@ -5,6 +5,8 @@ import SwiftUI
 struct JimmyTabBar: View {
     @Environment(\.palette) private var p
     @Binding var tab: AppTab
+    /// Called when the open tab's own button is tapped again.
+    var onReselect: (AppTab) -> Void = { _ in }
     @Namespace private var lens
 
     static let height: CGFloat = 62
@@ -28,6 +30,7 @@ struct JimmyTabBar: View {
     private func select(_ t: AppTab) {
         // Typing ends first, so a half-typed note is saved just like leaving its page.
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        if t == tab { onReselect(t); return }
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { tab = t }
     }
 

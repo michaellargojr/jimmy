@@ -64,6 +64,22 @@ struct SettingsView: View {
                                 }
                             }
                             Divider1()
+                            // How long the Workout page waits, with no touch, before gliding back to your set.
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Back to your set after").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                                HStack(spacing: 6) {
+                                    ForEach([10, 20, 30, 60, 0], id: \.self) { s in
+                                        Chip(text: s == 0 ? "Never" : s == 60 ? "1 min" : "\(s) s", on: store.settings.returnAfter == s, small: true) { store.update { $0.returnAfter = s } }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                            Divider1()
+                            SettingsRow(title: "Pocket mode", subtitle: "Covered in a pocket, the screen goes dark and taps are ignored.") {
+                                RectToggle(on: Binding(get: { store.settings.pocketMode }, set: { v in store.update { $0.pocketMode = v } }))
+                            }
+                            Divider1()
                             // Where every new workout starts; the gear changes one workout.
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Rep ranges").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
@@ -164,7 +180,7 @@ struct SettingsView: View {
                         }
                         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     }
-                    Text("Jimmy for iOS · v0.1").font(.system(size: 12)).foregroundStyle(p.muted).padding(.top, 8)
+                    Text(AppVersion.current).font(.system(size: 12)).foregroundStyle(p.muted).padding(.top, 8)
                 }
                 .padding(.horizontal, 16).padding(.bottom, 24)
             }

@@ -96,6 +96,26 @@ import Testing
         #expect(a.count == 24)
     }
 
+    @Test func addToLibraryOnly() throws {
+        // Settings > Jimmy library > Add stores a clip without putting it on any exercise.
+        let store = freshStore()
+        let c = clip()
+        store.attach(c, to: nil)
+        store.attach(c, to: nil)                        // the same file again: still one
+        #expect(store.clips.filter { $0.id == c.id }.count == 1)
+        #expect(store.usage(of: c.id).isEmpty)
+        let a = try #require(store.versions.first)
+        store.attach(clipIds: [c.id], to: a.id)         // later, from Form cues > From my Jimmy library
+        #expect(store.version(a.id)?.clipIds == [c.id])
+    }
+
+    @Test func libraryCountLine() {
+        #expect(clipCountLine([]).hasPrefix("0 clips - "))
+        #expect(clipCountLine([clip()]).hasPrefix("1 clip - "))
+        #expect(clipCountLine([clip(), clip()]).hasPrefix("2 clips - "))
+        #expect(!clipCountLine([clip()]).contains("·"))
+    }
+
     @Test func durationsReadPlainly() {
         #expect(clipDuration(34) == "0:34")
         #expect(clipDuration(62.4) == "1:02")

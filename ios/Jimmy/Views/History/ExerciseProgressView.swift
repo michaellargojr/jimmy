@@ -79,7 +79,7 @@ struct ExerciseProgressView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(store.workoutName(v)).font(.system(size: 26, weight: .heavy)).tracking(-0.5).foregroundStyle(p.text)
+                        NamedTitle(name: store.workoutName(v), nickname: store.nickname(v), size: 26)
                         VariationChips(tags: store.variationTags(v))
                     }
                     HStack(spacing: 8) {

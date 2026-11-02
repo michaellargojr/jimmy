@@ -19,12 +19,17 @@ final class AppStore {
     var loaded = false
     /// The last copy, move or erase of a history, while its Undo bar shows. Never saved.
     var historyUndo: HistoryUndo?
+    /// The last routine saved from the split page, while its Undo bar shows. Never saved.
+    var routineUndo: RoutineUndo?
 
     /// Backups to a folder in iCloud Drive. See Backup.swift.
     let backups: Backups
 
     private let fileURL: URL
     private var saveTask: Task<Void, Never>?
+    /// Set when jimmy.json is there but can't be read and couldn't be copied aside. Saving would
+    /// replace it, so nothing is saved until a restore or a reset replaces the data on purpose.
+    private(set) var savesPaused = false
 
     /// A store with its own file (tests) keeps its backup folder in memory, so it never
     /// writes into the folder the app on this device backs up to.
@@ -77,6 +82,25 @@ final class AppStore {
         let names = [namedMachine ? tag : nil, v.machine?.trimmingCharacters(in: .whitespaces)].compactMap { $0 }.filter { !$0.isEmpty }
         return words.joined(separator: " ") + (names.isEmpty ? "" : " (\(names.joined(separator: " - ")))")
     }
+    /// "Bayesian Curl", or nil when the variation has none.
+    func nickname(_ v: Version) -> String? { cleanNickname(v.nickname) }
+    /// The nickname the app would suggest for a variation you have (its styles count for a pec deck).
+    func suggestedNickname(for v: Version) -> String? {
+        suggestNickname(base: baseName(v), family: v.family, position: v.position, tag: v.tag,
+                        styleMachines: styles(of: v.id).compactMap { $0.machine })
+    }
+    /// Gives every variation without a nickname the app's suggestion, once (see Settings.nicknamesFilled).
+    func fillNicknames() {
+        for i in versions.indices where cleanNickname(versions[i].nickname) == nil {
+            if let n = suggestedNickname(for: versions[i]) { versions[i].nickname = n }
+        }
+        settings.nicknamesFilled = true
+    }
+    func setNickname(_ versionId: String, _ text: String?) {
+        guard var v = version(versionId), cleanNickname(v.nickname) != cleanNickname(text) else { return }
+        v.nickname = cleanNickname(text)
+        put(v)
+    }
     /// The Workout subtitle: "Two arms", "One arm - seated", "One leg".
     func armsText(_ v: Version) -> String {
         let legs = base(of: v)?.isLegs ?? false
@@ -126,13 +150,8 @@ final class AppStore {
     /// The routine to suggest next: the one after the last finished routine in the active split,
     /// or the one you have gone longest without.
     var upNextRoutine: Routine? {
-        if let split = activeSplit, !split.routineIds.isEmpty {
-            let ids = split.routineIds
-            if let last = finishedWorkouts.first(where: { $0.routineId != nil && ids.contains($0.routineId!) }),
-               let idx = ids.firstIndex(of: last.routineId!) {
-                return routine(ids[(idx + 1) % ids.count])
-            }
-            return routine(ids[0])
+        if let split = activeSplit, let i = upNextSlot(in: split, finished: finishedWorkouts) {
+            return routine(split.routineIds[i])
         }
         return routines.sorted { a, b in
             (routineLast(a, workouts: workouts)?.date ?? "0") < (routineLast(b, workouts: workouts)?.date ?? "0")
@@ -141,16 +160,40 @@ final class AppStore {
 
     // MARK: Load and save
 
+    /// Read jimmy.json. With no file yet (a new install) Jimmy starts from the seed. A file that is
+    /// there but can't be read is never overwritten: it is copied aside first, and if even that
+    /// fails, saving pauses so the file stays as it is.
     func load() {
-        if let data = try? Data(contentsOf: fileURL), let s = try? Snapshot.decode(data) {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            resetToSeed()
+            loaded = true
+            return
+        }
+        do {
+            let s = try Snapshot.decode(Data(contentsOf: fileURL))
             apply(s)
             if splits.isEmpty, !routines.isEmpty { seedSplitFromRoutines() }
             if s.version < 2 { migrateToLibraryV2(); markDirty() }
             if fillMachineLoading() { markDirty() }
-        } else {
+            if !settings.nicknamesFilled { fillNicknames(); markDirty() }
+        } catch {
+            print("Jimmy: couldn't read \(fileURL.lastPathComponent): \(error)")
+            let kept = Self.keepAside(fileURL)
             resetToSeed()
+            if !kept { savesPaused = true }
         }
         loaded = true
+    }
+
+    /// Copy a file that couldn't be read to "jimmy-unreadable-<date and time>.json" beside it.
+    /// Returns false when the copy couldn't be made.
+    static func keepAside(_ url: URL, at date: Date = Date()) -> Bool {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        let name = url.deletingPathExtension().lastPathComponent + "-unreadable-" + f.string(from: date) + "." + url.pathExtension
+        let copy = url.deletingLastPathComponent().appendingPathComponent(name)
+        return (try? FileManager.default.copyItem(at: url, to: copy)) != nil
     }
 
     private func apply(_ s: Snapshot) {
@@ -180,6 +223,7 @@ final class AppStore {
     }
 
     func saveNow() {
+        guard !savesPaused else { return }
         do {
             let data = try snapshot().encoded()
             try data.write(to: fileURL, options: .atomic)
@@ -189,6 +233,7 @@ final class AppStore {
     }
 
     func resetToSeed() {
+        savesPaused = false
         let keepIdeas = ideas
         let keepSettings = settings
         let s = buildSeed()
@@ -197,11 +242,13 @@ final class AppStore {
         settings = keepSettings
         settings.activeSplitId = s.splits.first?.id
         fillMachineLoading()
+        fillNicknames()
         markDirty()
     }
 
     /// Replace everything with an export. Ideas are kept if the import has none.
     func importSnapshot(_ s: Snapshot) {
+        savesPaused = false
         let keepIdeas = ideas
         let keepSettings = settings
         apply(s)
@@ -210,6 +257,8 @@ final class AppStore {
         if splits.isEmpty { seedSplitFromRoutines() }
         if s.version < 2 { migrateToLibraryV2() }
         fillMachineLoading()
+        // An export from before nicknames gets the suggestions; a newer one keeps what you cleared.
+        if s.settings?.nicknamesFilled != true { fillNicknames() }
         markDirty()
     }
 
@@ -225,7 +274,13 @@ final class AppStore {
         if let i = list.firstIndex(where: { $0.id == item.id }) { list[i] = item } else { list.append(item) }
     }
 
-    func put(_ w: Workout) { upsert(&workouts, w); markDirty() }
+    /// Every change to a workout passes here, so this is where a set that just got its reps is
+    /// marked with the time; the Workout page lands on the set after the last one marked.
+    func put(_ w: Workout) {
+        var w = w
+        Focus.stamp(&w, before: workout(w.id), now: nowMs())
+        upsert(&workouts, w); markDirty()
+    }
     func deleteWorkout(_ id: String) { workouts.removeAll { $0.id == id }; markDirty() }
     func put(_ r: Routine) { upsert(&routines, r); markDirty() }
     func deleteRoutine(_ id: String) {
