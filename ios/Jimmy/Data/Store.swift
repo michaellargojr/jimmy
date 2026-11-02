@@ -21,6 +21,8 @@ final class AppStore {
     var historyUndo: HistoryUndo?
     /// The last routine saved from the split page, while its Undo bar shows. Never saved.
     var routineUndo: RoutineUndo?
+    /// A workout change waiting for Update, Save as new routine or Just today. Never saved.
+    var routineAsk: RoutineAsk?
 
     /// Backups to a folder in iCloud Drive. See Backup.swift.
     let backups: Backups

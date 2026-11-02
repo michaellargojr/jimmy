@@ -160,6 +160,10 @@ struct WorkoutView: View {
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
             }
+            // A swap, add, delete, new order or superset change asks right away whether the
+            // routine takes it too. Wherever it was made: a card, Overview, Add exercise.
+            .onChange(of: WorkoutLineup(w)) { old, new in store.noteWorkoutChange(from: old, to: new) }
+            .routineAsk(workoutId: workoutId, waits: true)
         } else {
             WorkoutStartView()
         }
@@ -396,6 +400,8 @@ struct OverviewSheet: View {
                     Text("Its logged sets will be lost.")
                 }
             }
+            // Changes made here ask over Overview, so a drag is answered where it was made.
+            .routineAsk(workoutId: workoutId, waits: false)
         }
     }
 
