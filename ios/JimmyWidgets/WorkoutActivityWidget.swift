@@ -2,9 +2,9 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// The lock screen card during a workout: the workout and its clock, your set's exercise, which
-/// set it is and what you did last time. Everything it shows comes worked out from the app; a tap
-/// anywhere opens the app at your set.
+/// The lock screen card during a workout: which set it is, the workout clock, and your set's
+/// exercise with its chips. Everything it shows comes worked out from the app; a tap anywhere
+/// opens the app at your set.
 struct WorkoutActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
