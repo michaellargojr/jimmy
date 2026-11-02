@@ -197,6 +197,7 @@ struct AddExerciseSheet: View {
         let call = variationCall(b, verdict: verdict)
         let asVariation = call.map { flipped ? !$0.appPicksVariation : $0.appPicksVariation }
         let autoNick = autoNickname(b, verdict: verdict, call: call, asVariation: asVariation)
+        let have = base != nil && verdict.isExisting && call == nil
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
@@ -252,12 +253,16 @@ struct AddExerciseSheet: View {
                             }
                         }
                     }
-                    let have = base != nil && verdict.isExisting && call == nil
-                    PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false, autoNick: autoNick) }
-                        .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
                 }
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 12)
+        }
+        // Add stays in reach at the bottom, however tall the setup grows on a small phone.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false, autoNick: autoNick) }
+                .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
+                .padding(.top, 10)
+                .background(p.card)
         }
         .scrollDismissesKeyboard(.interactively)
         .onChange(of: variation.family) { _, f in
