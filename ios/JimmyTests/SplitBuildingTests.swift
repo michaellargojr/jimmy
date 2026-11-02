@@ -53,8 +53,8 @@ import Testing
         #expect(d.rows.count == 2)
     }
 
-    @Test func coverageWaitsWhileASplitIsPutTogether() {
+    @Test func coverageIsAlwaysLast() {
         #expect(splitSections(creating: true) == [.goals, .inSplit, .newRoutine, .addRoutine, .coverage])
-        #expect(splitSections(creating: false) == [.goals, .coverage, .newRoutine, .inSplit, .addRoutine])
+        #expect(splitSections(creating: false) == [.goals, .newRoutine, .inSplit, .addRoutine, .coverage])
     }
 }
