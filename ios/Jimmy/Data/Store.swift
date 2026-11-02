@@ -78,6 +78,8 @@ final class AppStore {
         let tag = v.tag?.trimmingCharacters(in: .whitespaces) ?? ""
         let namedMachine = v.family == .machine && tag.first?.isUppercase == true
         if !tag.isEmpty && !namedMachine { words.append(tag.split(separator: " ").map { capitalized(String($0)) }.joined(separator: " ")) }
+        // "Cable Overhead Tricep Extension": the name people know, so the card's chips skip it.
+        if v.armPosition == .overhead { words.append("Overhead") }
         words.append(baseName(v))
         let names = [namedMachine ? tag : nil, v.machine?.trimmingCharacters(in: .whitespaces)].compactMap { $0 }.filter { !$0.isEmpty }
         return words.joined(separator: " ") + (names.isEmpty ? "" : " (\(names.joined(separator: " - ")))")
@@ -86,7 +88,7 @@ final class AppStore {
     func nickname(_ v: Version) -> String? { cleanNickname(v.nickname) }
     /// The nickname the app would suggest for a variation you have (its styles count for a pec deck).
     func suggestedNickname(for v: Version) -> String? {
-        suggestNickname(base: baseName(v), family: v.family, position: v.position, tag: v.tag,
+        suggestNickname(base: baseName(v), family: v.family, position: v.position, armPosition: v.armPosition, tag: v.tag,
                         styleMachines: styles(of: v.id).compactMap { $0.machine })
     }
     /// Gives every variation without a nickname the app's suggestion, once (see Settings.nicknamesFilled).
@@ -107,11 +109,12 @@ final class AppStore {
         var parts: [String] = []
         if v.arms == .one || v.family != .body { parts.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { parts.append(parts.isEmpty ? capitalized(pos.label) : pos.label) }
+        if let arm = v.armPosition, arm != .overhead { parts.append(parts.isEmpty ? capitalized(arm.label) : arm.label) }
         return parts.joined(separator: " - ")
     }
     /// The whole variation as chips: "Cable", "Two arms". For Plan, History and lists.
     func variationChips(_ v: Version) -> [String] {
-        variationParts(family: v.family, arms: v.arms, position: v.position, tag: v.tag, machine: v.machine,
+        variationParts(family: v.family, arms: v.arms, position: v.position, armPosition: v.armPosition, tag: v.tag, machine: v.machine,
                        loading: v.loading, legs: base(of: v)?.isLegs ?? false)
             .map { capitalized($0) }
     }
@@ -123,6 +126,7 @@ final class AppStore {
         if v.family == .machine, let l = v.loading { tags.append(capitalized(l.label)) }
         if v.arms == .one || v.family != .body { tags.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { tags.append(capitalized(pos.label)) }
+        if let arm = v.armPosition, arm != .overhead { tags.append(capitalized(arm.label)) }
         return tags
     }
     func routine(_ id: String) -> Routine? { routines.first { $0.id == id } }
@@ -453,7 +457,7 @@ final class AppStore {
         if let v = findVariation(baseId: base.id, key: spec.key) { return v }
         let name = base.name + " · " + variationLabel(spec, legs: base.isLegs)
         let v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
-                        tag: spec.tag, machine: spec.machine, loading: spec.loading, repMin: repMin ?? 5, repMax: repMax ?? 8)
+                        armPosition: spec.armPosition, tag: spec.tag, machine: spec.machine, loading: spec.loading, repMin: repMin ?? 5, repMax: repMax ?? 8)
         put(v)
         return v
     }
@@ -526,7 +530,7 @@ final class AppStore {
                 continue
             }
             v.exerciseId = b.id
-            v.equipment = m.variation.family.equipment; v.arms = m.variation.arms; v.position = m.variation.position; v.tag = m.variation.tag
+            v.equipment = m.variation.family.equipment; v.arms = m.variation.arms; v.position = m.variation.position; v.armPosition = m.variation.armPosition; v.tag = m.variation.tag
             v.name = b.name + " · " + variationLabel(m.variation, legs: b.isLegs)
             v.machine = nil
             out.append(v); bySlot[slot] = v.id

@@ -101,7 +101,7 @@ struct HelpMeChooseView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionLabel("Most likely").padding(.top, 18)
             Text(t.name).font(.system(size: 34, weight: .heavy)).tracking(-0.6).foregroundStyle(p.text)
-            VariationPill(parts: variationParts(family: .machine, arms: arms, position: t.position, tag: t.tag,
+            VariationPill(parts: variationParts(family: .machine, arms: arms, position: t.position, armPosition: t.arm, tag: t.tag,
                                                 loading: loading ?? t.loading, legs: base.isLegs)
                 .map { capitalized($0) })
             PillButton(title: "Use this", style: .primary, full: true) { onPick(t, loading); dismiss() }

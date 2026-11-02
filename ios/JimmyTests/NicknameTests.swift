@@ -11,10 +11,13 @@ import Testing
     }
 
     @Test func suggestionsNeedEveryBlockToMatch() {
-        // The five on the list.
-        #expect(suggestNickname(base: "Curl", family: .cable, position: .armsBehind, tag: nil) == "Bayesian Curl")
-        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: .armOnPad, tag: nil) == "Preacher Curl")
-        #expect(suggestNickname(base: "Curl", family: .bar, position: .armOnPad, tag: nil) == "Preacher Curl")
+        // The names on the list.
+        #expect(suggestNickname(base: "Curl", family: .cable, position: nil, armPosition: .behind, tag: nil) == "Bayesian Curl")
+        #expect(suggestNickname(base: "Curl", family: .cable, position: .standing, armPosition: .behind, tag: nil) == "Bayesian Curl")
+        #expect(suggestNickname(base: "Curl", family: .cable, position: .seated, armPosition: .behind, tag: nil) == "Bayesian Curl")
+        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: nil, armPosition: .onPad, tag: nil) == "Preacher Curl")
+        #expect(suggestNickname(base: "Curl", family: .bar, position: .seated, armPosition: .onPad, tag: nil) == "Preacher Curl")
+        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: .standing, armPosition: .onPad, tag: nil) == "Standing Preacher Curl")
         #expect(suggestNickname(base: "Curl", family: .dumbbell, position: .chestSupported, tag: nil) == "Spider Curl")
         #expect(suggestNickname(base: "Tricep Extension", family: .bar, position: .lying, tag: nil) == "Skull Crusher")
         #expect(suggestNickname(base: "Tricep Extension", family: .dumbbell, position: .lying, tag: nil) == "Skull Crusher")
@@ -22,15 +25,18 @@ import Testing
         #expect(suggestNickname(base: "Chest Fly", family: .machine, position: nil, tag: nil, styleMachines: [" Pec deck "]) == "Pec Deck")
 
         // Twists the names don't cover get nothing.
-        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: .armsBehind, tag: nil) == nil)   // an incline curl
+        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: nil, armPosition: .behind, tag: nil) == nil)   // an incline curl
+        #expect(suggestNickname(base: "Curl", family: .cable, position: .lying, armPosition: .behind, tag: nil) == nil)
+        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: .kneeling, armPosition: .onPad, tag: nil) == nil)
+        #expect(suggestNickname(base: "Curl", family: .dumbbell, position: .chestSupported, armPosition: .onPad, tag: nil) == nil)
         #expect(suggestNickname(base: "Curl", family: .cable, position: .standing, tag: nil) == nil)
         #expect(suggestNickname(base: "Curl", family: .cable, position: nil, tag: nil) == nil)
-        #expect(suggestNickname(base: "Curl", family: .cable, position: .armsBehind, tag: "hammer") == nil)
+        #expect(suggestNickname(base: "Curl", family: .cable, position: nil, armPosition: .behind, tag: "hammer") == nil)
         #expect(suggestNickname(base: "Tricep Extension", family: .cable, position: .lying, tag: nil) == nil)
-        #expect(suggestNickname(base: "Tricep Extension", family: .bar, position: .lying, tag: "overhead") == nil)
+        #expect(suggestNickname(base: "Tricep Extension", family: .bar, position: .lying, armPosition: .overhead, tag: nil) == nil)
         #expect(suggestNickname(base: "Chest Fly", family: .machine, position: nil, tag: nil) == nil)
         #expect(suggestNickname(base: "Chest Fly", family: .cable, position: nil, tag: "pec deck") == nil)
-        #expect(suggestNickname(base: "Hammer Curl", family: .cable, position: .armsBehind, tag: nil) == nil)
+        #expect(suggestNickname(base: "Hammer Curl", family: .cable, position: nil, armPosition: .behind, tag: nil) == nil)
     }
 
     @Test func theFieldSavesTrimmedOrNothing() {
@@ -45,13 +51,13 @@ import Testing
         #expect(s.settings.nicknamesFilled)
         let named = Dictionary(s.versions.compactMap { v in s.nickname(v).map { (v.name, $0) } }, uniquingKeysWith: { a, _ in a })
         let curl = s.versions.filter { s.baseName($0) == "Curl" }
-        #expect(curl.contains { $0.family == .cable && $0.position == .armsBehind && s.nickname($0) == "Bayesian Curl" })
+        #expect(curl.contains { $0.family == .cable && $0.armPosition == .behind && s.nickname($0) == "Bayesian Curl" })
         #expect(curl.contains { $0.family == .dumbbell && $0.position == .chestSupported && s.nickname($0) == "Spider Curl" })
         // Incline dumbbell curl keeps its plain name.
-        #expect(curl.filter { $0.family == .dumbbell && $0.position == .armsBehind }.allSatisfy { s.nickname($0) == nil })
+        #expect(curl.filter { $0.family == .dumbbell && $0.armPosition == .behind }.allSatisfy { s.nickname($0) == nil })
         // The pec deck is a style on the chest fly machine, and still names it.
         #expect(s.versions.contains { s.baseName($0) == "Chest Fly" && s.nickname($0) == "Pec Deck" })
-        #expect(Set(named.values).isSubset(of: ["Bayesian Curl", "Preacher Curl", "Spider Curl", "Skull Crusher", "Pec Deck"]))
+        #expect(Set(named.values).isSubset(of: ["Bayesian Curl", "Preacher Curl", "Standing Preacher Curl", "Spider Curl", "Skull Crusher", "Pec Deck"]))
     }
 
     @Test func fillingRunsOnceAndRespectsWhatYouCleared() throws {
@@ -59,7 +65,7 @@ import Testing
         let s = AppStore(fileURL: url)
         let curl = Exercise(name: "Curl", muscleGroup: .Biceps)
         s.exercises = [curl]
-        let bayes = s.makeVariation(base: curl, spec: VariationSpec(family: .cable, arms: .one, position: .armsBehind))
+        let bayes = s.makeVariation(base: curl, spec: VariationSpec(family: .cable, arms: .one, armPosition: .behind))
         let mine = s.makeVariation(base: curl, spec: VariationSpec(family: .dumbbell, position: .chestSupported))
         s.setNickname(mine.id, "My Spider")
         s.fillNicknames()
@@ -81,7 +87,7 @@ import Testing
         let s = store()
         let curl = Exercise(name: "Curl", muscleGroup: .Biceps)
         s.exercises = [curl]
-        let v = s.makeVariation(base: curl, spec: VariationSpec(family: .cable, arms: .one, position: .armsBehind))
+        let v = s.makeVariation(base: curl, spec: VariationSpec(family: .cable, arms: .one, armPosition: .behind))
         // Data from before nicknames: no nickname on the variation, no flag in Settings.
         var json = try JSONSerialization.jsonObject(with: s.snapshot().encoded()) as! [String: Any]
         var versions = json["versions"] as! [[String: Any]]

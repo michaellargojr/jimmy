@@ -37,7 +37,7 @@ struct VariationPill: View {
     /// Where how you use it starts (arms, then position). With none, the middle.
     private var breakIndex: Int? {
         guard parts.count > 1 else { return nil }
-        let how = Set([Arms.two, .one].flatMap { [$0.label(legs: false), $0.label(legs: true)] } + Position.allCases.map(\.label))
+        let how = Set([Arms.two, .one].flatMap { [$0.label(legs: false), $0.label(legs: true)] } + Position.allCases.map(\.label) + ArmPosition.allCases.map(\.label))
         if let i = parts.firstIndex(where: { how.contains($0.lowercased()) }), i > 0 { return i }
         return (parts.count + 1) / 2
     }

@@ -129,6 +129,7 @@ struct StyleFields: View {
     @Environment(\.palette) private var p
     let family: EquipmentFamily
     let position: Position?
+    var armPosition: ArmPosition? = nil
     @Binding var spec: StyleSpec
     /// Off while a new machine is being named: the name goes on the variation instead.
     var showsMachineName: Bool = true
@@ -155,7 +156,7 @@ struct StyleFields: View {
                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
                     .foregroundStyle(p.text)
             }
-            if position?.usesBench == true {
+            if usesBench(position, armPosition) {
                 pickerRow(spec.benchAngle.map { benchAngleLabel($0) } ?? "Bench angle", on: spec.benchAngle != nil, symbol: "angle") { benchPicker = true }
             }
             chips(GRIPS, pick: spec.grip) { spec.grip = toggle(spec.grip, $0) }
@@ -194,10 +195,12 @@ struct StyleFields: View {
     }
 }
 
-/// The Variation block: family, arms, position.
+/// The Variation block: family, arms, body position, then (on arm exercises) arm position.
 struct VariationFields: View {
     @Environment(\.palette) private var p
     let legs: Bool
+    /// Arm exercises get the arm position row (a variation that already has one keeps it showing).
+    var armRow: Bool = false
     @Binding var spec: VariationSpec
 
     var body: some View {
@@ -214,6 +217,15 @@ struct VariationFields: View {
             FlowRow(spacing: 8, lineSpacing: 8) {
                 ForEach(Position.allCases, id: \.self) { pos in
                     Chip(text: capitalized(pos.label), on: spec.position == pos, small: true) { spec.position = spec.position == pos ? nil : pos }
+                }
+            }
+            if armRow || spec.armPosition != nil {
+                FlowRow(spacing: 8, lineSpacing: 8) {
+                    ForEach(ArmPosition.allCases, id: \.self) { a in
+                        Chip(text: capitalized(a.label), on: spec.armPosition == a, small: true) {
+                            spec.armPosition = spec.armPosition == a ? nil : a
+                        }
+                    }
                 }
             }
         }

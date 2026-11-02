@@ -57,7 +57,7 @@ private func S(_ id: String, _ kind: SetKind = .working, side: Side? = nil, weig
     }
 
     @Test func aGroupMemberSaysWhichItIs() throws {
-        let cable = Version(id: "curl", exerciseId: curl.id, name: "x", equipment: .cable, arms: .one, position: .armsBehind)
+        let cable = Version(id: "curl", exerciseId: curl.id, name: "x", equipment: .cable, arms: .one, armPosition: .behind)
         let ham = Version(id: "ham", exerciseId: hammer.id, name: "x", equipment: .cable, arms: .two)
         // The first round of the first exercise is logged: the second one's turn.
         let w = Workout(name: "Biceps", startedAt: 1, items: [

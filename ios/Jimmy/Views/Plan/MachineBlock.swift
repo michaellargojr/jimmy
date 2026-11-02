@@ -24,7 +24,7 @@ struct MachineBlock: View {
 
     private var types: [MachineType] { machineTypes(forBase: base.name) }
     /// The kinds that come in the position picked (all of them when none is).
-    private var shown: [MachineType] { types.filter { $0.allows(spec.position) } }
+    private var shown: [MachineType] { types.filter { $0.allows(spec.position, arm: spec.armPosition) } }
 
     /// Your machine that is picked, when it's one you have.
     private var picked: Version? { naming == nil ? store.findVariation(baseId: base.id, key: spec.key) : nil }
@@ -34,7 +34,7 @@ struct MachineBlock: View {
         switch naming {
         case .another(let n)?: return types.first { $0.name == n }
         case .other?: return nil
-        case nil: return shown.first { $0.fits(tag: spec.tag, position: spec.position) }
+        case nil: return shown.first { $0.fits(tag: spec.tag, position: spec.position, arm: spec.armPosition) }
         }
     }
 
@@ -52,7 +52,8 @@ struct MachineBlock: View {
         }
         .onAppear { if spec.loading == nil { spec = store.withLoading(spec, base: base) } }
         .onChange(of: name) { _, _ in applyName() }
-        .onChange(of: spec.position) { _, pos in dropKindNotIn(pos) }
+        .onChange(of: spec.position) { _, _ in dropKindNotIn() }
+        .onChange(of: spec.armPosition) { _, _ in dropKindNotIn() }
         .sheet(isPresented: $choosing) {
             HelpMeChooseView(base: base, arms: spec.arms, types: shown) { t, l in pick(t, loading: l) }
                 .presentationDetents([.large]).presentationBackground(p.card)
@@ -63,11 +64,11 @@ struct MachineBlock: View {
 
     @ViewBuilder
     private func typeRow(_ t: MachineType) -> some View {
-        let mine = store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, loading: spec.loading)
+        let mine = store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, arm: spec.armPosition, loading: spec.loading)
         // Yours the other way loaded (a plate-loaded one while Stack is picked): its last weights
         // show too, with how it's loaded, and tapping it switches over.
         let otherWay = mine.isEmpty
-            ? Loading.allCases.filter { $0 != spec.loading }.flatMap { store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, loading: $0) }
+            ? Loading.allCases.filter { $0 != spec.loading }.flatMap { store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, arm: spec.armPosition, loading: $0) }
             : []
         let on = pickedType == t
         if on && !mine.isEmpty {
@@ -104,7 +105,7 @@ struct MachineBlock: View {
     private func mineRow(_ v: Version, on: Bool, inset: Bool) -> some View {
         Button {
             naming = nil; nameFocused = false
-            spec.tag = v.tag; spec.position = v.position; spec.machine = v.machine; spec.loading = v.loading
+            spec.tag = v.tag; spec.position = v.position; spec.armPosition = v.armPosition; spec.machine = v.machine; spec.loading = v.loading
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -211,23 +212,26 @@ struct MachineBlock: View {
     private func pick(_ t: MachineType, loading told: Loading? = nil) {
         naming = nil; nameFocused = false
         let pos = t.position ?? spec.position
-        let mine: (Loading?) -> [Version] = { store.machines(of: t, baseId: base.id, arms: spec.arms, position: pos, loading: $0) }
+        let arm = t.arm ?? spec.armPosition
+        let mine: (Loading?) -> [Version] = { store.machines(of: t, baseId: base.id, arms: spec.arms, position: pos, arm: arm, loading: $0) }
         let have: [Loading?] = told.map { [$0] } ?? ([spec.loading] + Loading.allCases.filter { $0 != spec.loading }.map { Optional($0) })
         if let v = have.lazy.compactMap({ mine($0).first }).first {
-            spec.tag = v.tag; spec.position = v.position; spec.machine = v.machine; spec.loading = v.loading
+            spec.tag = v.tag; spec.position = v.position; spec.armPosition = v.armPosition; spec.machine = v.machine; spec.loading = v.loading
         } else {
             spec.tag = t.tag
             if let fixed = t.position { spec.position = fixed }
+            if let fixed = t.arm { spec.armPosition = fixed }
             spec.machine = nil
             spec.loading = told ?? t.loading
         }
     }
 
-    /// A position the picked kind never comes in drops it, so the variation doesn't name a
-    /// machine the list no longer shows.
-    private func dropKindNotIn(_ pos: Position?) {
+    /// A position (or arm position) the picked kind never comes in drops it, so the variation
+    /// doesn't name a machine the list no longer shows.
+    private func dropKindNotIn() {
         guard naming == nil, let tag = spec.tag,
-              let t = types.first(where: { ($0.tag ?? "").lowercased() == tag.lowercased() }), !t.allows(pos) else { return }
+              let t = types.first(where: { ($0.tag ?? "").lowercased() == tag.lowercased() }),
+              !t.allows(spec.position, arm: spec.armPosition) else { return }
         spec.tag = nil
         spec.machine = nil
     }
@@ -237,7 +241,8 @@ struct MachineBlock: View {
         spec.loading = l
         guard naming == nil else { return }
         if let t = pickedType {
-            spec.machine = store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, loading: l).first?.machine
+            spec.machine = store.machines(of: t, baseId: base.id, arms: spec.arms, position: spec.position, arm: spec.armPosition,
+                                          loading: l).first?.machine
         } else if let v = store.unlistedMachines(base: base, arms: spec.arms, loading: l).first(where: { $0.loading == l && $0.tag == spec.tag }) {
             spec.machine = v.machine
         }
@@ -251,12 +256,14 @@ struct MachineBlock: View {
             if let t = types.first(where: { $0.name == n }) {
                 spec.tag = t.tag
                 if let pos = t.position { spec.position = pos }
+                if let a = t.arm { spec.armPosition = a }
             }
             spec.machine = machineName(name)
         case .other?:
             if let t = machineType(named: name, in: types) {
                 spec.tag = t.tag
                 if let pos = t.position { spec.position = pos }
+                if let a = t.arm { spec.armPosition = a }
             } else {
                 spec.tag = machineName(name)
             }
