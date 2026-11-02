@@ -255,13 +255,14 @@ struct AddExerciseSheet: View {
                     }
                 }
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, 16)
         }
-        // Add stays in reach at the bottom, however tall the setup grows on a small phone.
+        // Add stays in reach at the bottom, however tall the setup grows on a small phone,
+        // with clear room above it for whatever is scrolling past.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false, autoNick: autoNick) }
                 .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
-                .padding(.top, 10)
+                .padding(.top, 16)
                 .background(p.card)
         }
         .scrollDismissesKeyboard(.interactively)
