@@ -54,6 +54,11 @@ struct WorkoutView: View {
         if let w = workout {
             let ps = panes(w.items)
             VStack(spacing: 0) {
+                // Until Start, a back link above the row returns to the routine list to choose another.
+                // Start fades it out as the page slides up into its place.
+                if w.startedAt == nil {
+                    backLink.transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
                 // One scroll for the whole workout, and a free one: it stops wherever the thumb leaves
                 // it. Each pane used to be a scroll of its own inside this one, and the two fought over
@@ -173,7 +178,7 @@ struct WorkoutView: View {
         }
     }
 
-    /// One row that stays put: Back and Start, then Done alone, on the left, where a stray thumb is least
+    /// One row that stays put: Start, then Done, alone on the left, where a stray thumb is least
     /// likely to land, the time big in the middle to keep the pace up, then Overview and the gear.
     /// Under it a block per exercise fills in once that exercise is done.
     private func header(_ w: Workout, finished: [Bool]) -> some View {
@@ -181,12 +186,10 @@ struct WorkoutView: View {
             ZStack {
                 HStack(spacing: 8) {
                     // Picking a workout doesn't start the clock; Start does, and then Done takes its place.
-                    // Until then a back tile returns to the routine list to choose another.
                     if w.startedAt == nil {
-                        iconButton("chevron.left", label: "Back to routines") {
-                            if store.canPickWorkout { store.unpickWorkout(workoutId) } else { sureBack = true }
+                        PillButton(title: "Start", style: .primary) {
+                            withAnimation(.smooth(duration: 0.35)) { store.startClock(workoutId) }
                         }
-                        PillButton(title: "Start", style: .primary) { store.startClock(workoutId) }
                     } else {
                         PillButton(title: "Done", style: .primary) { askEnd = true }
                     }
@@ -205,6 +208,28 @@ struct WorkoutView: View {
             if !finished.isEmpty { progressStrip(finished) }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    /// Back to the routine list, styled like an iPhone back button. Going back drops the pick, so
+    /// with a set already logged it asks first.
+    private var backLink: some View {
+        HStack {
+            Button {
+                if store.canPickWorkout { store.unpickWorkout(workoutId) } else { sureBack = true }
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+                    Text("Workout").font(.system(size: 17, weight: .semibold))
+                }
+                .foregroundStyle(p.accent)
+                .frame(height: 36)
+                .padding(.horizontal, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to routines")
+            Spacer()
+        }
     }
 
     /// The time, big. Grey at 0:00 until Start.
