@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import Jimmy
 
-// A routine built from exercises already in other routines, and the split page's section order.
+// A routine built from exercises already in other routines, the split page's section order,
+// copies placed in a split, and split notes.
 
 @Suite struct SplitBuildingTests {
     private let push = Routine(id: "push", name: "Push",
@@ -53,8 +54,42 @@ import Testing
         #expect(d.rows.count == 2)
     }
 
-    @Test func coverageIsAlwaysLast() {
-        #expect(splitSections(creating: true) == [.goals, .inSplit, .newRoutine, .addRoutine, .coverage])
-        #expect(splitSections(creating: false) == [.goals, .newRoutine, .inSplit, .addRoutine, .coverage])
+    @Test func routinesThenCoverageThenNotesLast() {
+        #expect(splitSections(active: true) == [.goals, .inSplit, .coverage, .notes])
+        #expect(splitSections(active: false) == [.goals, .inSplit, .coverage, .use, .notes])
+    }
+
+    @Test func aCopyGoesRightAfterItsRoutine() {
+        var s = Split(name: "PPL", routineIds: ["push", "pull", "legs"])
+        s.add("push2", at: 1)
+        #expect(s.routineIds == ["push", "push2", "pull", "legs"])
+        s.add("legs2", at: 4)
+        #expect(s.routineIds == ["push", "push2", "pull", "legs", "legs2"])
+        s.add("extra")
+        #expect(s.routineIds.last == "extra")
+        s.add("odd", at: 99)
+        #expect(s.routineIds.last == "odd")
+    }
+
+    @Test func addCopyAtASpotKeepsUndo() {
+        let store = AppStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("split-\(uid()).json"))
+        store.resetToSeed()
+        let a = Routine(name: "A"), b = Routine(name: "B"), copy = Routine(name: "A 2")
+        for r in [a, b, copy] { store.put(r) }
+        let s = Split(name: "AB", routineIds: [a.id, b.id])
+        store.put(s)
+        store.addCopy(copy, toSplit: s.id, at: 1)
+        #expect(store.splits.first { $0.id == s.id }?.routineIds == [a.id, copy.id, b.id])
+        store.undoRoutineChange()
+        #expect(store.splits.first { $0.id == s.id }?.routineIds == [a.id, b.id])
+    }
+
+    @Test func notesRideAlongAndOldSplitsHaveNone() throws {
+        var s = Split(name: "PPL")
+        s.notes = "Deload every 6th week"
+        let back = try JSONDecoder().decode(Split.self, from: JSONEncoder().encode(s))
+        #expect(back.notes == "Deload every 6th week")
+        let old = try JSONDecoder().decode(Split.self, from: Data(#"{"id":"s","name":"Old","routineIds":[]}"#.utf8))
+        #expect(old.notes == nil)
     }
 }

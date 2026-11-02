@@ -77,3 +77,14 @@ enum Focus {
         }
     }
 }
+
+extension Focus {
+    /// Back in the app after `away` seconds: straight to the Workout page? Only for a workout
+    /// that has started (one still waiting for Start isn't where you are yet), only after the wait
+    /// from Settings (0 is Never), and never from under a sheet: the tab would change behind it,
+    /// and closing the sheet would land you on Workout.
+    static func returnsOnReopen(_ w: Workout?, away: TimeInterval, wait: Int, presenting: Bool) -> Bool {
+        guard let w, w.isActive, !w.isWaiting, wait > 0, !presenting else { return false }
+        return away >= Double(wait)
+    }
+}

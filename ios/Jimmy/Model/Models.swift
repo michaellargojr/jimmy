@@ -648,6 +648,8 @@ struct Split: Codable, Identifiable, Hashable {
     /// Routines made with New routine on this split's page. Editing one from here saves
     /// without asking, unless another split uses it too.
     var madeHere: [String]?
+    /// Free text at the bottom of the split page.
+    var notes: String?
 
     init(id: String = uid(), name: String, routineIds: [String] = []) {
         self.id = id; self.name = name; self.routineIds = routineIds

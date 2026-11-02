@@ -139,6 +139,8 @@ struct RootView: View {
         // screen or another app, already at your set, without a tap on the bar. A quick hop out
         // and back (shorter than the wait in Settings) leaves the page where you had it, since you
         // may have been looking ahead; a set always takes longer than that. Never turns this off.
+        // A workout picked but not started yet doesn't pull you back, and nothing switches from
+        // under an open sheet (Focus.returnsOnReopen).
         .onChange(of: store.loaded, initial: true) { _, loaded in
             if loaded, store.activeWorkout != nil { nav.openWorkoutAtSet() }
         }
@@ -148,8 +150,8 @@ struct RootView: View {
             case .active:
                 guard let since = awayAt else { return }
                 awayAt = nil
-                let wait = store.settings.returnAfter
-                if wait > 0, store.activeWorkout != nil, Date().timeIntervalSince(since) >= Double(wait) {
+                if Focus.returnsOnReopen(store.activeWorkout, away: Date().timeIntervalSince(since),
+                                         wait: store.settings.returnAfter, presenting: somethingPresented()) {
                     nav.openWorkoutAtSet()
                 } else {
                     // Time away doesn't count as sitting still: the wait starts over from here.
