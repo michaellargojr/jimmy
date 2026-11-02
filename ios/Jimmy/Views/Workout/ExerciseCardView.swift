@@ -19,6 +19,8 @@ struct ExerciseCardView: View {
     @State private var showNote = false
     @State private var editVersion = false
     @State private var newStyle = false
+    /// Pick a style of this variation and add to it; saving picks it on the card.
+    @State private var editStyles = false
     @State private var differentMachine = false
     @State private var showFormCues = false
     @State private var showRange = false
@@ -75,6 +77,10 @@ struct ExerciseCardView: View {
                 StyleEditorSheet(version: v, style: nil,
                                  onSave: { s in update { $0.styleId = s.id } },
                                  onVariation: { nv, s in update { $0.versionId = nv.id; $0.styleId = s?.id } })
+                    .presentationDetents([.large]).presentationBackground(p.card)
+            }
+            .sheet(isPresented: $editStyles) {
+                EditStyleSheet(version: v, currentId: item.styleId) { s in update { $0.styleId = s.id } }
                     .presentationDetents([.large]).presentationBackground(p.card)
             }
             .sheet(isPresented: $differentMachine) {
@@ -188,7 +194,7 @@ struct ExerciseCardView: View {
         .accessibilityLabel(n > 0 ? "Form cues, \(n)" : "Form cues")
     }
 
-    /// The style, written out. The chevron opens the list to switch style or make one.
+    /// The style, written out. The chevron opens the list to switch style, make one or edit one.
     private func styleMenu(_ v: Version, item: WorkoutItem) -> some View {
         let styles = store.styles(of: v.id)
         let current = store.style(item.styleId)
@@ -201,6 +207,7 @@ struct ExerciseCardView: View {
             if item.styleId != nil { Button("No style") { update { $0.styleId = nil } } }
             Divider()
             Button { newStyle = true } label: { Label("New style", systemImage: "plus") }
+            if !styles.isEmpty { Button { editStyles = true } label: { Label("Edit style", systemImage: "pencil") } }
         } label: {
             HStack(spacing: 8) {
                 Text(current.map { dashed($0.label) } ?? "No style")
