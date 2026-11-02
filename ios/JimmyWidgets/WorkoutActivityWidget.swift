@@ -2,8 +2,8 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// The lock screen card during a workout: the workout and its clock, your set's exercise, which
-/// set it is and what you did last time. Everything it shows comes worked out from the app; a tap
+/// The lock screen card during a workout (layout C3): which set it is, the workout clock, and
+/// your set's exercise with its chips. Everything it shows comes worked out from the app; a tap
 /// anywhere opens the app at your set.
 struct WorkoutActivityWidget: Widget {
     var body: some WidgetConfiguration {
@@ -43,63 +43,76 @@ enum Card {
     static let text = Color(hex: 0xF3F4F6)
     static let secondary = Color(hex: 0xA1A3AB)
     static let muted = Color(hex: 0x8B8E97)
+    static let tile = Color(hex: 0x1F2024)
 }
 
-/// Two big cues on one line, the set and the clock, as big as each other; under them the
-/// exercise and its chips. Nothing else, so it reads at a glance mid-workout.
+/// Layout C3: a tall tile with the set ("1" over "of 2", and the side for one arm), and beside it
+/// the clock, the exercise and its chips. Nothing else, so it reads at a glance mid-workout.
 struct LockCard: View {
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
         let accent = Color(hex: state.accent)
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 8) {
-                setCue(accent)
-                Spacer(minLength: 0)
-                // Counts by itself from Start; nothing updates it while you rest.
+        HStack(alignment: .center, spacing: 12) {
+            setTile(accent)
+            VStack(alignment: .leading, spacing: 5) {
+                // Counts by itself from Start; nothing updates it while you rest. Digits have no
+                // descenders, so the line is drawn a little shorter than the font to keep the card low.
                 Text(timerInterval: state.startedAt...state.startedAt.addingTimeInterval(24 * 3600), countsDown: false)
-                    .font(.system(size: 48, weight: .heavy)).tracking(-1).monospacedDigit().foregroundStyle(Card.text)
-                    .lineLimit(1).minimumScaleFactor(0.6)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 190, alignment: .trailing)
-            }
-            .frame(height: 52)
-            Text(state.exercise)
-                .font(.system(size: 20, weight: .heavy)).tracking(-0.3).foregroundStyle(Card.text)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            if state.groupLabel != nil || !state.tags.isEmpty {
-                HStack(spacing: 6) {
-                    if let g = state.groupLabel { GroupChip(text: g, accent: accent, onAccent: Color(hex: state.onAccent)) }
-                    if !state.tags.isEmpty { TagChip(parts: state.tags, accent: accent) }
+                    .font(.system(size: 44, weight: .heavy)).tracking(-1).monospacedDigit().foregroundStyle(Card.text)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 46)
+                Text(state.exercise)
+                    .font(.system(size: 19, weight: .heavy)).tracking(-0.3).foregroundStyle(Card.text)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+                if state.groupLabel != nil || !state.tags.isEmpty {
+                    HStack(spacing: 6) {
+                        if let g = state.groupLabel { GroupChip(text: g, accent: accent, onAccent: Color(hex: state.onAccent)) }
+                        if !state.tags.isEmpty { TagChip(parts: state.tags, accent: accent) }
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // The tile grows to the height of the words beside it, and no taller.
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// "of 2", with the side in white for one arm ("of 2 - Left"); a warm-up or drop set by name.
-    private var setRest: Text {
-        guard let of = state.setOf else { return Text(state.setLine).foregroundColor(Card.secondary) }
-        guard let side = state.side else { return Text(of).foregroundColor(Card.secondary) }
-        return Text(of + " - ").foregroundColor(Card.secondary) + Text(side).fontWeight(.heavy).foregroundColor(Card.text)
+    /// "of 2", or a warm-up or drop set by name ("Warm-up", without the side: that goes under it).
+    private var setWords: String {
+        if let of = state.setOf { return of }
+        guard let side = state.side, state.setLine.hasSuffix(" - " + side) else { return state.setLine }
+        return String(state.setLine.dropLast(side.count + 3))
     }
 
-    /// "1 of 2", "1 of 2 - Left", "W Warm-up", or a check with "Done" once every set is logged.
-    @ViewBuilder
-    private func setCue(_ accent: Color) -> some View {
-        if state.allDone {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark").font(.system(size: 34, weight: .heavy)).foregroundStyle(accent)
-                Text("Done").font(.system(size: 17, weight: .semibold)).foregroundStyle(Card.secondary)
-            }
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+    /// "1" over "of 2", "W" over "Warm-up", the side in white under them for one arm, or a check
+    /// once every set is logged.
+    private func setTile(_ accent: Color) -> some View {
+        VStack(spacing: 2) {
+            if state.allDone {
+                Image(systemName: "checkmark").font(.system(size: 32, weight: .heavy)).foregroundStyle(accent)
+            } else {
                 Text(state.setMark ?? "").font(.system(size: 52, weight: .heavy)).monospacedDigit().foregroundStyle(Card.text)
-                setRest.font(.system(size: 17, weight: .semibold)).lineLimit(1).fixedSize()
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text(setWords).font(.system(size: 14, weight: .semibold)).foregroundStyle(Card.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                if let side = state.side {
+                    Text(side).font(.system(size: 13, weight: .heavy)).foregroundStyle(Card.text).lineLimit(1)
+                }
             }
         }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 4)
+        .frame(width: 76)
+        .frame(maxHeight: .infinity)
+        .background(Card.tile, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -109,7 +122,7 @@ struct GroupChip: View {
     let accent: Color
     let onAccent: Color
     var body: some View {
-        Text(text).font(.system(size: 12.5, weight: .heavy)).foregroundStyle(onAccent).lineLimit(1)
+        Text(text).font(.system(size: 12.5, weight: .heavy)).foregroundStyle(onAccent).lineLimit(1).minimumScaleFactor(0.8)
             .padding(.horizontal, 9).frame(height: 24)
             .background(accent, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
@@ -124,8 +137,8 @@ struct TagChip: View {
         HStack(spacing: 0) {
             ForEach(Array(parts.enumerated()), id: \.offset) { i, t in
                 if i > 0 { Rectangle().fill(accent.opacity(0.45)).frame(width: 1, height: 12) }
-                Text(t).font(.system(size: 12.5, weight: .heavy)).foregroundStyle(accent).lineLimit(1)
-                    .padding(.horizontal, 8)
+                Text(t).font(.system(size: 12.5, weight: .heavy)).foregroundStyle(accent).lineLimit(1).minimumScaleFactor(0.8)
+                    .padding(.horizontal, 7)
             }
         }
         .frame(height: 24)
