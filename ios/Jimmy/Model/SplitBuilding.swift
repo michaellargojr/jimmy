@@ -62,10 +62,9 @@ enum SplitSection: Hashable {
     case goals, coverage, newRoutine, inSplit, addRoutine
 }
 
-/// While a split is being put together (opened with no routines yet) Coverage waits at the
-/// bottom: with no exercises in it yet the numbers only distract. A split with routines keeps
-/// Coverage second, as before.
+/// Coverage is always last (Michael, Nov 2): the routines come first, the numbers after. While a
+/// split is being put together (opened with no routines yet) In this split comes before New routine.
 func splitSections(creating: Bool) -> [SplitSection] {
     creating ? [.goals, .inSplit, .newRoutine, .addRoutine, .coverage]
-             : [.goals, .coverage, .newRoutine, .inSplit, .addRoutine]
+             : [.goals, .newRoutine, .inSplit, .addRoutine, .coverage]
 }

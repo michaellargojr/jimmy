@@ -26,7 +26,7 @@ struct HomeView: View {
             .navigationDestination(for: Version.self) { v in ExerciseProgressView(versionId: v.id) }
         }
         #if DEBUG
-        .task { if RoutineDemo.once("tab", for: ["split", "edit", "ask", "duplicate", "routines"]) { nav.tab = .plan } }
+        .task { if RoutineDemo.once("tab", for: ["split", "edit", "ask", "duplicate", "routines", "build", "buildOpen", "buildExercises", "buildBase", "taken"]) { nav.tab = .plan } }
         #endif
     }
 

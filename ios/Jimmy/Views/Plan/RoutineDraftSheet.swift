@@ -23,10 +23,10 @@ struct RoutineDraftSheet: View {
     /// Duplicate: the rows unticked, left out of the copy.
     @State private var leftOut: Set<String> = []
     @State private var adding = false
-    @State private var fromRoutines = false
     @State private var asking = false
     @State private var naming = false
     @State private var newName = ""
+    @State private var taken: NameTaken? = nil
     @FocusState private var nameFocused: Bool
 
     init(mode: Mode, routine: Routine, takenNames: [String], onCreated: @escaping (Routine) -> Void = { _ in }) {
@@ -41,6 +41,8 @@ struct RoutineDraftSheet: View {
         !draft.matches(original) || !leftOut.isEmpty || (isDuplicate && draft.name != copyName(original.name, taken: store.routines.map(\.name)))
     }
     private var kept: Int { draft.rows.count - leftOut.count }
+    /// Duplicate: the name typed is another routine's.
+    private var nameTaken: Bool { routineNameTaken(draft.name, in: store.routines) }
 
     var body: some View {
         ZStack {
@@ -50,8 +52,8 @@ struct RoutineDraftSheet: View {
                 rows
                 if isDuplicate {
                     PillButton(title: "Create routine", style: .primary, full: true, height: 54) { create() }
-                        .disabled(kept == 0)
-                        .opacity(kept == 0 ? 0.4 : 1)
+                        .disabled(kept == 0 || nameTaken)
+                        .opacity(kept == 0 || nameTaken ? 0.4 : 1)
                         .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 12)
                         .background(p.card)
                 }
@@ -65,13 +67,9 @@ struct RoutineDraftSheet: View {
             Button("Cancel", role: .cancel) {}
             Button("Save") { saveAsNew() }
         }
+        .nameTakenAlert($taken)
         .sheet(isPresented: $adding) {
-            AddExerciseSheet { v, st in draft.append(RoutineItem(versionId: v.id, styleId: st?.id)) }
-                .presentationDetents([.large])
-                .presentationBackground(p.card)
-        }
-        .sheet(isPresented: $fromRoutines) {
-            FromRoutinesSheet(exclude: original.id) { draft.add($0) }
+            RoutineBuilderSheet(mode: .add(to: original.id)) { _, built in draft.add(built) }
                 .presentationDetents([.large])
                 .presentationBackground(p.card)
         }
@@ -117,6 +115,11 @@ struct RoutineDraftSheet: View {
                 .font(.system(size: 17, weight: .semibold)).foregroundStyle(p.text)
                 .padding(.horizontal, 14).frame(height: 48)
                 .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+            if nameTaken {
+                Text("You already have \(draft.name.trimmingCharacters(in: .whitespaces))")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(p.danger)
+                    .padding(.leading, 4)
+            }
             HStack {
                 SectionLabel("Exercises")
                 Spacer()
@@ -134,12 +137,9 @@ struct RoutineDraftSheet: View {
             } else {
                 ForEach(draft.rows) { row in rowView(row) }
                     .onMove { from, to in draft.move(from: from, to: to) }
-                PillButton(title: "Add exercise", icon: "plus", full: true) { adding = true }
+                PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                PillButton(title: "From my routines", icon: "square.on.square", full: true) { fromRoutines = true }
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
             }
         }
         .listStyle(.plain)
@@ -253,6 +253,7 @@ struct RoutineDraftSheet: View {
     // MARK: Actions
 
     private func create() {
+        guard !nameTaken else { return }
         draft.remove(ids: leftOut)
         let n = draft.name.trimmingCharacters(in: .whitespaces)
         draft.name = n.isEmpty ? copyName(original.name, taken: store.routines.map(\.name)) : n
@@ -283,6 +284,11 @@ struct RoutineDraftSheet: View {
     private func saveAsNew() {
         guard case let .edit(splitId, slot) = mode else { return }
         let n = newName.trimmingCharacters(in: .whitespaces)
+        if routineNameTaken(n, in: store.routines) {
+            let typed = newName
+            taken = NameTaken(name: n) { newName = typed; naming = true }
+            return
+        }
         draft.name = n.isEmpty ? copyName(original.name, taken: store.routines.map(\.name)) : n
         store.saveAsNewRoutine(draft, splitId: splitId, slot: slot)
         dismiss()

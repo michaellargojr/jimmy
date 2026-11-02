@@ -17,6 +17,24 @@ import Testing
         #expect(copyName("Biceps, Forearms, Abs", taken: []) == "Biceps, Forearms, Abs 2")
     }
 
+    @Test func noTwoRoutinesShareAName() {
+        let list = [Routine(id: "a", name: "Push"), Routine(id: "b", name: "Pull ")]
+        #expect(routineNameTaken("push", in: list))
+        #expect(routineNameTaken("  Pull", in: list))
+        #expect(!routineNameTaken("Legs", in: list))
+        #expect(!routineNameTaken("   ", in: list))
+        // Renaming a routine to its own name, or a new spelling of it, is fine.
+        #expect(!routineNameTaken("PUSH", in: list, except: "a"))
+        #expect(routineNameTaken("Pull", in: list, except: "a"))
+    }
+
+    @Test func emptyNewRoutineNames() {
+        #expect(newRoutineName("  Legs ", taken: ["Push"]) == "Legs")
+        #expect(newRoutineName("", taken: ["Push"]) == "New routine")
+        #expect(newRoutineName(" ", taken: ["New routine"]) == "New routine 2")
+        #expect(newRoutineName("", taken: ["new routine", "New routine 2"]) == "New routine 3")
+    }
+
     @Test func removingTidiesGroups() {
         let g = ExerciseGroup(id: "g", type: .superset)
         let r = Routine(name: "Arms", items: [RoutineItem(versionId: "a", groupId: "g"), RoutineItem(versionId: "b", groupId: "g"), RoutineItem(versionId: "c")], groups: [g])

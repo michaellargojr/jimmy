@@ -9,6 +9,8 @@ struct PlanView: View {
     @State private var naming: Segment? = nil
     @State private var newVersion = false
     @State private var path = NavigationPath()
+    @State private var building = false
+    @State private var justMade: Routine? = nil
 
     enum Segment: String, CaseIterable, Identifiable { case splits = "Splits", routines = "Routines", exercises = "Exercises"; var id: String { rawValue } }
 
@@ -17,7 +19,11 @@ struct PlanView: View {
             VStack(spacing: 0) {
                 ScreenTitle("Plan") {
                     PillButton(title: "New", icon: "plus") {
-                        if segment == .exercises { newVersion = true } else { newName = ""; naming = segment }
+                        switch segment {
+                        case .exercises: newVersion = true
+                        case .routines: building = true
+                        case .splits: newName = ""; naming = .splits
+                        }
                     }
                 }
                 HStack(spacing: 8) {
@@ -37,22 +43,29 @@ struct PlanView: View {
             .navigationDestination(for: Split.self) { s in SplitEditorView(splitId: s.id) }
             .navigationDestination(for: Version.self) { v in VersionEditorView(versionId: v.id) }
             .navigationDestination(for: Exercise.self) { e in BasePageView(exerciseId: e.id) }
-            .alert(naming == .splits ? "New split" : "New routine", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            .alert("New split", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
                 TextField("Name", text: $newName)
                 Button("Create") {
                     let name = newName.trimmingCharacters(in: .whitespaces)
-                    if naming == .splits {
-                        let s = Split(name: name.isEmpty ? "New split" : name)
-                        store.put(s)
-                        if store.splits.count == 1 { store.update { $0.activeSplitId = s.id } }
-                        // Straight onto its page, to put it together.
-                        path.append(s)
-                    } else {
-                        store.put(Routine(name: name.isEmpty ? "New routine" : name))
-                    }
+                    let s = Split(name: name.isEmpty ? "New split" : name)
+                    store.put(s)
+                    if store.splits.count == 1 { store.update { $0.activeSplitId = s.id } }
+                    // Straight onto its page, to put it together.
+                    path.append(s)
                     naming = nil
                 }
                 Button("Cancel", role: .cancel) { naming = nil }
+            }
+            // New routine: the builder, then the routine's page once the sheet has gone.
+            .sheet(isPresented: $building, onDismiss: { if let r = justMade { path.append(r) }; justMade = nil }) {
+                RoutineBuilderSheet(mode: .create) { name, built in
+                    var r = Routine(name: name)
+                    r.add(built)
+                    store.put(r)
+                    justMade = r
+                }
+                .presentationDetents([.large])
+                .presentationBackground(p.card)
             }
             .sheet(isPresented: $newVersion) {
                 AddExerciseSheet { _, _ in }
@@ -61,9 +74,10 @@ struct PlanView: View {
             }
             #if DEBUG
             .task(id: store.loaded) {
-                guard store.loaded, RoutineDemo.once("plan", for: ["split", "edit", "ask", "duplicate", "routines"]) else { return }
+                guard store.loaded, RoutineDemo.once("plan", for: ["split", "edit", "ask", "duplicate", "routines", "build", "buildOpen", "buildExercises", "buildBase", "taken"]) else { return }
                 switch RoutineDemo.step {
-                case "routines": segment = .routines
+                case "routines", "taken": segment = .routines
+                case "build", "buildOpen", "buildExercises", "buildBase": segment = .routines; building = true
                 case "duplicate":
                     if let rid = store.activeSplit?.routineIds.first, let r = store.routine(rid) { path.append(r) }
                 default:
@@ -150,6 +164,7 @@ struct RoutinesList: View {
     @State private var created: Routine? = nil
     @State private var renaming: Routine? = nil
     @State private var newName = ""
+    @State private var taken: NameTaken? = nil
 
     var body: some View {
         List {
@@ -191,11 +206,18 @@ struct RoutinesList: View {
             TextField("Name", text: $newName)
             Button("Save") {
                 let n = newName.trimmingCharacters(in: .whitespaces)
-                if var r = renaming, !n.isEmpty { r.name = n; store.put(r) }
+                if let r = renaming, routineNameTaken(n, in: store.routines, except: r.id) {
+                    let typed = newName
+                    taken = NameTaken(name: n) { newName = typed; renaming = r }
+                } else if var r = renaming, !n.isEmpty { r.name = n; store.put(r) }
                 renaming = nil
             }
             Button("Cancel", role: .cancel) { renaming = nil }
         }
+        .nameTakenAlert($taken)
+        #if DEBUG
+        .task { if RoutineDemo.once("taken", for: ["taken"]), let r = store.routines.first { taken = NameTaken(name: r.name) {} } }
+        #endif
     }
 }
 
