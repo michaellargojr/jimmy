@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Edit split (Michael, Nov 2): which routines a split holds and in what order, in one sheet that
-/// works like editing a routine. In this split: the red minus takes a routine out, the copy icon
-/// duplicates it (the copy goes right after it), hold and drag to change the order. New routine.
-/// Add an existing routine: Add, or swipe one left to delete it for good or duplicate it.
+/// works like editing a routine. In this split: tap a routine to edit its exercises, the red minus
+/// takes it out, the copy icon duplicates it (the copy goes right after it), hold and drag to
+/// change the order. New routine. Add an existing routine: Add, or swipe one left to duplicate it
+/// or delete it for good ("Delete from everywhere?" asks first).
 /// Each change saves as it's made; Done goes back to the split page.
 struct SplitEditSheet: View {
     @Environment(AppStore.self) private var store
@@ -18,6 +19,8 @@ struct SplitEditSheet: View {
     @State private var renaming: Routine? = nil
     @State private var newName = ""
     @State private var taken: NameTaken? = nil
+    @State private var editing: SplitEditorView.SlotEdit? = nil
+    @State private var deleting: Routine? = nil
 
     private var split: Split? { store.splits.first { $0.id == splitId } }
 
@@ -37,6 +40,11 @@ struct SplitEditSheet: View {
             }
             .presentationDetents([.large])
             .presentationBackground(p.card)
+        }
+        .sheet(item: $editing) { e in
+            RoutineDraftSheet(mode: .edit(splitId: splitId, slot: e.slot), routine: e.routine, takenNames: store.routines.map(\.name))
+                .presentationDetents([.large])
+                .presentationBackground(p.card)
         }
         .sheet(item: $duplicating) { r in
             RoutineDraftSheet(mode: .duplicate, routine: r, takenNames: store.routines.map(\.name)) {
@@ -58,6 +66,7 @@ struct SplitEditSheet: View {
             Button("Cancel", role: .cancel) { renaming = nil }
         }
         .nameTakenAlert($taken)
+        .routineDeleteAlert($deleting)
         .routineUndoBar(splitId: splitId)
     }
 
@@ -90,7 +99,8 @@ struct SplitEditSheet: View {
         .scrollContentBackground(.hidden)
     }
 
-    /// A day of the split: remove, its number and name, duplicate, and the handle.
+    /// A day of the split: remove, its number and name (tap to edit its exercises), duplicate, and
+    /// the handle.
     private func slotRow(_ s: Split, index i: Int, routineId rid: String) -> some View {
         let r = store.routine(rid)
         let name = r?.name ?? "Missing routine"
@@ -102,10 +112,19 @@ struct SplitEditSheet: View {
                     store.put(ss)
                 }
             }
-            Text("\(i + 1)").font(.system(size: 13, weight: .bold)).monospacedDigit().foregroundStyle(p.muted)
-                .frame(minWidth: 16, alignment: .leading)
-            Text(name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text).lineLimit(1)
-            Spacer(minLength: 0)
+            Button {
+                if let r { editing = SplitEditorView.SlotEdit(routine: r, slot: i) }
+            } label: {
+                HStack(spacing: 12) {
+                    Text("\(i + 1)").font(.system(size: 13, weight: .bold)).monospacedDigit().foregroundStyle(p.muted)
+                        .frame(minWidth: 16, alignment: .leading)
+                    Text(name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             if let r {
                 RowIconButton(icon: "doc.on.doc", label: "Duplicate \(name)") { copySpot = i + 1; duplicating = r }
             }
@@ -128,13 +147,14 @@ struct SplitEditSheet: View {
         .padding(.vertical, 6)
         .sheetRow(p, leading: 30)
         .swipeActions {
-            Button(role: .destructive) { store.deleteRoutine(r.id) } label: { Label("Delete", systemImage: "trash") }
+            // Not role .destructive: that takes the row away before "Delete from everywhere?" is answered.
+            Button { deleting = r } label: { Label("Delete", systemImage: "trash") }.tint(.red)
             Button { copySpot = nil; duplicating = r } label: { Label("Duplicate", systemImage: "doc.on.doc") }.tint(Color(hex: 0x4A4C55))
         }
         .contextMenu {
             RoutineMenu(rename: { newName = r.name; renaming = r },
                         duplicate: { copySpot = nil; duplicating = r },
-                        delete: { store.deleteRoutine(r.id) })
+                        delete: { deleting = r })
         }
     }
 }

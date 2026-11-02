@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// A split's page (Michael, Nov 2): Goals; "In this split", the routines in their order with Edit
-/// beside the title; Coverage; Notes at the very bottom (splitSections). Tap a routine to edit its
+/// A split's page (Michael, Nov 2): "In this split", the routines in their order with Edit beside
+/// the title; Goals; Coverage; Notes at the very bottom (splitSections). Tap a routine to edit its
 /// exercises, hold one for Rename, Duplicate or Remove. Edit opens the Edit split sheet for
 /// everything else. A split with no routines yet opens straight on that sheet.
 struct SplitEditorView: View {

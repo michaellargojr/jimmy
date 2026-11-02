@@ -63,9 +63,9 @@ enum SplitSection: Hashable {
 }
 
 /// The split page (Michael, Nov 2): its routines first, under a big "In this split" with Edit;
-/// Coverage after them; Notes at the very bottom. Use this split shows only while it isn't the
-/// active one. New routine and Add an existing routine live in the Edit split sheet.
+/// then Goals right above Coverage; Notes at the very bottom. Use this split shows only while it
+/// isn't the active one. New routine and Add an existing routine live in the Edit split sheet.
 func splitSections(active: Bool) -> [SplitSection] {
-    active ? [.goals, .inSplit, .coverage, .notes]
-           : [.goals, .inSplit, .coverage, .use, .notes]
+    active ? [.inSplit, .goals, .coverage, .notes]
+           : [.inSplit, .goals, .coverage, .use, .notes]
 }

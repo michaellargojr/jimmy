@@ -54,9 +54,9 @@ import Testing
         #expect(d.rows.count == 2)
     }
 
-    @Test func routinesThenCoverageThenNotesLast() {
-        #expect(splitSections(active: true) == [.goals, .inSplit, .coverage, .notes])
-        #expect(splitSections(active: false) == [.goals, .inSplit, .coverage, .use, .notes])
+    @Test func routinesThenGoalsAndCoverageThenNotesLast() {
+        #expect(splitSections(active: true) == [.inSplit, .goals, .coverage, .notes])
+        #expect(splitSections(active: false) == [.inSplit, .goals, .coverage, .use, .notes])
     }
 
     @Test func aCopyGoesRightAfterItsRoutine() {
@@ -82,6 +82,10 @@ import Testing
         #expect(store.splits.first { $0.id == s.id }?.routineIds == [a.id, copy.id, b.id])
         store.undoRoutineChange()
         #expect(store.splits.first { $0.id == s.id }?.routineIds == [a.id, b.id])
+    }
+
+    @Test func deletingARoutineSaysWhatHappens() {
+        #expect(routineDeleteMessage("Shoulders") == "Shoulders will be gone from your routines and from every split it's in. Workouts you've already done stay in History.")
     }
 
     @Test func notesRideAlongAndOldSplitsHaveNone() throws {
