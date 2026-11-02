@@ -30,8 +30,8 @@ private func S(_ name: String, _ base: String, _ group: MuscleGroup, _ v: Variat
                aliases: [String] = [], notes: String? = nil) -> SeedExercise {
     SeedExercise(name: name, base: base, group: group, variation: v, style: style, aliases: aliases, notes: notes)
 }
-private func V(_ family: EquipmentFamily, arms: Arms = .two, position: Position? = nil, tag: String? = nil) -> VariationSpec {
-    VariationSpec(family: family, arms: arms, position: position, tag: tag)
+private func V(_ family: EquipmentFamily, arms: Arms = .two, position: Position? = nil, arm: ArmPosition? = nil, tag: String? = nil) -> VariationSpec {
+    VariationSpec(family: family, arms: arms, position: position, armPosition: arm, tag: tag)
 }
 
 let SEED_EXERCISES: [SeedExercise] = [
@@ -51,8 +51,8 @@ let SEED_EXERCISES: [SeedExercise] = [
     S("Standing Cable Row", "Row", .Back, V(.cable, position: .standing)),
     // Biceps
     S("Hammer Curl", "Hammer Curl", .Biceps, V(.cable), notes: "Part of the bicep triset."),
-    S("Incline Dumbbell Curl", "Curl", .Biceps, V(.dumbbell, position: .armsBehind)),
-    S("Single-Arm Bayesian Curl", "Curl", .Biceps, V(.cable, arms: .one, position: .armsBehind), notes: "Part of the bicep triset."),
+    S("Incline Dumbbell Curl", "Curl", .Biceps, V(.dumbbell, arm: .behind)),
+    S("Single-Arm Bayesian Curl", "Curl", .Biceps, V(.cable, arms: .one, arm: .behind), notes: "Part of the bicep triset."),
     S("Single-Arm Cable Curl", "Curl", .Biceps, V(.cable, arms: .one), aliases: ["Single arm curls"], notes: "Part of the bicep triset."),
     S("Spider Curl", "Curl", .Biceps, V(.dumbbell, position: .chestSupported)),
     S("Standing Barbell Curl", "Curl", .Biceps, V(.bar, position: .standing), style: StyleSpec(barType: .barbell)),
@@ -81,8 +81,8 @@ let SEED_EXERCISES: [SeedExercise] = [
     S("Shoulder Lateral Machine Press", "Lateral Raise", .Shoulders, V(.machine)),
     S("Upright Row", "Upright Row", .Shoulders, V(.bar), style: StyleSpec(barType: .ez)),
     // Triceps
-    S("One-Arm Cuffed Tricep Extension", "Tricep Extension", .Triceps, V(.cable, arms: .one, tag: "overhead"), style: StyleSpec(attachment: "cuff")),
-    S("Standing Cable Tricep Extension", "Tricep Extension", .Triceps, V(.cable, tag: "overhead")),
+    S("One-Arm Cuffed Tricep Extension", "Tricep Extension", .Triceps, V(.cable, arms: .one, arm: .overhead), style: StyleSpec(attachment: "cuff")),
+    S("Standing Cable Tricep Extension", "Tricep Extension", .Triceps, V(.cable, arm: .overhead)),
     S("Tricep Pushdown", "Tricep Pushdown", .Triceps, V(.cable, arms: .one), aliases: ["Tricep pull downs"]),
 ]
 

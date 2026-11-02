@@ -17,7 +17,7 @@ func machineName(_ text: String?) -> String? {
 /// A machine with no Plates or Stack yet takes the way its kind usually comes. Others are unchanged.
 func withUsualLoading(_ spec: VariationSpec, base name: String) -> VariationSpec {
     guard spec.family == .machine, spec.loading == nil,
-          let t = machineTypes(forBase: name).first(where: { $0.fits(tag: spec.tag, position: spec.position) }) else { return spec }
+          let t = machineTypes(forBase: name).first(where: { $0.fits(tag: spec.tag, position: spec.position, arm: spec.armPosition) }) else { return spec }
     var out = spec
     out.loading = t.loading
     return out
@@ -34,7 +34,8 @@ func machineType(named text: String?, in types: [MachineType]) -> MachineType? {
 /// ("Pec deck"), otherwise the same kind under that name ("D Stars").
 func namedMachineSpec(_ text: String?, beside v: Version, types: [MachineType]) -> VariationSpec? {
     if v.family == .machine, let t = machineType(named: text, in: types), !t.fits(v) {
-        return VariationSpec(family: .machine, arms: v.arms, position: t.position ?? v.position, tag: t.tag, loading: t.loading)
+        return VariationSpec(family: .machine, arms: v.arms, position: t.position ?? v.position, armPosition: t.arm ?? v.armPosition,
+                             tag: t.tag, loading: t.loading)
     }
     guard let name = machineName(text) else { return nil }
     var spec = VariationSpec(v)

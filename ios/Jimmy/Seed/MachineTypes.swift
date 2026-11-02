@@ -20,20 +20,29 @@ struct MachineType: Hashable, Identifiable {
     let loading: Loading
     /// The positions it's used in. Empty: any.
     let positions: Set<Position>
+    /// Set when the kind fixes the arm position (a preacher curl machine).
+    var arm: ArmPosition? = nil
+    /// The arm positions it's used in. Empty: any.
+    var arms: Set<ArmPosition> = []
     var id: String { name }
 
-    /// It comes in this position (any kind does when no position is picked).
-    func allows(_ p: Position?) -> Bool {
+    /// It comes in this position and arm position (any kind does when none is picked).
+    func allows(_ p: Position?, arm a: ArmPosition? = nil) -> Bool {
+        if let a {
+            if let arm, arm != a { return false }
+            if arm == nil, !arms.isEmpty, !arms.contains(a) { return false }
+        }
         guard let p else { return true }
-        if let position { return position == p }
-        return positions.isEmpty || positions.contains(p)
+        // Half kneeling counts as kneeling, side lying and face down as lying.
+        if let position { return position == p || position == p.parent }
+        return positions.isEmpty || positions.contains(p) || p.parent.map { positions.contains($0) } == true
     }
 
-    /// A variation's tag and position fit this kind.
-    func fits(tag t: String?, position p: Position?) -> Bool {
-        (t ?? "").lowercased() == (tag ?? "").lowercased() && (position == nil || position == p)
+    /// A variation's tag, position and arm position fit this kind.
+    func fits(tag t: String?, position p: Position?, arm a: ArmPosition? = nil) -> Bool {
+        (t ?? "").lowercased() == (tag ?? "").lowercased() && (position == nil || position == p) && (arm == nil || arm == a)
     }
-    func fits(_ v: Version) -> Bool { v.family == .machine && fits(tag: v.tag, position: v.position) }
+    func fits(_ v: Version) -> Bool { v.family == .machine && fits(tag: v.tag, position: v.position, arm: v.armPosition) }
 }
 
 private let RAW_MACHINES = """
@@ -52,7 +61,7 @@ Back Extension|Back extension machine=machine@seated
 Shoulder Press|Shoulder press=machine@seated;Iso-lateral shoulder press=machine iso-lateral/plates@seated;Converging shoulder press=machine converging@seated
 Lateral Raise|Lateral raise machine=machine@seated;Standing lateral raise machine=machine standing
 Rear Delt Fly|Reverse pec deck=machine@seated,chest-supported
-Curl|Preacher curl machine=machine arm-on-pad;Iso-lateral curl=machine iso-lateral/plates@arm-on-pad,seated
+Curl|Preacher curl machine=machine arm-on-pad@seated;Iso-lateral curl=machine iso-lateral/plates@arm-on-pad,seated
 Tricep Extension|Tricep extension machine=machine@seated,arm-on-pad;Overhead tricep machine=machine overhead@seated
 Tricep Pushdown|Tricep press machine=machine@seated
 Wrist Roller|Wrist roller=machine@standing,seated
@@ -81,8 +90,10 @@ private let MACHINE_TYPES: [String: [MachineType]] = {
             let sl = at[0].split(separator: "/", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
             guard let spec = VariationSpec(sl[0]), spec.family == .machine else { return nil }
             let loading = sl.count == 2 ? (Loading(rawValue: sl[1]) ?? .stack) : .stack
-            let positions = at.count == 2 ? Set(at[1].split(separator: ",").compactMap { Position(rawValue: $0.trimmingCharacters(in: .whitespaces)) }) : []
-            return MachineType(name: kv[0], tag: spec.tag, position: spec.position, loading: loading, positions: positions)
+            let used = at.count == 2 ? at[1].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } : []
+            return MachineType(name: kv[0], tag: spec.tag, position: spec.position, loading: loading,
+                               positions: Set(used.compactMap { Position(rawValue: $0) }),
+                               arm: spec.armPosition, arms: Set(used.compactMap { ArmPosition(rawValue: $0) }))
         }
     }
     return out

@@ -43,7 +43,7 @@ Upright Row|Shoulders||side delt, upper traps|front delt, biceps|bar;cable;dumbb
 Rear Delt Fly|Shoulders||rear delt|upper back|machine;cable;dumbbell chest-supported;dumbbell bent-over|Reverse Pec Deck, Reverse Fly
 Y Raise|Shoulders||upper back, rear delt|side delt|dumbbell chest-supported;cable|
 External Rotation|Shoulders||rear delt|upper back|cable;dumbbell lying|
-Curl|Biceps||biceps|forearms|bar standing;dumbbell standing;dumbbell seated;dumbbell arms-behind (incline);dumbbell arm-on-pad (preacher);bar arm-on-pad (preacher);machine arm-on-pad (preacher);dumbbell chest-supported (spider);dumbbell concentration;cable standing;cable one;cable arms-behind (Bayesian)|Bicep Curl, Barbell Curl, Dumbbell Curl, Preacher Curl, Spider Curl, Bayesian Curl, Incline Curl, Concentration Curl, Cable Curl, EZ Bar Curl
+Curl|Biceps||biceps|forearms|bar standing;dumbbell standing;dumbbell seated;dumbbell arms-behind (incline);dumbbell arm-on-pad (preacher);bar arm-on-pad (preacher);machine arm-on-pad (preacher);dumbbell chest-supported (spider);dumbbell arm-on-thigh (concentration);cable standing;cable one;cable arms-behind (Bayesian)|Bicep Curl, Barbell Curl, Dumbbell Curl, Preacher Curl, Spider Curl, Bayesian Curl, Incline Curl, Concentration Curl, Cable Curl, EZ Bar Curl
 Hammer Curl|Biceps||biceps, forearms||dumbbell;cable|
 Reverse Curl|Biceps|Forearms|forearms|biceps|bar;cable;dumbbell|
 Tricep Extension|Triceps||triceps||cable overhead two;cable overhead one;dumbbell overhead;bar lying (skull crusher);dumbbell lying;machine|Overhead Tricep Extension, Skull Crusher, Overhead Extension

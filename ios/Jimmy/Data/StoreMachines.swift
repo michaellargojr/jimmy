@@ -22,7 +22,7 @@ extension AppStore {
         for i in versions.indices where versions[i].family == .machine {
             var v = versions[i]
             if machineType(of: v) == nil, v.machine == nil, let tag = v.tag, tag.first?.isUppercase == true,
-               let b = base(of: v), let plain = machineTypes(forBase: b.name).first(where: { $0.fits(tag: nil, position: v.position) }) {
+               let b = base(of: v), let plain = machineTypes(forBase: b.name).first(where: { $0.fits(tag: nil, position: v.position, arm: v.armPosition) }) {
                 var named = v
                 named.tag = plain.tag
                 named.machine = tag
@@ -35,10 +35,12 @@ extension AppStore {
     }
 
     /// Your machines of one kind with these arms and this loading, the plain one first, then by
-    /// name. A kind that doesn't fix the position matches the position picked.
-    func machines(of t: MachineType, baseId: String, arms: Arms, position: Position?, loading: Loading?) -> [Version] {
+    /// name. A kind that doesn't fix the position (or arm position) matches the one picked.
+    func machines(of t: MachineType, baseId: String, arms: Arms, position: Position?, arm: ArmPosition? = nil, loading: Loading?) -> [Version] {
         let pos = t.position ?? position
-        return versions.filter { $0.exerciseId == baseId && $0.arms == arms && $0.position == pos && $0.loading == loading && t.fits($0) }
+        let a = t.arm ?? arm
+        return versions.filter { $0.exerciseId == baseId && $0.arms == arms && $0.position == pos && $0.armPosition == a
+            && $0.loading == loading && t.fits($0) }
             .sorted { ($0.machine ?? "").lowercased() < ($1.machine ?? "").lowercased() }
     }
 

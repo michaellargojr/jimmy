@@ -9,12 +9,20 @@ import Testing
         let s = VariationSpec("cable one arms-behind (Bayesian)")
         #expect(s?.family == .cable)
         #expect(s?.arms == .one)
-        #expect(s?.position == .armsBehind)
+        #expect(s?.position == nil)
+        #expect(s?.armPosition == .behind)
         #expect(s?.tag == nil)
         #expect(s?.nick == "Bayesian")
         let t = VariationSpec("machine high row")
         #expect(t?.family == .machine && t?.arms == .two && t?.tag == "high row")
         #expect(VariationSpec("kettlebell swing") == nil)
+        // Body and arm position combine; off a machine "overhead" is the arm position, in any order.
+        let p = VariationSpec("dumbbell one standing arm-on-pad")
+        #expect(p?.position == .standing && p?.armPosition == .onPad && p?.arms == .one && p?.tag == nil)
+        let o = VariationSpec("cable overhead two")
+        #expect(o?.armPosition == .overhead && o?.arms == .two && o?.tag == nil)
+        #expect(VariationSpec("machine overhead")?.tag == "overhead")
+        #expect(VariationSpec("machine overhead")?.armPosition == nil)
     }
 
     @Test func labelsReadPlainly() {
