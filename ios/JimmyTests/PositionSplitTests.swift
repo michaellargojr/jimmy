@@ -29,6 +29,8 @@ import Testing
         // "overhead" was a tag; off a machine it is the arm position now.
         let over = try decode(["tag": "overhead"])
         #expect(over.armPosition == .overhead && over.tag == nil)
+        let concentration = try decode(["equipment": "dumbbell", "tag": "concentration"])
+        #expect(concentration.armPosition == .onThigh && concentration.tag == nil)
         let machine = try decode(["equipment": "machine", "tag": "overhead"])
         #expect(machine.armPosition == nil && machine.tag == "overhead")
         // New data keeps both.
@@ -51,6 +53,19 @@ import Testing
         #expect(s.variationChips(preacher) == ["Dumbbell", "One arm", "Arm on pad"])
         #expect(curl.hasArmPosition)
         #expect(!Exercise(name: "Squat", muscleGroup: .Legs).hasArmPosition)
+    }
+
+    @Test func kindsShowUnderTheirPosition() {
+        #expect(Position.allCases.filter { $0.parent == nil } == [.standing, .seated, .kneeling, .lying, .chestSupported, .bentOver])
+        #expect(Position.halfKneeling.parent == .kneeling)
+        #expect(Position.sideLying.main == .lying && Position.faceDown.main == .lying)
+        #expect(Position.faceDown.usesBench && !Position.halfKneeling.usesBench && !Position.bentOver.usesBench)
+        // A machine used kneeling or lying takes its kinds too.
+        let assisted = machineTypes(forBase: "Pull-Up").first
+        #expect(assisted?.allows(.halfKneeling) == true)
+        #expect(assisted?.allows(.bentOver) == false)
+        #expect(machineTypes(forBase: "Leg Curl").filter { $0.allows(.faceDown) }.map(\.name) == ["Lying leg curl"])
+        #expect(VariationSpec("dumbbell arm-on-thigh (concentration)")?.armPosition == .onThigh)
     }
 
     @Test func overheadStaysInTheTitle() {

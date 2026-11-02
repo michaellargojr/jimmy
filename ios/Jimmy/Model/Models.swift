@@ -57,21 +57,41 @@ extension Equipment {
     }
 }
 
-/// Body position of a variation. Optional: wrist curls carry none.
+/// Body position of a variation. Optional: wrist curls carry none. Half kneeling is a kind of
+/// kneeling, side lying and face down kinds of lying: they show once Kneeling or Lying is picked.
 enum Position: String, Codable, CaseIterable, Hashable {
-    case standing, seated, kneeling, lying
+    case standing, seated, kneeling
+    case halfKneeling = "half-kneeling"
+    case lying
+    case sideLying = "side-lying"
+    case faceDown = "face-down"
     case chestSupported = "chest-supported"
+    case bentOver = "bent-over"
     var label: String {
         switch self {
         case .standing: return "standing"
         case .seated: return "seated"
         case .kneeling: return "kneeling"
+        case .halfKneeling: return "half kneeling"
         case .lying: return "lying"
+        case .sideLying: return "side lying"
+        case .faceDown: return "face down"
         case .chestSupported: return "chest supported"
+        case .bentOver: return "bent over"
         }
     }
+    /// The position this one is a kind of (Kneeling for Half kneeling), nil for the main ones.
+    var parent: Position? {
+        switch self {
+        case .halfKneeling: return .kneeling
+        case .sideLying, .faceDown: return .lying
+        default: return nil
+        }
+    }
+    /// The main position it falls under: itself, or its parent.
+    var main: Position { parent ?? self }
     /// Seated and lying positions can sit on a bench, so bench angle applies.
-    var usesBench: Bool { self == .seated || self == .lying || self == .chestSupported }
+    var usesBench: Bool { self == .seated || main == .lying || self == .chestSupported }
 }
 
 /// Where the upper arm sits, picked apart from the body position so the two combine: a standing
@@ -81,12 +101,22 @@ enum Position: String, Codable, CaseIterable, Hashable {
 enum ArmPosition: String, Codable, CaseIterable, Hashable {
     case behind = "arms-behind"
     case onPad = "arm-on-pad"
+    case onThigh = "arm-on-thigh"
     case overhead
     var label: String {
         switch self {
         case .behind: return "arms behind"
         case .onPad: return "arm on pad"
+        case .onThigh: return "arm on thigh"
         case .overhead: return "overhead"
+        }
+    }
+    /// Tags that said an arm position before it had its own block ("concentration": the elbow on the thigh).
+    static func fromOldTag(_ tag: String?) -> ArmPosition? {
+        switch tag?.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "overhead": return .overhead
+        case "concentration": return .onThigh
+        default: return nil
         }
     }
 }
@@ -310,8 +340,8 @@ struct Version: Codable, Identifiable, Hashable {
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
-        if armPosition == nil, equipment.family != .machine, tag?.trimmingCharacters(in: .whitespaces).lowercased() == ArmPosition.overhead.rawValue {
-            armPosition = .overhead; tag = nil
+        if armPosition == nil, equipment.family != .machine, let a = ArmPosition.fromOldTag(tag) {
+            armPosition = a; tag = nil
         }
         nickname = try c.decodeIfPresent(String.self, forKey: .nickname)
         cableHeight = try c.decodeIfPresent(Double.self, forKey: .cableHeight)

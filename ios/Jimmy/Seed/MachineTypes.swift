@@ -33,8 +33,9 @@ struct MachineType: Hashable, Identifiable {
             if arm == nil, !arms.isEmpty, !arms.contains(a) { return false }
         }
         guard let p else { return true }
-        if let position { return position == p }
-        return positions.isEmpty || positions.contains(p)
+        // Half kneeling counts as kneeling, side lying and face down as lying.
+        if let position { return position == p || position == p.parent }
+        return positions.isEmpty || positions.contains(p) || p.parent.map { positions.contains($0) } == true
     }
 
     /// A variation's tag, position and arm position fit this kind.

@@ -203,6 +203,8 @@ struct VariationFields: View {
     var armRow: Bool = false
     @Binding var spec: VariationSpec
 
+    private func kinds(of main: Position) -> [Position] { Position.allCases.filter { $0.parent == main } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             FlowRow(spacing: 8, lineSpacing: 8) {
@@ -215,8 +217,20 @@ struct VariationFields: View {
                 Chip(text: capitalized(Arms.one.label(legs: legs)), on: spec.arms == .one, small: true) { spec.arms = .one }
             }
             FlowRow(spacing: 8, lineSpacing: 8) {
-                ForEach(Position.allCases, id: \.self) { pos in
-                    Chip(text: capitalized(pos.label), on: spec.position == pos, small: true) { spec.position = spec.position == pos ? nil : pos }
+                ForEach(Position.allCases.filter { $0.parent == nil }, id: \.self) { pos in
+                    Chip(text: capitalized(pos.label), on: spec.position?.main == pos, small: true) {
+                        spec.position = spec.position?.main == pos ? nil : pos
+                    }
+                }
+            }
+            // Kinds of the position picked: Half kneeling under Kneeling, Side lying and Face down under Lying.
+            if let main = spec.position?.main, !kinds(of: main).isEmpty {
+                FlowRow(spacing: 8, lineSpacing: 8) {
+                    ForEach(kinds(of: main), id: \.self) { k in
+                        Chip(text: capitalized(k.label), on: spec.position == k, small: true) {
+                            spec.position = spec.position == k ? main : k
+                        }
+                    }
                 }
             }
             if armRow || spec.armPosition != nil {
