@@ -411,52 +411,28 @@ struct OverviewSheet: View {
         }
     }
 
-    /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup.
-    /// The bar shows only then, docked under the list.
-    @ViewBuilder
+    /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup
+    /// (GroupSelect.swift, the same on every list that groups).
     private func bottomBar(_ w: Workout) -> some View {
         let ticked = w.items.filter { selected.contains($0.id) }
-        if ticked.contains(where: { $0.groupId != nil }) {
-            actionButton("Ungroup") { store.put(ungroup(w, ids: selected)); selected = [] }
-        } else if ticked.count >= 2 {
-            actionButton("Make a \(GroupType.forCount(ticked.count).rawValue)") { store.put(makeGroup(w, ids: selected)); selected = [] }
-        }
-    }
-
-    private func actionButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button { withAnimation { action() } } label: {
-            Text(title).font(.system(size: 18, weight: .heavy)).foregroundStyle(p.onAccent)
-                .frame(maxWidth: .infinity).frame(height: 56)
-                .background(p.accent, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .background(p.bg)
+        return GroupSelectBar(anyGrouped: ticked.contains(where: { $0.groupId != nil }), count: ticked.count,
+                              makeGroup: { store.put(makeGroup(w, ids: selected)); selected = [] },
+                              ungroup: { store.put(ungroup(w, ids: selected)); selected = [] })
     }
 
     private func row(_ w: Workout, index i: Int, item: WorkoutItem, paneIndex: Int) -> some View {
         let v = store.version(item.versionId)
-        let gid = item.groupId
-        let first = gid == nil || i == 0 || w.items[i - 1].groupId != gid
-        let last = gid == nil || i == w.items.count - 1 || w.items[i + 1].groupId != gid
+        let place = w.groupPlace(at: i)
         let sets = item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " - ")
         return HStack(spacing: 14) {
             // Its own button, so a tick never jumps away or closes Overview.
-            Button {
+            GroupTickBox(on: selected.contains(item.id)) {
                 if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
-            } label: {
-                RectCheck(on: selected.contains(item.id), size: 26).frame(width: 40, height: 44).contentShape(Rectangle())
             }
             Button { current = paneIndex; dismiss() } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let gid {
-                        // Every member says which it is, the same way the cards do: "TRISET 2".
-                        let members = w.items.filter { $0.groupId == gid }
-                        let n = (members.firstIndex { $0.id == item.id } ?? 0) + 1
-                        Text("\(GroupType.forCount(members.count).label) \(n)".uppercased())
-                            .font(.system(size: 12, weight: .heavy)).tracking(0.6).foregroundStyle(p.accent)
-                            .padding(.bottom, 2)
-                    }
+                    // Every member says which it is, the same way the cards do: "TRISET 2".
+                    if place.group != nil { GroupMemberLabel(members: place.members, number: place.number) }
                     HStack(spacing: 7) {
                         Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).lineLimit(1)
                         if let n = v.flatMap({ store.nickname($0) }) { NicknameTag(text: n, size: .small) }
@@ -485,7 +461,7 @@ struct OverviewSheet: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
         }
-        .overviewCard(p, grouped: gid != nil, first: first, last: last)
+        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last)
     }
 
     /// Only an exercise with something logged asks first.
@@ -498,22 +474,5 @@ struct OverviewSheet: View {
         ww.items.removeAll { $0.id == item.id }
         selected.remove(item.id)
         withAnimation { store.put(tidyGroups(ww)) }
-    }
-}
-
-private extension View {
-    /// A group's members share one card with an accent edge; loose exercises get a card each.
-    func overviewCard(_ p: Palette, grouped: Bool, first: Bool, last: Bool) -> some View {
-        let r = Radius.row
-        let shape = UnevenRoundedRectangle(topLeadingRadius: first ? r : 0, bottomLeadingRadius: last ? r : 0,
-                                           bottomTrailingRadius: last ? r : 0, topTrailingRadius: first ? r : 0, style: .continuous)
-        return self.listRowBackground(
-            shape.fill(p.card)
-                .overlay(alignment: .leading) { if grouped { Rectangle().fill(p.accent).frame(width: 3) } }
-                .clipShape(shape)
-                .padding(.horizontal, 16).padding(.top, first ? 5 : 0).padding(.bottom, last ? 5 : 0)
-        )
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: first ? 5 : 0, leading: 16, bottom: last ? 5 : 0, trailing: 16))
     }
 }
