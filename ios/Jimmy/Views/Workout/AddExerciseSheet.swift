@@ -28,9 +28,11 @@ struct AddExerciseSheet: View {
     @State private var nickTyped = false
     @FocusState private var focused: Bool
 
-    init(base: Exercise? = nil, title: String? = nil, onPick: @escaping (Version, Style?) -> Void) {
+    /// `newBase`: start on a new base exercise with this name (pick its muscle group), as "New: X" does.
+    init(base: Exercise? = nil, title: String? = nil, newBase: String? = nil, onPick: @escaping (Version, Style?) -> Void) {
         self.base = base; self.title = title; self.onPick = onPick
         _chosen = State(initialValue: base)
+        _newBaseName = State(initialValue: base == nil ? newBase : nil)
     }
 
     var body: some View {
@@ -50,7 +52,7 @@ struct AddExerciseSheet: View {
             started = true; startSetup(b)
         }
         .task {
-            guard chosen == nil else { return }
+            guard chosen == nil, newBaseName == nil else { return }
             // Focus once the sheet has settled, or the keyboard never attaches.
             try? await Task.sleep(nanoseconds: 450_000_000)
             focused = true

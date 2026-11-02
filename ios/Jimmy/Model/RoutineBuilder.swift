@@ -1,8 +1,9 @@
 import Foundation
 
-// The routine builder (Michael's picks A and 1): one sheet with your routines and your
-// variations. Routines first, the main way to build: open one and tick its exercises. Then your
-// variations under their muscle group, the ones in the most workouts first.
+// The routine builder (Michael's picks A and 2): one sheet with your routines and the exercise
+// list. Routines first, the main way to build: open one and tick its exercises. Then exercises by
+// muscle group, the ones in the most workouts first: open one and tick its variations, or set up
+// a new one.
 
 /// One tick in the builder: an exercise out of a routine, or a variation from your list.
 enum BuilderPick: Hashable {
@@ -53,11 +54,10 @@ func builtExercises(_ picks: [BuilderPick], routines: [Routine]) -> PickedExerci
     return out
 }
 
-/// A variation in the builder's list and how many finished workouts had it.
+/// One of your variations in the builder and how many finished workouts had it.
 struct VariationUse: Identifiable, Hashable {
     var id: String { version.id }
     var version: Version
-    var baseName: String
     var workouts: Int
     /// Day of its latest workout, "2026-10-15"; empty when never done.
     var last: String
@@ -65,34 +65,71 @@ struct VariationUse: Identifiable, Hashable {
     var note: String { workouts == 0 ? "Not done yet" : workoutsText(workouts) }
 }
 
-/// A muscle group and your variations in it.
-struct MuscleVariations: Identifiable, Hashable {
-    var id: String { muscle.rawValue }
-    var muscle: MuscleGroup
-    var list: [VariationUse]
+/// A base exercise in the builder (Michael's pick 2: the exercise first, then its variations).
+struct BaseUse: Identifiable, Hashable {
+    var id: String { exercise.id }
+    var exercise: Exercise
+    /// Your variations of it, most workouts first.
+    var variations: [VariationUse]
+    /// Workouts with any of its variations; a workout with two of them counts once.
+    var workouts: Int
+    var last: String
+    var mine: Bool { !variations.isEmpty }
 }
 
-/// Every variation you have under its exercise's main muscle group, groups in chip order. In a
-/// group: most workouts first, then the most recent, then by name; never done at the bottom.
-/// Groups with no variations are left out.
-func variationsByMuscle(versions: [Version], exercises: [Exercise], workouts: [Workout]) -> [MuscleVariations] {
+/// A muscle group and its exercises, in the builder's order.
+struct MuscleBases: Identifiable, Hashable {
+    var id: String { muscle.rawValue }
+    var muscle: MuscleGroup
+    var bases: [BaseUse]
+}
+
+/// Every base exercise with your variations of it. Most workouts first, then the most recent,
+/// then yours before the library's, then by name. Variations the same way.
+func baseUses(exercises: [Exercise], versions: [Version], workouts: [Workout]) -> [BaseUse] {
     let history = Dictionary(variationHistories(versions: versions, workouts: workouts).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-    let bases = Dictionary(exercises.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-    var byMuscle: [MuscleGroup: [VariationUse]] = [:]
-    for v in versions {
-        guard let e = bases[v.exerciseId] else { continue }
-        let h = history[v.id]
-        byMuscle[e.muscleGroup, default: []].append(VariationUse(version: v, baseName: e.name, workouts: h?.sessions ?? 0, last: h?.last ?? ""))
-    }
-    return MuscleGroup.chipOrder.compactMap { m in
-        guard let list = byMuscle[m], !list.isEmpty else { return nil }
-        let sorted = list.sorted { a, b in
+    let byBase = Dictionary(grouping: versions, by: { $0.exerciseId })
+    let list = exercises.map { e -> BaseUse in
+        let vs = (byBase[e.id] ?? []).map { v -> VariationUse in
+            let h = history[v.id]
+            return VariationUse(version: v, workouts: h?.sessions ?? 0, last: h?.last ?? "")
+        }
+        .sorted { a, b in
             if a.workouts != b.workouts { return a.workouts > b.workouts }
             if a.last != b.last { return a.last > b.last }
-            return a.baseName != b.baseName ? a.baseName < b.baseName : a.version.name < b.version.name
+            return a.version.name < b.version.name
         }
-        return MuscleVariations(muscle: m, list: sorted)
+        let ids = Set(vs.compactMap { history[$0.id] }.flatMap(\.workoutIds))
+        return BaseUse(exercise: e, variations: vs, workouts: ids.count, last: vs.map(\.last).max() ?? "")
     }
+    return list.sorted { a, b in
+        if a.workouts != b.workouts { return a.workouts > b.workouts }
+        if a.last != b.last { return a.last > b.last }
+        if a.mine != b.mine { return a.mine }
+        return a.exercise.name < b.exercise.name
+    }
+}
+
+/// Grouped like Plan › Exercises: all exercises or only yours; with a muscle picked, every
+/// exercise that works it, otherwise each under its main group. Groups in chip order, empty ones
+/// left out, exercises in the order given.
+func basesByMuscle(_ bases: [BaseUse], mineOnly: Bool, muscle: MuscleGroup?) -> [MuscleBases] {
+    let pool = bases.filter { !mineOnly || $0.mine }
+    return (muscle.map { [$0] } ?? MuscleGroup.chipOrder).compactMap { m in
+        let here = pool.filter { muscle == nil ? $0.exercise.muscleGroup == m : $0.exercise.groups.contains(m) }
+        return here.isEmpty ? nil : MuscleBases(muscle: m, bases: here)
+    }
+}
+
+/// Search, as in Plan › Exercises (searchRank): best match first, then the order given.
+func searchBases(_ bases: [BaseUse], query: String, muscle: MuscleGroup?) -> [BaseUse] {
+    let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+    let ranked = bases.enumerated().compactMap { (i, b) -> (base: BaseUse, rank: Int, at: Int)? in
+        if let m = muscle, !b.exercise.groups.contains(m) { return nil }
+        guard let r = searchRank(b.exercise, q) else { return nil }
+        return (base: b, rank: r, at: i)
+    }
+    return ranked.sorted { $0.rank != $1.rank ? $0.rank < $1.rank : $0.at < $1.at }.map(\.base)
 }
 
 /// The style a variation was last logged with in a finished workout, for a variation ticked from

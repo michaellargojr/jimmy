@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// The routine builder (Michael's picks A and 1). New routine: name it, then tick exercises out of
-/// your routines (tap one to open it) or from your variations, and Create routine. From a
-/// routine's page or the split page's edit sheet it is the same without the name, and Add.
-/// Nothing is saved until Create or Add.
+/// The routine builder (Michael's picks A and 2). New routine: name it, then tick exercises out of
+/// your existing routines (tap one to open it), or from the exercise list: search or browse by
+/// muscle group like Plan › Exercises, open an exercise and tick its variations, or set up a new
+/// variation or a new exercise right there. Create routine. From a routine's page or the split
+/// page's edit sheet it is the same without the name, and Add. Nothing is saved until Create or Add.
 struct RoutineBuilderSheet: View {
     enum Mode: Equatable {
         case create
@@ -11,6 +12,18 @@ struct RoutineBuilderSheet: View {
         case add(to: String)
     }
     private enum Tab { case routines, exercises }
+
+    /// The full setup, opened from inside the builder.
+    private enum Setup: Identifiable {
+        case variation(Exercise)
+        case newBase(String)
+        var id: String {
+            switch self {
+            case let .variation(e): return "v-" + e.id
+            case let .newBase(n): return "n-" + n
+            }
+        }
+    }
 
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -23,10 +36,14 @@ struct RoutineBuilderSheet: View {
     @State private var tab: Tab = .routines
     @State private var picks: [BuilderPick] = []
     /// The routine opened in the Routines tab.
-    @State private var open: String? = nil
+    @State private var openRoutine: String? = nil
+    /// The exercise opened in the Exercises tab.
+    @State private var openBase: String? = nil
+    @State private var query = ""
+    @State private var all = true
     @State private var muscle: MuscleGroup? = nil
-    @State private var groups: [MuscleVariations] = []
-    @State private var newExercise = false
+    @State private var bases: [BaseUse] = []
+    @State private var setup: Setup? = nil
     @FocusState private var nameFocused: Bool
 
     private var isCreate: Bool { mode == .create }
@@ -45,12 +62,10 @@ struct RoutineBuilderSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let rid = open, let r = routines.first(where: { $0.id == rid }) {
-                insideHeader(r)
-                List {
-                    ForEach(r.items.indices, id: \.self) { i in routineRow(r, i) }
-                }
-                .listStyle(.plain).scrollContentBackground(.hidden)
+            if let rid = openRoutine, let r = routines.first(where: { $0.id == rid }) {
+                insideRoutine(r)
+            } else if let bid = openBase, let b = bases.first(where: { $0.id == bid }) {
+                insideBase(b)
             } else {
                 header
                 if isCreate { nameField }
@@ -65,16 +80,23 @@ struct RoutineBuilderSheet: View {
         }
         .background(p.card)
         .interactiveDismissDisabled(!picks.isEmpty || !name.trimmingCharacters(in: .whitespaces).isEmpty)
-        .sheet(isPresented: $newExercise) {
-            AddExerciseSheet { v, st in picks.append(.variation(versionId: v.id, styleId: st?.id)) }
-                .presentationDetents([.large])
-                .presentationBackground(p.card)
+        .sheet(item: $setup) { s in
+            // A ZStack, not a Group: a Group hands the detents to each child.
+            ZStack {
+                switch s {
+                case let .variation(e): AddExerciseSheet(base: e) { v, st in added(v, st) }
+                case let .newBase(n): AddExerciseSheet(newBase: n) { v, st in added(v, st) }
+                }
+            }
+            .presentationDetents([.large])
+            .presentationBackground(p.card)
         }
         .onAppear {
-            reloadGroups()
+            reload()
             if routines.isEmpty { tab = .exercises }
         }
-        .onChange(of: store.versions.count) { _, _ in reloadGroups() }
+        .onChange(of: store.versions.count) { _, _ in reload() }
+        .onChange(of: store.exercises.count) { _, _ in reload() }
         .task {
             #if DEBUG
             if demo() { return }
@@ -130,17 +152,39 @@ struct RoutineBuilderSheet: View {
         .padding(.horizontal, 16).padding(.bottom, 8)
     }
 
+    /// Back, a title, and an optional button on the right, for an opened routine or exercise.
+    private func drillHeader<Right: View>(_ title: String, back: @escaping () -> Void, @ViewBuilder right: () -> Right) -> some View {
+        HStack(spacing: 12) {
+            Button(action: back) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
+                    .frame(width: 44, height: 44)
+                    .background(p.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back")
+            Text(title).font(.system(size: 20, weight: .heavy)).foregroundStyle(p.text).lineLimit(1)
+            Spacer(minLength: 8)
+            right()
+        }
+        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 8)
+    }
+
     // MARK: Routines
 
     private var routineList: some View {
         List {
+            Text("Choose exercises from existing routines")
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(p.secondary)
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 6, trailing: 20))
             if routines.isEmpty {
                 Text("No routines with exercises yet.")
                     .font(.system(size: 15)).foregroundStyle(p.muted)
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
             ForEach(routines) { r in
-                Button { nameFocused = false; open = r.id } label: { routineCard(r) }
+                Button { nameFocused = false; openRoutine = r.id } label: { routineCard(r) }
                     .buttonStyle(.plain)
                     .pickRow(p)
             }
@@ -157,37 +201,30 @@ struct RoutineBuilderSheet: View {
                     .font(.system(size: 13)).foregroundStyle(p.muted).lineLimit(2)
             }
             Spacer(minLength: 8)
-            if n > 0 {
-                Text("\(n) added").font(.system(size: 13, weight: .bold)).foregroundStyle(p.accent).fixedSize()
-            }
+            addedLabel(n)
             Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
 
-    private func insideHeader(_ r: Routine) -> some View {
+    private func insideRoutine(_ r: Routine) -> some View {
         let mine = r.items.indices.map { BuilderPick.routine(RoutinePick(routineId: r.id, index: $0)) }
-        let all = mine.allSatisfy { picks.contains($0) }
-        return HStack(spacing: 12) {
-            Button { open = nil } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .bold)).foregroundStyle(p.text)
-                    .frame(width: 44, height: 44)
-                    .background(p.elevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        let every = mine.allSatisfy { picks.contains($0) }
+        return VStack(spacing: 0) {
+            drillHeader(r.name, back: { openRoutine = nil }) {
+                Button(every ? "Remove all" : "Add all") {
+                    if every { picks.removeAll { mine.contains($0) } } else { picks.append(contentsOf: mine.filter { !picks.contains($0) }) }
+                }
+                .font(.system(size: 17, weight: .bold)).foregroundStyle(p.accent)
+                .frame(minHeight: 44)
+                .fixedSize()
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Back")
-            Text(r.name).font(.system(size: 20, weight: .heavy)).foregroundStyle(p.text).lineLimit(1)
-            Spacer(minLength: 8)
-            Button(all ? "Remove all" : "Add all") {
-                if all { picks.removeAll { mine.contains($0) } } else { picks.append(contentsOf: mine.filter { !picks.contains($0) }) }
+            List {
+                ForEach(r.items.indices, id: \.self) { i in routineRow(r, i) }
             }
-            .font(.system(size: 17, weight: .bold)).foregroundStyle(p.accent)
-            .frame(minHeight: 44)
-            .fixedSize()
+            .listStyle(.plain).scrollContentBackground(.hidden)
         }
-        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 8)
     }
 
     private func routineRow(_ r: Routine, _ i: Int) -> some View {
@@ -200,45 +237,106 @@ struct RoutineBuilderSheet: View {
             pickLabel(on: on, name: v.map { store.baseName($0) } ?? "Missing exercise", v: v,
                       style: store.style(item.styleId)?.label,
                       group: inGroup > 1 ? GroupType.forCount(inGroup).label : nil,
-                      note: v.map { useNote($0.id) })
+                      note: v.map { useNote($0) })
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
         .pickRow(p)
     }
 
-    // MARK: Exercises (your variations)
+    // MARK: Exercises (like Plan › Exercises)
 
-    private var shownGroups: [MuscleVariations] { muscle.map { m in groups.filter { $0.muscle == m } } ?? groups }
+    private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
 
     private var exerciseList: some View {
         VStack(spacing: 0) {
-            PillButton(title: "New exercise", icon: "plus", full: true) { nameFocused = false; newExercise = true }
-                .padding(.horizontal, 16).padding(.bottom, 8)
-            if groups.count > 1 {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(groups) { g in
-                            Chip(text: g.muscle.label, on: muscle == g.muscle, small: true) { muscle = muscle == g.muscle ? nil : g.muscle }
-                        }
+            SearchField(placeholder: "Search exercises", text: $query)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Chip(text: "All", on: all, small: true) { all = true }
+                    Chip(text: "Mine", on: !all, small: true) { all = false }
+                    Rectangle().fill(p.border).frame(width: 1, height: 20)
+                    ForEach(MuscleGroup.chipOrder, id: \.self) { m in
+                        Chip(text: m.label, on: muscle == m, small: true) { muscle = muscle == m ? nil : m }
                     }
-                    .padding(.horizontal, 16)
                 }
-                .padding(.bottom, 4)
+                .padding(.horizontal, 16)
             }
+            .padding(.bottom, 6)
             List {
-                ForEach(shownGroups) { g in
-                    SectionLabel(g.muscle.label)
-                        .padding(.leading, 12).padding(.top, 8)
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 2, trailing: 16))
-                    ForEach(g.list) { u in variationRow(u) }
+                if trimmed.isEmpty {
+                    let grouped = basesByMuscle(bases, mineOnly: !all, muscle: muscle)
+                    ForEach(grouped) { g in
+                        SectionLabel(g.muscle.label)
+                            .padding(.leading, 12).padding(.top, 8)
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 2, trailing: 16))
+                        ForEach(g.bases) { b in baseRow(b) }
+                    }
+                    if grouped.isEmpty {
+                        Text(all ? "Nothing here." : "Nothing yet. Tap All.")
+                            .font(.system(size: 14)).foregroundStyle(p.muted)
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    }
+                } else {
+                    let results = searchBases(bases, query: trimmed, muscle: muscle)
+                    ForEach(results) { b in baseRow(b) }
+                    if !results.contains(where: { $0.exercise.name.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+                        Button { setup = .newBase(trimmed) } label: {
+                            HStack {
+                                Text("New: \(trimmed)").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.accent)
+                                Spacer()
+                                Image(systemName: "plus").font(.system(size: 14, weight: .bold)).foregroundStyle(p.accent)
+                            }
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .pickRow(p)
+                    }
                 }
-                if groups.isEmpty {
-                    Text("No exercises yet. Tap New exercise.")
+            }
+            .listStyle(.plain).scrollContentBackground(.hidden)
+        }
+    }
+
+    /// Name and how many workouts had it; on the right what is ticked from it, else your variation count.
+    private func baseRow(_ b: BaseUse) -> some View {
+        let n = picks.filter { versionId(of: $0).flatMap { store.version($0)?.exerciseId } == b.id }.count
+        return Button { openBase = b.id } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(b.exercise.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+                    if b.workouts > 0 {
+                        Text(workoutsText(b.workouts)).font(.system(size: 12, weight: .semibold)).foregroundStyle(p.muted)
+                    }
+                }
+                Spacer(minLength: 8)
+                if n > 0 { addedLabel(n) }
+                else if b.mine { Text("\(b.variations.count)").font(.system(size: 14, weight: .heavy)).foregroundStyle(p.accent) }
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pickRow(p)
+    }
+
+    /// Your variations of the exercise, most workouts first, then Add variation for the full setup.
+    private func insideBase(_ b: BaseUse) -> some View {
+        VStack(spacing: 0) {
+            drillHeader(b.exercise.name, back: { openBase = nil }) { EmptyView() }
+            List {
+                if b.variations.isEmpty {
+                    Text("No variations yet.")
                         .font(.system(size: 15)).foregroundStyle(p.muted)
                         .listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
+                ForEach(b.variations) { u in variationRow(u) }
+                PillButton(title: "Add variation", icon: "plus", full: true) { setup = .variation(b.exercise) }
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
         }
@@ -251,7 +349,7 @@ struct RoutineBuilderSheet: View {
             if on { picks.removeAll { versionId(of: $0) == u.id } }
             else { picks.append(.variation(versionId: u.id, styleId: lastStyleId(u.id, workouts: store.workouts))) }
         } label: {
-            pickLabel(on: on, name: u.baseName, v: u.version, style: nil, group: nil, note: u.note)
+            pickLabel(on: on, name: nil, v: u.version, style: nil, group: nil, note: u.note)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -260,11 +358,11 @@ struct RoutineBuilderSheet: View {
 
     // MARK: Pieces
 
-    private func pickLabel(on: Bool, name: String, v: Version?, style: String?, group: String?, note: String?) -> some View {
+    private func pickLabel(on: Bool, name: String?, v: Version?, style: String?, group: String?, note: String?) -> some View {
         HStack(spacing: 12) {
             RectCheck(on: on, size: 26)
             VStack(alignment: .leading, spacing: 4) {
-                Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text)
+                if let name { Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text) }
                 HStack(spacing: 6) {
                     if let group { Text(group).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
                     if let v {
@@ -280,8 +378,15 @@ struct RoutineBuilderSheet: View {
         .contentShape(Rectangle())
     }
 
-    private func useNote(_ versionId: String) -> String {
-        groups.lazy.flatMap(\.list).first { $0.id == versionId }?.note ?? "Not done yet"
+    @ViewBuilder
+    private func addedLabel(_ n: Int) -> some View {
+        if n > 0 {
+            Text("\(n) added").font(.system(size: 13, weight: .bold)).foregroundStyle(p.accent).fixedSize()
+        }
+    }
+
+    private func useNote(_ v: Version) -> String {
+        bases.first { $0.id == v.exerciseId }?.variations.first { $0.id == v.id }?.note ?? "Not done yet"
     }
 
     private func versionId(of pick: BuilderPick) -> String? {
@@ -297,23 +402,35 @@ struct RoutineBuilderSheet: View {
         if let i = picks.firstIndex(of: pick) { picks.remove(at: i) } else { picks.append(pick) }
     }
 
-    private func reloadGroups() {
-        groups = variationsByMuscle(versions: store.versions, exercises: store.exercises, workouts: store.workouts)
+    /// A variation set up from inside the builder is ticked, and its exercise opens to show it.
+    private func added(_ v: Version, _ st: Style?) {
+        picks.append(.variation(versionId: v.id, styleId: st?.id))
+        reload()
+        tab = .exercises
+        openBase = v.exerciseId
+    }
+
+    private func reload() {
+        bases = baseUses(exercises: store.exercises, versions: store.versions, workouts: store.workouts)
     }
 
     #if DEBUG
-    /// -routineDemo build | buildOpen | buildExercises: a name and a few ticks, for screenshots.
+    /// -routineDemo build | buildOpen | buildExercises | buildBase: a name and a few ticks, for screenshots.
     private func demo() -> Bool {
-        guard RoutineDemo.once("builder", for: ["build", "buildOpen", "buildExercises"]) else { return false }
+        guard RoutineDemo.once("builder", for: ["build", "buildOpen", "buildExercises", "buildBase"]) else { return false }
         name = "Chest and Shoulders"
         for r in routines.prefix(2) {
             for i in r.items.indices.prefix(2) { picks.append(.routine(RoutinePick(routineId: r.id, index: i))) }
         }
         switch RoutineDemo.step {
-        case "buildOpen": open = routines.first?.id
-        case "buildExercises":
+        case "buildOpen": openRoutine = routines.first?.id
+        case "buildExercises": tab = .exercises
+        case "buildBase":
             tab = .exercises
-            if let u = groups.first?.list.last { picks.append(.variation(versionId: u.id, styleId: nil)) }
+            if let b = bases.first(where: { $0.variations.count > 1 }) ?? bases.first {
+                openBase = b.id
+                if let u = b.variations.last { picks.append(.variation(versionId: u.id, styleId: nil)) }
+            }
         default: break
         }
         return true

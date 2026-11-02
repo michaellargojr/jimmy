@@ -4,8 +4,9 @@ import SwiftUI
 /// Simulator screenshots of the routine sheets without tapping: launch with `-routineDemo <step>`.
 /// split: the active split's page. edit: its first routine open in the edit sheet. ask: the same
 /// with one exercise removed and Done tapped. duplicate: that routine's page with the Duplicate
-/// sheet open. routines: Plan › Routines. build, buildOpen, buildExercises: the New routine builder
-/// with a name and a few ticks, on Routines, inside the first routine, or on Exercises. taken: the
+/// sheet open. routines: Plan › Routines. build, buildOpen, buildExercises, buildBase: the New
+/// routine builder with a name and a few ticks, on Routines, inside the first routine, on
+/// Exercises, or inside an exercise. taken: the
 /// "You already have" alert over Plan › Routines. Each step fires once per launch.
 enum RoutineDemo {
     static let step: String? = {
