@@ -23,6 +23,8 @@ struct WorkoutView: View {
     @State private var askEnd = false
     @State private var sureFinish = false
     @State private var sureDiscard = false
+    /// Back before Start asks first only when a set is already logged, since going back drops it.
+    @State private var sureBack = false
     @State private var restEndsAt: Date? = nil
     /// The scroll area's height and each card's, measured, so a landing knows when a card is
     /// taller than the screen and the open set would be out of sight.
@@ -157,6 +159,12 @@ struct WorkoutView: View {
             } message: {
                 Text("This workout won't be saved.")
             }
+            .alert("Go back?", isPresented: $sureBack) {
+                Button("Go back", role: .destructive) { store.unpickWorkout(workoutId) }
+                Button("Stay", role: .cancel) {}
+            } message: {
+                Text("Sets you logged won't be saved.")
+            }
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
             }
@@ -165,7 +173,7 @@ struct WorkoutView: View {
         }
     }
 
-    /// One row that stays put: Start, then Done, alone on the left, where a stray thumb is least
+    /// One row that stays put: Back and Start, then Done alone, on the left, where a stray thumb is least
     /// likely to land, the time big in the middle to keep the pace up, then Overview and the gear.
     /// Under it a block per exercise fills in once that exercise is done.
     private func header(_ w: Workout, finished: [Bool]) -> some View {
@@ -173,7 +181,11 @@ struct WorkoutView: View {
             ZStack {
                 HStack(spacing: 8) {
                     // Picking a workout doesn't start the clock; Start does, and then Done takes its place.
+                    // Until then a back tile returns to the routine list to choose another.
                     if w.startedAt == nil {
+                        iconButton("chevron.left", label: "Back to routines") {
+                            if store.canPickWorkout { store.unpickWorkout(workoutId) } else { sureBack = true }
+                        }
                         PillButton(title: "Start", style: .primary) { store.startClock(workoutId) }
                     } else {
                         PillButton(title: "Done", style: .primary) { askEnd = true }
