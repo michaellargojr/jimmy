@@ -478,6 +478,27 @@ struct ListCardStyle: ViewModifier {
 extension View { func cardList() -> some View { modifier(ListCardStyle()) } }
 
 extension View {
+    /// A full-width button standing in a card list, lined up with the cards on every phone width.
+    func buttonRow() -> some View {
+        listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+    }
+}
+
+/// A quiet note under a card list's rows. A row, not a section footer: a plain list paints a
+/// footer on its own black band.
+struct ListNote: View {
+    @Environment(\.palette) private var p
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text).font(.system(size: 13)).foregroundStyle(p.muted)
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 32, bottom: 10, trailing: 32))
+    }
+}
+
+extension View {
     func rowCard(_ p: Palette, radius: CGFloat = Radius.row) -> some View {
         self.listRowBackground(
             RoundedRectangle(cornerRadius: radius, style: .continuous).fill(p.card)

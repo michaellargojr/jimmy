@@ -39,18 +39,16 @@ struct RoutineEditorView: View {
                         rr.groups.removeAll { g in !rr.items.contains { $0.groupId == g.id } }
                         store.put(rr)
                     }
-                } footer: {
-                    Text("Drag to reorder. Swipe left to remove. Group… picks rows for a superset, triset or circuit.")
-                        .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
+                    ListNote("Drag to reorder. Swipe left to remove. Group… picks rows for a superset, triset or circuit.")
                 }
                 Section {
                     PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .buttonRow()
                     PillButton(title: "Start this routine", style: .primary, full: true) {
                         if store.canPickWorkout { store.startWorkout(from: r) }
                         nav.tab = .workout
                     }
-                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    .buttonRow()
                 }
             }
             .cardList()
@@ -222,7 +220,7 @@ struct SplitEditorView: View {
                 Section {
                     if store.activeSplit?.id != s.id {
                         PillButton(title: "Use this split", style: .primary, full: true) { store.update { $0.activeSplitId = s.id } }
-                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .buttonRow()
                     }
                 }
             }
@@ -318,7 +316,7 @@ struct SplitEditorView: View {
     private var newRoutineSection: some View {
         Section {
             PillButton(title: "New routine", icon: "plus", full: true) { building = true }
-                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .buttonRow()
         }
     }
 
@@ -355,11 +353,9 @@ struct SplitEditorView: View {
             }
             .onMove { from, to in var ss = s; ss.routineIds.move(fromOffsets: from, toOffset: to); store.put(ss) }
             .onDelete { idx in var ss = s; ss.routineIds.remove(atOffsets: idx); store.put(ss) }
+            ListNote("A routine can appear more than once, for example Push, Pull, Legs, Push, Pull, Legs. Tap one to edit it; hold one for Rename, Duplicate or Remove.")
         } header: {
             SectionLabel("In this split").padding(.leading, 16)
-        } footer: {
-            Text("A routine can appear more than once, for example Push, Pull, Legs, Push, Pull, Legs. Tap one to edit it; hold one for Rename, Duplicate or Remove.")
-                .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
         }
     }
 
@@ -379,11 +375,9 @@ struct SplitEditorView: View {
                                 delete: { store.deleteRoutine(r.id) })
                 }
             }
+            ListNote("Hold a routine for Rename, Duplicate or Delete. A copy made here joins this split.")
         } header: {
             SectionLabel("Add an existing routine").padding(.leading, 16)
-        } footer: {
-            Text("Hold a routine for Rename, Duplicate or Delete. A copy made here joins this split.")
-                .font(.system(size: 13)).foregroundStyle(p.muted).padding(.horizontal, 16)
         }
     }
 }
