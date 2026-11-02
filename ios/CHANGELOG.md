@@ -7,6 +7,15 @@ The note under each heading (build, PRs, install details) is ours and is never p
 How versions and builds move, and who writes the next entry: ios/README.md.
 -->
 
+## 2.4 - Nov 2, 2026
+
+<!-- Build 4. PRs #30, #32, #33 and #34 (#31 is README only). First install since 2.2, so 2.3's lines reach the phone with this build too. -->
+
+- Set up variations with where your body is and where your arm is - like a standing preacher curl - and the Add button now stays on screen.
+- The lock screen card has a new layout: your set in a tall tile, with the clock, the exercise and its chips beside it.
+- Build a new routine from your existing routines or your exercise list in one sheet, Coverage sits at the bottom of every split page, and two routines can no longer have the same name.
+- Workout: landing on your set works for every exercise of a superset.
+
 ## 2.3 - Nov 2, 2026
 
 <!-- Build 3. The split page rework from Michael's notes after the 2.2 install (Model/SplitBuilding.swift, Views/Plan/FromRoutinesSheet.swift), on claude/awesome-allen-64bza1. -->
