@@ -180,7 +180,7 @@ struct SettingsView: View {
                         }
                         .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
                     }
-                    Text("Jimmy for iOS · v0.1").font(.system(size: 12)).foregroundStyle(p.muted).padding(.top, 8)
+                    Text(AppVersion.current).font(.system(size: 12)).foregroundStyle(p.muted).padding(.top, 8)
                 }
                 .padding(.horizontal, 16).padding(.bottom, 24)
             }

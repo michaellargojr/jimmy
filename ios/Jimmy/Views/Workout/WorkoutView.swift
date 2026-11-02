@@ -9,6 +9,9 @@ struct WorkoutView: View {
     let workoutId: String
 
     @State private var current: Int? = 0
+    /// The touch the page last glided (or landed) for, so a wait with no touch after it glides
+    /// once, not every time the wait passes again.
+    @State private var landedFor: Date? = nil
     @State private var showOverview = false
     @State private var showSettings = false
     @State private var adding: AddTarget? = nil
@@ -91,10 +94,8 @@ struct WorkoutView: View {
                             try? await Task.sleep(for: .seconds(1))
                             let wait = store.settings.returnAfter
                             guard wait > 0, UIApplication.shared.applicationState == .active, nav.tab == .workout,
-                                  Date().timeIntervalSince(nav.lastTouch) >= Double(wait),
+                                  Date().timeIntervalSince(nav.lastTouch) >= Double(wait), landedFor != nav.lastTouch,
                                   !somethingPresented(), let w = store.workout(workoutId) else { continue }
-                            // Counts as a touch, so the next glide waits the full time again.
-                            nav.lastTouch = Date()
                             goToSet(w, proxy: proxy, glide: true)
                         }
                     }
@@ -166,9 +167,9 @@ struct WorkoutView: View {
 
     /// One row that stays put: Start, then Done, alone on the left, where a stray thumb is least
     /// likely to land, the time big in the middle to keep the pace up, then Overview and the gear.
-    /// Under it a block per exercise fills in once that exercise is done; tap one to go there.
+    /// Under it a block per exercise fills in once that exercise is done.
     private func header(_ w: Workout, finished: [Bool]) -> some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 10) {
             ZStack {
                 HStack(spacing: 8) {
                     // Picking a workout doesn't start the clock; Start does, and then Done takes its place.
@@ -191,8 +192,7 @@ struct WorkoutView: View {
             }
             if !finished.isEmpty { progressStrip(finished) }
         }
-        // The strip's taller tap row makes its own room underneath.
-        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, finished.isEmpty ? 8 : 0)
+        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
     }
 
     /// The time, big. Grey at 0:00 until Start.
@@ -203,27 +203,18 @@ struct WorkoutView: View {
             .frame(maxWidth: 140)
     }
 
-    /// One block per exercise (a superset is one), filled when all its sets are checked. The one
-    /// on screen is white. Tapping a block jumps straight to that exercise, for when a swipe won't do.
+    /// One block per exercise (a superset is one), filled when all its sets are checked.
     private func progressStrip(_ finished: [Bool]) -> some View {
-        let here = min(max(current ?? 0, 0), finished.count - 1)
-        return HStack(spacing: 4) {
+        HStack(spacing: 4) {
             ForEach(finished.indices, id: \.self) { i in
-                Button { withAnimation(.snappy) { current = i } } label: {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(i == here ? p.text : finished[i] ? p.accent : p.elevated)
-                        .frame(height: 10)
-                        // The block is thin; the tap reaches well above and below it.
-                        .frame(maxWidth: .infinity, minHeight: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Exercise \(i + 1) of \(finished.count)\(finished[i] ? ", done" : "")")
-                .accessibilityAddTraits(i == here ? .isSelected : [])
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(finished[i] ? p.accent : p.elevated)
+                    .frame(height: 6)
             }
         }
         .animation(.snappy, value: finished)
-        .animation(.snappy, value: here)
+        .accessibilityElement()
+        .accessibilityLabel("\(finished.filter { $0 }.count) of \(finished.count) exercises done")
     }
 
     private func iconButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -249,13 +240,16 @@ struct WorkoutView: View {
             // after the first get room above, so they read as distinct and not one long card.
             let labels = groupLabels(count: pane.count)
             ForEach(Array(pane.enumerated()), id: \.element.id) { n, item in
+                // The id is the outermost modifier, as on the panes and the set rows: with the
+                // padding outside it, scrollTo never found the card. So the room between members
+                // hangs under each card but the last, and a landing puts the card's own top up.
                 ExerciseCardView(workoutId: workoutId, itemId: item.id, compact: pane.count > 1,
                                  groupLabel: pane.count > 1 ? labels[n] : nil,
                                  onSwap: { adding = AddTarget(swapItemId: item.id) },
                                  onAddAfter: { adding = AddTarget(afterItemId: item.id) })
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeights[item.id] = $0 }
+                    .padding(.bottom, n < pane.count - 1 ? Self.groupRoom : 0)
                     .id("item-\(item.id)")
-                    .padding(.top, n > 0 ? Self.groupRoom : 0)
             }
             footer(index: index, panesOf: w)
         }
@@ -306,7 +300,11 @@ struct WorkoutView: View {
     /// Lands on your set (see Focus): that exercise's title at the top of the page. On the very
     /// first exercise the workout's name stays in view above it. On a card taller than the screen
     /// the open set sits a third of the way down instead, so it's never out of sight.
+    ///
+    /// The first exercise of a pane lands by the pane's own id, which always resolves; a later
+    /// member of a group lands by its card's id.
     private func goToSet(_ w: Workout, proxy: ScrollViewProxy, glide: Bool) {
+        landedFor = nav.lastTouch
         guard let point = Focus.point(w) else { return }
         let ps = panes(w.items)
         guard let paneIdx = ps.firstIndex(where: { $0.contains { $0.id == point.itemId } }) else { return }
@@ -316,8 +314,8 @@ struct WorkoutView: View {
         withTransaction(t) {
             if tall, let setId = point.setId {
                 proxy.scrollTo("set-\(setId)", anchor: UnitPoint(x: 0, y: 0.33))
-            } else if paneIdx == 0, ps[0].first?.id == point.itemId {
-                proxy.scrollTo(0, anchor: .top)
+            } else if ps[paneIdx].first?.id == point.itemId {
+                proxy.scrollTo(paneIdx, anchor: .top)
             } else {
                 proxy.scrollTo("item-\(point.itemId)", anchor: .top)
             }
@@ -449,6 +447,7 @@ struct OverviewSheet: View {
                     }
                     HStack(spacing: 7) {
                         Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).lineLimit(1)
+                        if let n = v.flatMap({ store.nickname($0) }) { NicknameTag(text: n, size: .small) }
                         if item.isDone && item.skipped != true {
                             Image(systemName: "checkmark").font(.system(size: 13, weight: .heavy)).foregroundStyle(p.accent)
                         }
