@@ -79,11 +79,12 @@ struct LockCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// "of 2", with the side in white for one arm ("of 2 - Left"); a warm-up or drop set by name.
+    /// "of 2", or a warm-up or drop set by name, with the side in white for one arm ("of 2 - Left").
     private var setRest: Text {
-        guard let of = state.setOf else { return Text(state.setLine).foregroundColor(Card.secondary) }
-        guard let side = state.side else { return Text(of).foregroundColor(Card.secondary) }
-        return Text(of + " - ").foregroundColor(Card.secondary) + Text(side).fontWeight(.heavy).foregroundColor(Card.text)
+        var words = state.setOf ?? state.setLine
+        guard let side = state.side else { return Text(words).foregroundColor(Card.secondary) }
+        if state.setOf == nil, words.hasSuffix(" - " + side) { words = String(words.dropLast(side.count + 3)) }
+        return Text(words + " - ").foregroundColor(Card.secondary) + Text(side).fontWeight(.heavy).foregroundColor(Card.text)
     }
 
     /// "1 of 2", "1 of 2 - Left", "W Warm-up", or a check with "Done" once every set is logged.
@@ -96,7 +97,9 @@ struct LockCard: View {
             }
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
+                // Never squeezed: the clock gives way first.
                 Text(state.setMark ?? "").font(.system(size: 52, weight: .heavy)).monospacedDigit().foregroundStyle(Card.text)
+                    .fixedSize()
                 setRest.font(.system(size: 17, weight: .semibold)).lineLimit(1).fixedSize()
             }
         }
