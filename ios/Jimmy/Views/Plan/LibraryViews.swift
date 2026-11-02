@@ -444,7 +444,7 @@ struct StyleEditorSheet: View {
                 Card(padding: 14) {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel("Style")
-                        StyleFields(family: version.family, position: version.position, spec: $spec)
+                        StyleFields(family: version.family, position: version.position, armPosition: version.armPosition, spec: $spec)
                         TextField("Name, optional", text: $name)
                             .textInputAutocapitalization(.words).autocorrectionDisabled()
                             .padding(.horizontal, 12).frame(height: 40)

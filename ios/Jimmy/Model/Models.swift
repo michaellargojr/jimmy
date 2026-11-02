@@ -57,26 +57,72 @@ extension Equipment {
     }
 }
 
-/// Body position of a variation. Optional: wrist curls carry none.
+/// Body position of a variation. Optional: wrist curls carry none. Half kneeling is a kind of
+/// kneeling, side lying and face down kinds of lying: they show once Kneeling or Lying is picked.
 enum Position: String, Codable, CaseIterable, Hashable {
-    case standing, seated, kneeling, lying
+    case standing, seated, kneeling
+    case halfKneeling = "half-kneeling"
+    case lying
+    case sideLying = "side-lying"
+    case faceDown = "face-down"
     case chestSupported = "chest-supported"
-    case armsBehind = "arms-behind"
-    case armOnPad = "arm-on-pad"
+    case bentOver = "bent-over"
     var label: String {
         switch self {
         case .standing: return "standing"
         case .seated: return "seated"
         case .kneeling: return "kneeling"
+        case .halfKneeling: return "half kneeling"
         case .lying: return "lying"
+        case .sideLying: return "side lying"
+        case .faceDown: return "face down"
         case .chestSupported: return "chest supported"
-        case .armsBehind: return "arms behind"
-        case .armOnPad: return "arm on pad"
+        case .bentOver: return "bent over"
         }
     }
+    /// The position this one is a kind of (Kneeling for Half kneeling), nil for the main ones.
+    var parent: Position? {
+        switch self {
+        case .halfKneeling: return .kneeling
+        case .sideLying, .faceDown: return .lying
+        default: return nil
+        }
+    }
+    /// The main position it falls under: itself, or its parent.
+    var main: Position { parent ?? self }
     /// Seated and lying positions can sit on a bench, so bench angle applies.
-    var usesBench: Bool { self == .seated || self == .lying || self == .armsBehind || self == .chestSupported }
+    var usesBench: Bool { self == .seated || main == .lying || self == .chestSupported }
 }
+
+/// Where the upper arm sits, picked apart from the body position so the two combine: a standing
+/// preacher curl is Standing + Arm on pad, a seated Bayesian curl Seated + Arms behind. Optional,
+/// and offered only on arm exercises. Before Nov 2026 the first two were body positions and
+/// "overhead" a tag; old data moves over when it loads (see Version.init(from:)).
+enum ArmPosition: String, Codable, CaseIterable, Hashable {
+    case behind = "arms-behind"
+    case onPad = "arm-on-pad"
+    case onThigh = "arm-on-thigh"
+    case overhead
+    var label: String {
+        switch self {
+        case .behind: return "arms behind"
+        case .onPad: return "arm on pad"
+        case .onThigh: return "arm on thigh"
+        case .overhead: return "overhead"
+        }
+    }
+    /// Tags that said an arm position before it had its own block ("concentration": the elbow on the thigh).
+    static func fromOldTag(_ tag: String?) -> ArmPosition? {
+        switch tag?.trimmingCharacters(in: .whitespaces).lowercased() {
+        case "overhead": return .overhead
+        case "concentration": return .onThigh
+        default: return nil
+        }
+    }
+}
+
+/// Bench angle applies when the body sits or lies on a bench, or the arms hang behind it (an incline curl).
+func usesBench(_ position: Position?, _ arm: ArmPosition?) -> Bool { position?.usesBench == true || arm == .behind }
 
 /// How a machine is loaded: plates you hang on it, or a weight stack you set with a pin. The same
 /// machine made both ways needs different weights, so each is its own variation.
@@ -156,6 +202,8 @@ struct Exercise: Codable, Identifiable, Hashable {
 
     /// Leg bases say "one leg" instead of "one arm".
     var isLegs: Bool { muscleGroup == .Legs || muscleGroup == .Glutes || muscleGroup == .Calves }
+    /// Arm exercises (curls, tricep extensions) offer the arm position row.
+    var hasArmPosition: Bool { muscleGroup == .Biceps || muscleGroup == .Triceps }
     var groups: [MuscleGroup] { [muscleGroup] + alsoGroups.filter { $0 != muscleGroup } }
 }
 
@@ -238,6 +286,8 @@ struct Version: Codable, Identifiable, Hashable {
     var equipment: Equipment
     var arms: Arms
     var position: Position?
+    /// Where the upper arm sits ("arms behind"), apart from the body position.
+    var armPosition: ArmPosition?
     /// Short qualifier when equipment, arms and position do not say enough: "overhead",
     /// "goblet", "high row", a machine type ("iso-lateral"), or a machine Michael flipped to its
     /// own history ("D Stars").
@@ -265,10 +315,10 @@ struct Version: Codable, Identifiable, Hashable {
     var changes: [VersionChange] = []
 
     init(id: String = uid(), exerciseId: String, name: String, equipment: Equipment, arms: Arms,
-         position: Position? = nil, tag: String? = nil, machine: String? = nil, loading: Loading? = nil, repMin: Int = 5, repMax: Int = 8,
-         defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
+         position: Position? = nil, armPosition: ArmPosition? = nil, tag: String? = nil, machine: String? = nil, loading: Loading? = nil,
+         repMin: Int = 5, repMax: Int = 8, defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
         self.id = id; self.exerciseId = exerciseId; self.name = name; self.equipment = equipment
-        self.arms = arms; self.position = position; self.tag = tag; self.machine = machine; self.loading = loading
+        self.arms = arms; self.position = position; self.armPosition = armPosition; self.tag = tag; self.machine = machine; self.loading = loading
         self.repMin = repMin; self.repMax = repMax
         self.defaultWarmup = defaultWarmup; self.defaultSets = defaultSets; self.notes = notes
     }
@@ -280,11 +330,19 @@ struct Version: Codable, Identifiable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         equipment = (try? c.decode(Equipment.self, forKey: .equipment)) ?? .machine
         arms = (try? c.decode(Arms.self, forKey: .arms)) ?? .two
-        position = try? c.decodeIfPresent(Position.self, forKey: .position)
+        // Arms behind and Arm on pad were body positions, and "overhead" a tag, before the arm
+        // position had its own block: they move over here, keeping the variation and its history.
+        let rawPosition = try? c.decodeIfPresent(String.self, forKey: .position)
+        position = rawPosition.flatMap { Position(rawValue: $0) }
+        armPosition = (try? c.decodeIfPresent(ArmPosition.self, forKey: .armPosition))
+            ?? rawPosition.flatMap { ArmPosition(rawValue: $0) }.flatMap { $0 == .overhead ? nil : $0 }
         tag = try c.decodeIfPresent(String.self, forKey: .tag)
         attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
+        if armPosition == nil, equipment.family != .machine, let a = ArmPosition.fromOldTag(tag) {
+            armPosition = a; tag = nil
+        }
         nickname = try c.decodeIfPresent(String.self, forKey: .nickname)
         cableHeight = try c.decodeIfPresent(Double.self, forKey: .cableHeight)
         benchAngle = try c.decodeIfPresent(Double.self, forKey: .benchAngle)
@@ -305,7 +363,7 @@ struct Version: Codable, Identifiable, Hashable {
     /// The fields that make two variations the same one.
     var key: VariationKey {
         VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased(), machine: machine?.lowercased(),
-                     loading: family == .machine ? loading : nil)
+                     loading: family == .machine ? loading : nil, armPosition: armPosition)
     }
 }
 
@@ -316,6 +374,7 @@ struct VariationKey: Hashable {
     var tag: String?
     var machine: String? = nil
     var loading: Loading? = nil
+    var armPosition: ArmPosition? = nil
 }
 
 /// A Style is a way of doing a variation that shares its history: attachment, cable height,

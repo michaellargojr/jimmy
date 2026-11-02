@@ -32,7 +32,7 @@ func buildSeed() -> SeedResult {
         } else {
             v = Version(exerciseId: b.id, name: b.name + " · " + variationLabel(s.variation, legs: b.isLegs),
                         equipment: s.variation.family.equipment, arms: s.variation.arms, position: s.variation.position,
-                        tag: s.variation.tag, repMin: s.repMin, repMax: s.repMax, defaultWarmup: true, defaultSets: 2, notes: s.notes)
+                        armPosition: s.variation.armPosition, tag: s.variation.tag, repMin: s.repMin, repMax: s.repMax, defaultWarmup: true, defaultSets: 2, notes: s.notes)
             versions.append(v)
         }
         var styleId: String?

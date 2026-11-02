@@ -197,6 +197,7 @@ struct AddExerciseSheet: View {
         let call = variationCall(b, verdict: verdict)
         let asVariation = call.map { flipped ? !$0.appPicksVariation : $0.appPicksVariation }
         let autoNick = autoNickname(b, verdict: verdict, call: call, asVariation: asVariation)
+        let have = base != nil && verdict.isExisting && call == nil
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
@@ -214,7 +215,7 @@ struct AddExerciseSheet: View {
                 Card(padding: 14) {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel("Variation")
-                        VariationFields(legs: b.isLegs, spec: $variation)
+                        VariationFields(legs: b.isLegs, armRow: b.hasArmPosition, spec: $variation)
                         Rectangle().fill(p.line).frame(height: 1).padding(.vertical, 2)
                         SectionLabel("Nickname")
                         NicknameField(text: Binding(get: { nickTyped ? nick : (autoNick ?? "") },
@@ -229,7 +230,7 @@ struct AddExerciseSheet: View {
                 Card(padding: 14) {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionLabel("Style")
-                        StyleFields(family: variation.family, position: variation.position, spec: $style, showsMachineName: naming == nil)
+                        StyleFields(family: variation.family, position: variation.position, armPosition: variation.armPosition, spec: $style, showsMachineName: naming == nil)
                     }
                 }
                 VStack(alignment: .leading, spacing: 8) {
@@ -252,12 +253,17 @@ struct AddExerciseSheet: View {
                             }
                         }
                     }
-                    let have = base != nil && verdict.isExisting && call == nil
-                    PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false, autoNick: autoNick) }
-                        .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
                 }
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 16)
+        }
+        // Add stays in reach at the bottom, however tall the setup grows on a small phone,
+        // with clear room above it for whatever is scrolling past.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PillButton(title: "Add", style: .primary, full: true) { add(b, call: call, asVariation: asVariation ?? false, autoNick: autoNick) }
+                .disabled(have || needsName).opacity(have || needsName ? 0.4 : 1)
+                .padding(.top, 16)
+                .background(p.card)
         }
         .scrollDismissesKeyboard(.interactively)
         .onChange(of: variation.family) { _, f in
@@ -287,7 +293,7 @@ struct AddExerciseSheet: View {
         let types = machineTypes(forBase: b.name)
         if variation.family == .machine, case .another(let n)? = naming, verdict == .newVariation, machineName(machineText) != nil,
            let t = types.first(where: { $0.name == n }),
-           let target = store.machines(of: t, baseId: b.id, arms: variation.arms, position: variation.position,
+           let target = store.machines(of: t, baseId: b.id, arms: variation.arms, position: variation.position, arm: variation.armPosition,
                                        loading: variation.loading).first {
             return VariationCall(target: target, variation: variation, rest: style, appPicksVariation: true)
         }
@@ -329,6 +335,7 @@ struct AddExerciseSheet: View {
         if let call, let asVariation {
             guard asVariation else { return store.nickname(call.target) }
             return suggestNickname(base: b.name, family: call.variation.family, position: call.variation.position,
+                                   armPosition: call.variation.armPosition,
                                    tag: call.variation.tag, styleMachines: [call.rest.machine].compactMap { $0 })
         }
         switch verdict {
@@ -337,6 +344,7 @@ struct AddExerciseSheet: View {
         case .newVariation:
             let named = naming != nil ? machineName(machineText) : nil
             return suggestNickname(base: b.name, family: variation.family, position: variation.position,
+                                   armPosition: variation.armPosition,
                                    tag: variation.tag, styleMachines: [style.machine, named].compactMap { $0 })
         }
     }
