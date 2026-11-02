@@ -19,7 +19,8 @@ struct WorkoutView: View {
     /// because two sheets changing at once leaves the new one unable to take the keyboard.
     @State private var pendingAdd: AddTarget? = nil
     /// Done asks Finish, Discard or Keep going, then Finish and Discard each ask again,
-    /// so a tap from a pocket can never end the workout.
+    /// so a tap from a pocket can never end the workout. The big Done at the end of a finished
+    /// workout goes straight to Finish's "Are you sure?", still two taps.
     @State private var askEnd = false
     @State private var sureFinish = false
     @State private var sureDiscard = false
@@ -65,7 +66,7 @@ struct WorkoutView: View {
                                     Color.clear
                                         .containerRelativeFrame(.vertical)
                                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
-                                    paneView(w, pane: pane, index: idx)
+                                    paneView(w, pane: pane, index: idx, last: idx == ps.count - 1)
                                 }
                                 // Exactly the screen's width. Without it the widest line of Last time
                                 // could stretch the whole page past the edge of a smaller phone.
@@ -160,6 +161,10 @@ struct WorkoutView: View {
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
             }
+            // A swap, add, delete, new order or superset change asks right away whether the
+            // routine takes it too. Wherever it was made: a card, Overview, Add exercise.
+            .onChange(of: WorkoutLineup(w)) { old, new in store.noteWorkoutChange(from: old, to: new) }
+            .routineAsk(workoutId: workoutId, waits: true)
         } else {
             WorkoutStartView()
         }
@@ -228,7 +233,10 @@ struct WorkoutView: View {
     }
 
     @ViewBuilder
-    private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int) -> some View {
+    private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int, last: Bool) -> some View {
+        // The end of the workout: once the last set of the last exercise is checked, a big Done
+        // shows under it. Until then the only way out is Done at the top.
+        let ended = last && w.startedAt != nil && lastSetChecked(w, versions: store.versions)
         VStack(alignment: .leading, spacing: 12) {
             // The workout's name lives at the top of the first page and scrolls away with it.
             if index == 0 {
@@ -248,6 +256,14 @@ struct WorkoutView: View {
                     .padding(.top, n > 0 ? Self.groupRoom : 0)
             }
             footer(index: index, panesOf: w)
+            VStack {
+                if ended {
+                    PillButton(title: "Done", style: .primary, full: true, height: 56) { sureFinish = true }
+                        .padding(.top, 20)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .animation(.smooth, value: ended)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
@@ -396,55 +412,33 @@ struct OverviewSheet: View {
                     Text("Its logged sets will be lost.")
                 }
             }
+            // Changes made here ask over Overview, so a drag is answered where it was made.
+            .routineAsk(workoutId: workoutId, waits: false)
         }
     }
 
-    /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup.
-    /// The bar shows only then, docked under the list.
-    @ViewBuilder
+    /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup
+    /// (GroupSelect.swift, the same on every list that groups).
     private func bottomBar(_ w: Workout) -> some View {
         let ticked = w.items.filter { selected.contains($0.id) }
-        if ticked.contains(where: { $0.groupId != nil }) {
-            actionButton("Ungroup") { store.put(ungroup(w, ids: selected)); selected = [] }
-        } else if ticked.count >= 2 {
-            actionButton("Make a \(GroupType.forCount(ticked.count).rawValue)") { store.put(makeGroup(w, ids: selected)); selected = [] }
-        }
-    }
-
-    private func actionButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button { withAnimation { action() } } label: {
-            Text(title).font(.system(size: 18, weight: .heavy)).foregroundStyle(p.onAccent)
-                .frame(maxWidth: .infinity).frame(height: 56)
-                .background(p.accent, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16).padding(.vertical, 8)
-        .background(p.bg)
+        return GroupSelectBar(anyGrouped: ticked.contains(where: { $0.groupId != nil }), count: ticked.count,
+                              makeGroup: { store.put(makeGroup(w, ids: selected)); selected = [] },
+                              ungroup: { store.put(ungroup(w, ids: selected)); selected = [] })
     }
 
     private func row(_ w: Workout, index i: Int, item: WorkoutItem, paneIndex: Int) -> some View {
         let v = store.version(item.versionId)
-        let gid = item.groupId
-        let first = gid == nil || i == 0 || w.items[i - 1].groupId != gid
-        let last = gid == nil || i == w.items.count - 1 || w.items[i + 1].groupId != gid
+        let place = w.groupPlace(at: i)
         let sets = item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " - ")
         return HStack(spacing: 14) {
             // Its own button, so a tick never jumps away or closes Overview.
-            Button {
+            GroupTickBox(on: selected.contains(item.id)) {
                 if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
-            } label: {
-                RectCheck(on: selected.contains(item.id), size: 26).frame(width: 40, height: 44).contentShape(Rectangle())
             }
             Button { current = paneIndex; dismiss() } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let gid {
-                        // Every member says which it is, the same way the cards do: "TRISET 2".
-                        let members = w.items.filter { $0.groupId == gid }
-                        let n = (members.firstIndex { $0.id == item.id } ?? 0) + 1
-                        Text("\(GroupType.forCount(members.count).label) \(n)".uppercased())
-                            .font(.system(size: 12, weight: .heavy)).tracking(0.6).foregroundStyle(p.accent)
-                            .padding(.bottom, 2)
-                    }
+                    // Every member says which it is, the same way the cards do: "TRISET 2".
+                    if place.group != nil { GroupMemberLabel(members: place.members, number: place.number) }
                     HStack(spacing: 7) {
                         Text(v.map { store.workoutName($0) } ?? "?").font(.system(size: 17, weight: .bold)).foregroundStyle(p.text).lineLimit(1)
                         if let n = v.flatMap({ store.nickname($0) }) { NicknameTag(text: n, size: .small) }
@@ -473,7 +467,7 @@ struct OverviewSheet: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
         }
-        .overviewCard(p, grouped: gid != nil, first: first, last: last)
+        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last)
     }
 
     /// Only an exercise with something logged asks first.
@@ -486,22 +480,5 @@ struct OverviewSheet: View {
         ww.items.removeAll { $0.id == item.id }
         selected.remove(item.id)
         withAnimation { store.put(tidyGroups(ww)) }
-    }
-}
-
-private extension View {
-    /// A group's members share one card with an accent edge; loose exercises get a card each.
-    func overviewCard(_ p: Palette, grouped: Bool, first: Bool, last: Bool) -> some View {
-        let r = Radius.row
-        let shape = UnevenRoundedRectangle(topLeadingRadius: first ? r : 0, bottomLeadingRadius: last ? r : 0,
-                                           bottomTrailingRadius: last ? r : 0, topTrailingRadius: first ? r : 0, style: .continuous)
-        return self.listRowBackground(
-            shape.fill(p.card)
-                .overlay(alignment: .leading) { if grouped { Rectangle().fill(p.accent).frame(width: 3) } }
-                .clipShape(shape)
-                .padding(.horizontal, 16).padding(.top, first ? 5 : 0).padding(.bottom, last ? 5 : 0)
-        )
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: first ? 5 : 0, leading: 16, bottom: last ? 5 : 0, trailing: 16))
     }
 }

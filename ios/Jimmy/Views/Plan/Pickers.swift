@@ -195,7 +195,8 @@ struct StyleFields: View {
     }
 }
 
-/// The Variation block: family, arms, body position, then (on arm exercises) arm position.
+/// The Variation block: family, arms (with Single dumbbell under a pair of dumbbells), body
+/// position, then (on arm exercises) arm position.
 struct VariationFields: View {
     @Environment(\.palette) private var p
     let legs: Bool
@@ -209,12 +210,24 @@ struct VariationFields: View {
         VStack(alignment: .leading, spacing: 10) {
             FlowRow(spacing: 8, lineSpacing: 8) {
                 ForEach(EquipmentFamily.allCases, id: \.self) { f in
-                    Chip(text: f.label, on: spec.family == f, small: true) { spec.family = f }
+                    Chip(text: f.label, on: spec.family == f, small: true) {
+                        spec.family = f
+                        if f != .dumbbell { spec.single = false }
+                    }
                 }
             }
             HStack(spacing: 8) {
                 Chip(text: capitalized(Arms.two.label(legs: legs)), on: spec.arms == .two, small: true) { spec.arms = .two }
-                Chip(text: capitalized(Arms.one.label(legs: legs)), on: spec.arms == .one, small: true) { spec.arms = .one }
+                Chip(text: capitalized(Arms.one.label(legs: legs)), on: spec.arms == .one, small: true) {
+                    spec.arms = .one
+                    if !legs { spec.single = false }
+                }
+            }
+            // One dumbbell in both hands: shows once a pair could be meant (two arms, or any leg exercise).
+            if spec.family == .dumbbell && (spec.arms == .two || legs) {
+                HStack(spacing: 8) {
+                    Chip(text: "Single dumbbell", on: spec.single, small: true) { spec.single.toggle() }
+                }
             }
             FlowRow(spacing: 8, lineSpacing: 8) {
                 ForEach(Position.allCases.filter { $0.parent == nil }, id: \.self) { pos in

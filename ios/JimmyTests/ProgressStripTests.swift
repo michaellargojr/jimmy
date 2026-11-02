@@ -44,3 +44,37 @@ private func S(_ weight: Double?, _ reps: Int?, _ kind: SetKind = .working) -> S
         #expect(paneFinished([a, b], versions: [db]))
     }
 }
+
+// The big Done at the end of the Workout page shows only once the last set of the last exercise is checked.
+@Suite struct EndDoneTests {
+    let db = Version(exerciseId: "e", name: "", equipment: .dumbbell, arms: .two)
+    let body = Version(exerciseId: "e", name: "", equipment: .bodyweight, arms: .two)
+
+    @Test func showsOnlyOnceTheLastSetIsChecked() {
+        var w = Workout(name: "Arms", items: [WorkoutItem(versionId: db.id, sets: [S(20, 8)]),
+                                              WorkoutItem(versionId: db.id, sets: [S(20, 8), S(20, nil)])])
+        #expect(!lastSetChecked(w, versions: [db]))
+        w.items[1].sets[1].reps = 6
+        #expect(lastSetChecked(w, versions: [db]))
+    }
+    @Test func repsWithoutAWeightIsNotChecked() {
+        let w = Workout(name: "Arms", items: [WorkoutItem(versionId: db.id, sets: [S(nil, 8)])])
+        #expect(!lastSetChecked(w, versions: [db]))
+        let pull = Workout(name: "Back", items: [WorkoutItem(versionId: body.id, sets: [S(nil, 8)])])
+        #expect(lastSetChecked(pull, versions: [body]))
+    }
+    @Test func aClosingSupersetEndsOnItsLastRound() {
+        // Round by round: A1, B1, A2, B2. B2 is the last set, not A2.
+        var w = Workout(name: "Arms", items: [WorkoutItem(versionId: db.id, groupId: "g", sets: [S(20, 8), S(20, 8)]),
+                                              WorkoutItem(versionId: db.id, groupId: "g", sets: [S(20, 8), S(20, nil)])])
+        #expect(!lastSetChecked(w, versions: [db]))
+        w.items[1].sets[1].reps = 8
+        #expect(lastSetChecked(w, versions: [db]))
+    }
+    @Test func aSkippedLastExerciseDoesNotCount() {
+        let w = Workout(name: "Arms", items: [WorkoutItem(versionId: db.id, sets: [S(20, 8)]),
+                                              WorkoutItem(versionId: db.id, sets: [S(20, nil)], skipped: true)])
+        #expect(lastSetChecked(w, versions: [db]))
+        #expect(!lastSetChecked(Workout(name: "Empty", items: []), versions: [db]))
+    }
+}

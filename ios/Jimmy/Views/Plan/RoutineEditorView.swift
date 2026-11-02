@@ -9,8 +9,10 @@ struct RoutineEditorView: View {
     @State private var adding = false
     @State private var renaming = false
     @State private var name = ""
-    @State private var selecting = false
+    /// Ticked rows, by place in the list. Starts empty every time the page opens.
     @State private var selected: Set<Int> = []
+    /// The variation a row's name opened.
+    @State private var opened: Version? = nil
     @State private var duplicating = false
     @State private var justMade: Routine? = nil
     @State private var created: Routine? = nil
@@ -33,13 +35,16 @@ struct RoutineEditorView: View {
                     ForEach(Array(r.items.enumerated()), id: \.offset) { i, item in
                         row(r, index: i, item: item)
                     }
-                    .onMove { from, to in var rr = r; rr.items.move(fromOffsets: from, toOffset: to); store.put(rr) }
+                    // A drag in or out of a group works the way it does in the Workout page's Overview.
+                    .onMove { from, to in
+                        selected = ticksAfterMove(selected, count: r.items.count, from: from, to: to)
+                        store.put(moveItem(r, from: from, to: to))
+                    }
                     .onDelete { idx in
                         var rr = r; rr.items.remove(atOffsets: idx)
-                        rr.groups.removeAll { g in !rr.items.contains { $0.groupId == g.id } }
-                        store.put(rr)
+                        selected = ticksAfterDelete(selected, deleted: idx)
+                        store.put(tidyGroups(rr))
                     }
-                    ListNote("Drag to reorder. Swipe left to remove. Group… picks rows for a superset, triset or circuit.")
                 }
                 Section {
                     PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
@@ -52,27 +57,17 @@ struct RoutineEditorView: View {
                 }
             }
             .cardList()
+            .safeAreaInset(edge: .bottom) { bottomBar(r) }
             .navigationTitle(r.name)
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(p.bg, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 12) {
-                        if selecting {
-                            Menu("Group") {
-                                Button("Make a \(GroupType.forCount(selected.count).rawValue)") { group(r, as: .forCount(selected.count)) }.disabled(selected.count < 2)
-                                Button("Ungroup", role: .destructive) { ungroup(r) }
-                            }.disabled(selected.isEmpty)
-                            Button("Cancel") { selecting = false; selected = [] }
-                        } else {
-                            Button("Group…") { selecting = true }
-                            Menu {
-                                Button { name = r.name; renaming = true } label: { Label("Rename", systemImage: "pencil") }
-                                Button { duplicating = true } label: { Label("Duplicate", systemImage: "doc.on.doc") }
-                                Button(role: .destructive) { dismiss(); store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
-                            } label: { Image(systemName: "ellipsis") }
-                        }
-                    }
+                    Menu {
+                        Button { name = r.name; renaming = true } label: { Label("Rename", systemImage: "pencil") }
+                        Button { duplicating = true } label: { Label("Duplicate", systemImage: "doc.on.doc") }
+                        Button(role: .destructive) { dismiss(); store.deleteRoutine(r.id) } label: { Label("Delete routine", systemImage: "trash") }
+                    } label: { Image(systemName: "ellipsis") }
                 }
             }
             .alert("Rename routine", isPresented: $renaming) {
@@ -99,46 +94,46 @@ struct RoutineEditorView: View {
                     .presentationBackground(p.card)
             }
             .navigationDestination(item: $created) { c in RoutineEditorView(routineId: c.id) }
+            .navigationDestination(item: $opened) { v in VersionEditorView(versionId: v.id) }
             #if DEBUG
             .task { if RoutineDemo.once("duplicate", for: ["duplicate"]) { duplicating = true } }
             #endif
         }
     }
 
-    @ViewBuilder
-    private func row(_ r: Routine, index: Int, item: RoutineItem) -> some View {
-        let v = store.version(item.versionId)
-        if selecting {
-            rowContent(r, index: index, item: item, v: v)
-                .contentShape(Rectangle())
-                .onTapGesture { if selected.contains(index) { selected.remove(index) } else { selected.insert(index) } }
-                .rowCard(p)
-        } else if let v {
-            NavigationLink(value: v) { rowContent(r, index: index, item: item, v: v) }.rowCard(p)
-        } else {
-            rowContent(r, index: index, item: item, v: nil).rowCard(p)
-        }
+    /// Ticking loose exercises offers to group them; ticking a grouped one offers to ungroup,
+    /// the same bar as the Workout page's Overview (GroupSelect.swift).
+    private func bottomBar(_ r: Routine) -> some View {
+        let ticked = selected.filter { r.items.indices.contains($0) }
+        return GroupSelectBar(anyGrouped: ticked.contains(where: { r.liveGroup(at: $0) != nil }), count: ticked.count,
+                              makeGroup: { regroup { makeGroup($0, at: ticked) } },
+                              ungroup: { regroup { ungroup($0, at: ticked) } })
     }
 
-    private func rowContent(_ r: Routine, index: Int, item: RoutineItem, v: Version?) -> some View {
-        let g = item.groupId.flatMap { gid in r.groups.first { $0.id == gid } }
-        return HStack(spacing: 12) {
-            if selecting { RectCheck(on: selected.contains(index), size: 26) }
-            else { Text("\(index + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 24) }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
-                HStack(spacing: 6) {
-                    if g != nil { Text(GroupType.forCount(r.items.filter { $0.groupId == item.groupId }.count).label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent) }
-                    if let v {
-                        VariationChips(tags: store.variationChips(v), size: .small,
-                                       note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
-                                           .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "), nickname: store.nickname(v))
-                    }
-                }
+    private func regroup(_ change: (Routine) -> Routine) {
+        if let r = store.routine(routineId) { store.put(change(r)) }
+        selected = []
+    }
+
+    /// Tick box, name and chips (tap to open the variation), drag handle: the Overview's row.
+    private func row(_ r: Routine, index i: Int, item: RoutineItem) -> some View {
+        let v = store.version(item.versionId)
+        let place = r.groupPlace(at: i)
+        return HStack(spacing: 14) {
+            GroupTickBox(on: selected.contains(i)) {
+                if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }
             }
-            Spacer()
+            Button { opened = v } label: {
+                RoutineItemLabel(item: item, place: place)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .disabled(v == nil)
+            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
+        .buttonStyle(.plain)
+        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
+        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last)
     }
 
     /// Every muscle the routine works, primary first, each named once.
@@ -153,27 +148,29 @@ struct RoutineEditorView: View {
         sec.removeAll { prim.contains($0) }
         return (prim, sec)
     }
+}
 
-    private func group(_ r: Routine, as type: GroupType) {
-        var rr = r
-        let g = ExerciseGroup(id: uid(), type: type)
-        rr.groups.append(g)
-        let idxs = selected.sorted()
-        var chosen = idxs.map { rr.items[$0] }
-        for i in chosen.indices { chosen[i].groupId = g.id }
-        for i in idxs.reversed() { rr.items.remove(at: i) }
-        rr.items.insert(contentsOf: chosen, at: min(idxs.first ?? 0, rr.items.count))
-        rr.groups.removeAll { gg in !rr.items.contains { $0.groupId == gg.id } }
-        store.put(rr)
-        selecting = false; selected = []
-    }
+/// A routine exercise's name and chips, with its place in a group above: the same on the routine
+/// page and in the routine sheets.
+struct RoutineItemLabel: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.palette) private var p
+    let item: RoutineItem
+    let place: GroupPlace
 
-    private func ungroup(_ r: Routine) {
-        var rr = r
-        for i in selected where i < rr.items.count { rr.items[i].groupId = nil }
-        rr.groups.removeAll { gg in !rr.items.contains { $0.groupId == gg.id } }
-        store.put(rr)
-        selecting = false; selected = []
+    private var v: Version? { store.version(item.versionId) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if place.group != nil { GroupMemberLabel(members: place.members, number: place.number) }
+            Text(v.map { store.baseName($0) } ?? "Missing exercise").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
+            if let v {
+                VariationChips(tags: store.variationChips(v), size: .small,
+                               note: [store.style(item.styleId)?.label, "\(v.repMin)-\(v.repMax) rep range"]
+                                   .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " - "), nickname: store.nickname(v))
+                    .padding(.vertical, 2)
+            }
+        }
     }
 }
 
