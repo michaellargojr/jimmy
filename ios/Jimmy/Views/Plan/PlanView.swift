@@ -74,9 +74,10 @@ struct PlanView: View {
             }
             #if DEBUG
             .task(id: store.loaded) {
-                guard store.loaded, RoutineDemo.once("plan", for: ["split", "edit", "ask", "duplicate", "routines"]) else { return }
+                guard store.loaded, RoutineDemo.once("plan", for: ["split", "edit", "ask", "duplicate", "routines", "build", "buildOpen", "buildExercises", "taken"]) else { return }
                 switch RoutineDemo.step {
-                case "routines": segment = .routines
+                case "routines", "taken": segment = .routines
+                case "build", "buildOpen", "buildExercises": segment = .routines; building = true
                 case "duplicate":
                     if let rid = store.activeSplit?.routineIds.first, let r = store.routine(rid) { path.append(r) }
                 default:
@@ -214,6 +215,9 @@ struct RoutinesList: View {
             Button("Cancel", role: .cancel) { renaming = nil }
         }
         .nameTakenAlert($taken)
+        #if DEBUG
+        .task { if RoutineDemo.once("taken", for: ["taken"]), let r = store.routines.first { taken = NameTaken(name: r.name) {} } }
+        #endif
     }
 }
 

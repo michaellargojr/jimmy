@@ -76,6 +76,9 @@ struct RoutineBuilderSheet: View {
         }
         .onChange(of: store.versions.count) { _, _ in reloadGroups() }
         .task {
+            #if DEBUG
+            if demo() { return }
+            #endif
             guard isCreate else { return }
             // Focus once the sheet has settled, or the keyboard never attaches.
             try? await Task.sleep(nanoseconds: 450_000_000)
@@ -297,6 +300,25 @@ struct RoutineBuilderSheet: View {
     private func reloadGroups() {
         groups = variationsByMuscle(versions: store.versions, exercises: store.exercises, workouts: store.workouts)
     }
+
+    #if DEBUG
+    /// -routineDemo build | buildOpen | buildExercises: a name and a few ticks, for screenshots.
+    private func demo() -> Bool {
+        guard RoutineDemo.once("builder", for: ["build", "buildOpen", "buildExercises"]) else { return false }
+        name = "Chest and Shoulders"
+        for r in routines.prefix(2) {
+            for i in r.items.indices.prefix(2) { picks.append(.routine(RoutinePick(routineId: r.id, index: i))) }
+        }
+        switch RoutineDemo.step {
+        case "buildOpen": open = routines.first?.id
+        case "buildExercises":
+            tab = .exercises
+            if let u = groups.first?.list.last { picks.append(.variation(versionId: u.id, styleId: nil)) }
+        default: break
+        }
+        return true
+    }
+    #endif
 
     private func finish() {
         guard canFinish else { return }
