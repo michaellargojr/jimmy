@@ -19,7 +19,8 @@ struct WorkoutView: View {
     /// because two sheets changing at once leaves the new one unable to take the keyboard.
     @State private var pendingAdd: AddTarget? = nil
     /// Done asks Finish, Discard or Keep going, then Finish and Discard each ask again,
-    /// so a tap from a pocket can never end the workout.
+    /// so a tap from a pocket can never end the workout. The big Done at the end of a finished
+    /// workout goes straight to Finish's "Are you sure?", still two taps.
     @State private var askEnd = false
     @State private var sureFinish = false
     @State private var sureDiscard = false
@@ -65,7 +66,7 @@ struct WorkoutView: View {
                                     Color.clear
                                         .containerRelativeFrame(.vertical)
                                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
-                                    paneView(w, pane: pane, index: idx)
+                                    paneView(w, pane: pane, index: idx, last: idx == ps.count - 1)
                                 }
                                 // Exactly the screen's width. Without it the widest line of Last time
                                 // could stretch the whole page past the edge of a smaller phone.
@@ -228,7 +229,10 @@ struct WorkoutView: View {
     }
 
     @ViewBuilder
-    private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int) -> some View {
+    private func paneView(_ w: Workout, pane: [WorkoutItem], index: Int, last: Bool) -> some View {
+        // The end of the workout: once the last set of the last exercise is checked, a big Done
+        // shows under it. Until then the only way out is Done at the top.
+        let ended = last && w.startedAt != nil && lastSetChecked(w, versions: store.versions)
         VStack(alignment: .leading, spacing: 12) {
             // The workout's name lives at the top of the first page and scrolls away with it.
             if index == 0 {
@@ -248,6 +252,14 @@ struct WorkoutView: View {
                     .padding(.top, n > 0 ? Self.groupRoom : 0)
             }
             footer(index: index, panesOf: w)
+            VStack {
+                if ended {
+                    PillButton(title: "Done", style: .primary, full: true, height: 56) { sureFinish = true }
+                        .padding(.top, 20)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .animation(.smooth, value: ended)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)

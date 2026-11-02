@@ -132,6 +132,14 @@ func paneFinished(_ pane: [WorkoutItem], versions: [Version]) -> Bool {
     }
 }
 
+/// The last set of the last exercise has its check: the end of the workout is reached, so the big
+/// Done shows under it. "Last" is the order sets are done in (see Focus.order), so in a closing
+/// superset it's the final round's last set. Skipped exercises don't count.
+func lastSetChecked(_ w: Workout, versions: [Version]) -> Bool {
+    guard let last = Focus.order(w.items.filter { $0.skipped != true }).last else { return false }
+    return setsComplete([last.set], bodyweight: versions.first { $0.id == last.item.versionId }?.family == .body)
+}
+
 /// What each exercise in a group is called on its card: "Superset 1", "Superset 2"; "Triset 1" to 3;
 /// "Circuit 1" and on. Numbered so it's clear which one is which when they share a screen.
 func groupLabels(count: Int) -> [String] {
