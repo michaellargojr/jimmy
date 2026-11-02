@@ -1,0 +1,54 @@
+import Foundation
+
+/// The JSON export. Same shape as the web app's Settings > Export, plus `splits` and `styles`.
+/// Version 2 is the base > variation > style library (Oct 2026).
+let SNAPSHOT_VERSION = 2
+
+struct Snapshot: Codable {
+    var version: Int = SNAPSHOT_VERSION
+    var exportedAt: String
+    var exercises: [Exercise]
+    var versions: [Version]
+    var styles: [Style]
+    var workouts: [Workout]
+    var routines: [Routine]
+    var gyms: [Gym]
+    var settings: Settings?
+    var ideas: [Idea]
+    var splits: [Split]
+    /// The Form cues library: what each stored clip is. The files themselves stay on the
+    /// phone and are not in the export; an import on the same phone relinks them by id.
+    var clips: [Clip]
+
+    init(exportedAt: String, exercises: [Exercise], versions: [Version], styles: [Style] = [], workouts: [Workout], routines: [Routine],
+         gyms: [Gym], settings: Settings?, ideas: [Idea], splits: [Split], clips: [Clip] = []) {
+        self.exportedAt = exportedAt; self.exercises = exercises; self.versions = versions; self.styles = styles; self.workouts = workouts
+        self.routines = routines; self.gyms = gyms; self.settings = settings; self.ideas = ideas; self.splits = splits; self.clips = clips
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        exportedAt = try c.decodeIfPresent(String.self, forKey: .exportedAt) ?? ""
+        exercises = try c.decodeIfPresent([Exercise].self, forKey: .exercises) ?? []
+        versions = try c.decodeIfPresent([Version].self, forKey: .versions) ?? []
+        styles = try c.decodeIfPresent([Style].self, forKey: .styles) ?? []
+        workouts = try c.decodeIfPresent([Workout].self, forKey: .workouts) ?? []
+        routines = try c.decodeIfPresent([Routine].self, forKey: .routines) ?? []
+        gyms = try c.decodeIfPresent([Gym].self, forKey: .gyms) ?? []
+        settings = try? c.decodeIfPresent(Settings.self, forKey: .settings)
+        ideas = try c.decodeIfPresent([Idea].self, forKey: .ideas) ?? []
+        splits = try c.decodeIfPresent([Split].self, forKey: .splits) ?? []
+        clips = try c.decodeIfPresent([Clip].self, forKey: .clips) ?? []
+    }
+
+    static func decode(_ data: Data) throws -> Snapshot {
+        try JSONDecoder().decode(Snapshot.self, from: data)
+    }
+
+    func encoded() throws -> Data {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys]
+        return try enc.encode(self)
+    }
+}

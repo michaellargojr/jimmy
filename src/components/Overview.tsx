@@ -86,7 +86,7 @@ export function Overview({ items, groups, versions, onChange, onAdd }: {
         ) : (
           <>
             <span className="small muted">Tap 2+ then:</span>
-            <button className="btn sm primary" disabled={sel.length < 2} onClick={() => makeGroup(sel.length >= 3 ? 'triset' : 'superset')}>{sel.length >= 4 ? 'Circuit' : sel.length === 3 ? 'Triset' : 'Superset'}</button>
+            <button className="btn sm primary" disabled={sel.length < 2} onClick={() => makeGroup(sel.length >= 4 ? 'circuit' : sel.length === 3 ? 'triset' : 'superset')}>{sel.length >= 4 ? 'Circuit' : sel.length === 3 ? 'Triset' : 'Superset'}</button>
             <button className="btn sm ghost" onClick={() => { setSelecting(false); setSel([]) }}>Cancel</button>
           </>
         )}

@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { verdict, improved, matchLast } from './overload'
-import { newSet } from './model'
+import { newSet, type Side } from './model'
 
 const v = { repMin: 5, repMax: 8 }
 const W = (reps?: number, weight = 30, kind: 'warmup' | 'working' = 'working', plus = false) =>
   newSet(kind, 'kg', { reps, weight, plus })
+const S = (side: Side, reps?: number, weight = 30) => newSet('working', 'kg', { side, reps, weight })
 
 describe('verdict', () => {
   it('ignores warm-ups and returns none with no data', () => {
@@ -23,6 +24,15 @@ describe('verdict', () => {
   })
   it('does not flag in-range sets', () => {
     expect(verdict([W(7), W(6)], v)).toBe('none')
+  })
+  it('judges one-arm versions per side, never L1 against R1', () => {
+    // L1 10, R1 7 used to read as "set1 10, set2 7" = up. It is only set 1 of each side.
+    expect(verdict([S('L', 10), S('R', 7)], v)).toBe('none')
+    expect(verdict([S('L', 10), S('R', 10), S('L', 7), S('R', 7)], v)).toBe('up')
+    expect(verdict([S('L', 10), S('R', 10), S('L', 7), S('R', 6)], v)).toBe('none')
+    expect(verdict([S('L', 8), S('R', 4), S('L', 7), S('R', 7)], v)).toBe('down')
+    // a side still blank today is simply not judged yet
+    expect(verdict([S('L', 10), S('R'), S('L', 7), S('R')], v)).toBe('up')
   })
 })
 
