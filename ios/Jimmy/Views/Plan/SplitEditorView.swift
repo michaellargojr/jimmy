@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// A split's page (Michael, Nov 2): "In this split", the routines in their order with Edit beside
-/// the title; Goals; Coverage; Notes at the very bottom (splitSections). Tap a routine to edit its
-/// exercises, hold one for Rename, Duplicate or Remove. Edit opens the Edit split sheet for
-/// everything else. A split with no routines yet opens straight on that sheet.
+/// the title; Goals; Coverage; Notes; Use this split at the very bottom (splitSections), the same
+/// gap between every part (Nov 3). Tap a routine to edit its exercises, hold one for Make next,
+/// Rename, Duplicate or Remove. Edit opens the Edit split sheet for everything else. A split with
+/// no routines yet opens straight on that sheet.
 struct SplitEditorView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
@@ -127,25 +128,28 @@ struct SplitEditorView: View {
         Section {
             Button { goals = true } label: { GoalsRow(goals: s.goals ?? SplitGoals()) }
                 .buttonStyle(.plain)
-                .rowCard(p, radius: Radius.card)
+                .partCard(p)
         }
     }
 
     private func coverageSection(_ s: Split) -> some View {
         Section {
-            CoverageCard(splitId: s.id).rowCard(p, radius: Radius.card)
+            CoverageCard(splitId: s.id).partCard(p)
         }
     }
 
     private func useSection(_ s: Split) -> some View {
         Section {
             PillButton(title: "Use this split", style: .primary, full: true) { store.update { $0.activeSplitId = s.id } }
-                .buttonRow()
+                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: SplitGap.above, leading: 16, bottom: 5, trailing: 16))
         }
     }
 
     private func inSplitSection(_ s: Split) -> some View {
-        Section {
+        // The same Next as Plan's split list, on the split that is in use.
+        let next = store.activeSplit?.id == s.id ? store.nextSlot : nil
+        return Section {
             PartTitle(title: "In this split", button: "Edit") { editingSplit = true }
             if s.routineIds.isEmpty {
                 Text("No routines yet. Tap Edit to add some.")
@@ -161,6 +165,7 @@ struct SplitEditorView: View {
                         DayNumber(n: i + 1)
                         Text(store.routine(rid)?.name ?? "Missing routine").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                         Spacer()
+                        if next == i { Badge(text: "next", kind: .up) }
                         Text("\(store.routine(rid)?.items.count ?? 0) ex").font(.system(size: 13)).foregroundStyle(p.muted)
                         Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(p.border)
                     }
@@ -173,24 +178,52 @@ struct SplitEditorView: View {
                     if let r = store.routine(rid) {
                         RoutineMenu(rename: { routineName = r.name; renamingRoutine = r },
                                     duplicate: { copySpot = i + 1; duplicating = r },
-                                    remove: { var ss = s; if ss.routineIds.indices.contains(i) { ss.routineIds.remove(at: i) }; store.put(ss) })
+                                    remove: { var ss = s; if ss.routineIds.indices.contains(i) { ss.routineIds.remove(at: i) }; store.put(ss) },
+                                    makeNext: next == nil || next == i ? nil : { store.makeNext(splitId: s.id, slot: i) })
                     }
                 }
             }
         }
     }
 
+    /// The label sits in the gap, so Notes starts as far from Coverage as every other part.
     private var notesSection: some View {
         Section {
-            TextField("Notes", text: $draftNotes, axis: .vertical)
-                .lineLimit(3...10)
-                .focused($notesFocused)
-                .font(.system(size: 16)).foregroundStyle(p.text)
-                .padding(.horizontal, 16).padding(.vertical, 14)
-                .keepsKeyboard()
-                .rowCard(p, radius: Radius.card)
-        } header: {
-            SectionLabel("Notes").padding(.leading, 16)
+            VStack(alignment: .leading, spacing: SplitGap.labelBelow) {
+                SectionLabel("Notes").padding(.leading, 16)
+                TextField("Notes", text: $draftNotes, axis: .vertical)
+                    .lineLimit(3...10)
+                    .focused($notesFocused)
+                    .font(.system(size: 16)).foregroundStyle(p.text)
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .keepsKeyboard()
+                    .background(p.card, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            }
+            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: SplitGap.above - SplitGap.label - SplitGap.labelBelow, leading: 16, bottom: 5, trailing: 16))
         }
+    }
+}
+
+/// The one gap between the parts of the split page (Michael, Nov 3: the gap above Notes, everywhere).
+private enum SplitGap {
+    /// Card to card.
+    static let between: CGFloat = 48
+    /// Above a part's first row: the row before it already leaves 5.
+    static let above: CGFloat = between - 5
+    /// A section label's height, and the room under it.
+    static let label: CGFloat = 16
+    static let labelBelow: CGFloat = 10
+}
+
+private extension View {
+    /// A card that starts a part of the split page, with the gap above it.
+    func partCard(_ p: Palette) -> some View {
+        listRowBackground(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous).fill(p.card)
+                .padding(.horizontal, 16).padding(.top, SplitGap.above).padding(.bottom, 5)
+        )
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: SplitGap.above, leading: 16, bottom: 5, trailing: 16))
     }
 }

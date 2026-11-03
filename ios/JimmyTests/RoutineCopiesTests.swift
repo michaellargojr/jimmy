@@ -147,4 +147,58 @@ import Testing
         #expect(back.replaced == ["a": "a2"])
         #expect(back.madeHere == ["a2"])
     }
+
+    // Make next (press and hold a routine on the split page or Plan's split list).
+
+    @Test func makeNextHoldsUntilACycleWorkoutIsDone() {
+        var s = Split(name: "PPL", routineIds: ["push", "pull", "legs"])
+        var done = [finished("2026-11-01", "push")]
+        #expect(upNextSlot(in: s, finished: done) == 1)
+        s.makeNext(2, finished: done)
+        #expect(upNextSlot(in: s, finished: done) == 2)
+        // A workout from outside the cycle leaves the pick alone.
+        done.insert(finished("2026-11-02", "cardio"), at: 0)
+        #expect(upNextSlot(in: s, finished: done) == 2)
+        // Doing the picked one carries on from its spot, then the cycle goes on as usual.
+        done.insert(finished("2026-11-03", "legs"), at: 0)
+        #expect(upNextSlot(in: s, finished: done) == 0)
+        done.insert(finished("2026-11-04", "push"), at: 0)
+        #expect(upNextSlot(in: s, finished: done) == 1)
+    }
+
+    @Test func makeNextEndsWhenAnotherRoutineIsDone() {
+        var s = Split(name: "PPL", routineIds: ["push", "pull", "legs"])
+        var done: [Workout] = []
+        s.makeNext(1, finished: done)
+        #expect(upNextSlot(in: s, finished: done) == 1)
+        done.insert(finished("2026-11-02", "legs"), at: 0)
+        #expect(upNextSlot(in: s, finished: done) == 0)
+    }
+
+    @Test func makeNextOnARepeatedRoutineKeepsItsSpot() {
+        var s = Split(name: "PPL twice", routineIds: ["push", "pull", "legs", "push", "pull", "legs"])
+        var done = [finished("2026-11-01", "legs")]
+        s.makeNext(3, finished: done)
+        #expect(upNextSlot(in: s, finished: done) == 3)
+        done.insert(finished("2026-11-02", "push"), at: 0)
+        #expect(upNextSlot(in: s, finished: done) == 4)
+    }
+
+    @Test func aPickWhoseSpotChangedIsIgnored() {
+        var s = Split(name: "PPL", routineIds: ["push", "pull", "legs"])
+        s.makeNext(2, finished: [])
+        s.routineIds.remove(at: 0)
+        #expect(upNextSlot(in: s, finished: []) == 0)
+        s.routineIds = ["legs", "pull", "push"]
+        #expect(upNextSlot(in: s, finished: []) == 0)
+    }
+
+    @Test func aSplitWithAPickStillReadsWithoutOne() throws {
+        var s = Split(name: "PPL", routineIds: ["push", "pull"])
+        s.makeNext(1, finished: [])
+        let back = try JSONDecoder().decode(Split.self, from: JSONEncoder().encode(s))
+        #expect(back.nextPick == s.nextPick)
+        let old = try JSONDecoder().decode(Split.self, from: Data(#"{"id":"a","name":"Old","routineIds":["x"]}"#.utf8))
+        #expect(old.nextPick == nil)
+    }
 }

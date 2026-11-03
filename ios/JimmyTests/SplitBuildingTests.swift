@@ -54,9 +54,9 @@ import Testing
         #expect(d.rows.count == 2)
     }
 
-    @Test func routinesThenGoalsAndCoverageThenNotesLast() {
+    @Test func routinesThenGoalsAndCoverageThenNotesThenUse() {
         #expect(splitSections(active: true) == [.inSplit, .goals, .coverage, .notes])
-        #expect(splitSections(active: false) == [.inSplit, .goals, .coverage, .use, .notes])
+        #expect(splitSections(active: false) == [.inSplit, .goals, .coverage, .notes, .use])
     }
 
     @Test func aCopyGoesRightAfterItsRoutine() {

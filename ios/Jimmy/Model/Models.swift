@@ -659,6 +659,8 @@ struct Split: Codable, Identifiable, Hashable {
     var madeHere: [String]?
     /// Free text at the bottom of the split page.
     var notes: String?
+    /// "Make next": the spot picked to come next, until a workout from this cycle is finished.
+    var nextPick: NextPick?
 
     init(id: String = uid(), name: String, routineIds: [String] = []) {
         self.id = id; self.name = name; self.routineIds = routineIds
