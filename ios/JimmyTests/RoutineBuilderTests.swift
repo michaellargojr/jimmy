@@ -26,8 +26,20 @@ private func finished(_ date: String, _ ids: [String]) -> Workout {
         #expect(built.groups.isEmpty)
     }
 
-    @Test func aWholeSupersetStaysTogetherWhereItWasFirstTicked() {
-        let built = builtExercises([r("push", 2), r("pull", 1), r("push", 1)], routines: [push, pull])
+    @Test func aWholeSupersetComesOverSeparateByDefault() {
+        let picks = [r("push", 2), r("pull", 1), r("push", 1)]
+        let built = builtExercises(picks, routines: [push, pull])
+        #expect(built.items.map(\.versionId) == ["raise", "curl", "fly"])
+        #expect(built.groups.isEmpty)
+        #expect(built.items.allSatisfy { $0.groupId == nil })
+        let key = GroupKey(routineId: "push", groupId: "g1")
+        #expect(tickedGroups(picks, routines: [push, pull]) == [TickedGroup(key: key, type: .superset, indices: [1, 2], whole: true)])
+        #expect(tickedGroups([r("push", 1), r("pull", 0)], routines: [push, pull]).isEmpty)
+    }
+
+    @Test func aKeptSupersetStaysTogetherWhereItWasFirstTicked() {
+        let picks = [r("push", 2), r("pull", 1), r("push", 1)]
+        let built = builtExercises(picks, routines: [push, pull], keep: [GroupKey(routineId: "push", groupId: "g1")])
         #expect(built.items.map(\.versionId) == ["fly", "raise", "curl"])
         #expect(built.groups.count == 1)
         #expect(built.groups.first?.type == .superset)
@@ -35,6 +47,26 @@ private func finished(_ date: String, _ ids: [String]) -> Workout {
         #expect(built.items[0].groupId == built.groups.first?.id)
         #expect(built.items[1].groupId == built.groups.first?.id)
         #expect(built.items[2].groupId == nil)
+    }
+
+    @Test func twoOfATrisetAreOfferedAndCopyAsASuperset() {
+        let arms = Routine(id: "arms", name: "Arms",
+                           items: [RoutineItem(versionId: "a", groupId: "t"), RoutineItem(versionId: "b", groupId: "t"),
+                                   RoutineItem(versionId: "c", groupId: "t"), RoutineItem(versionId: "d")],
+                           groups: [ExerciseGroup(id: "t", type: .triset)])
+        let picks = [r("arms", 3), r("arms", 2), r("arms", 0)]
+        let key = GroupKey(routineId: "arms", groupId: "t")
+        let offered = tickedGroups(picks, routines: [arms])
+        #expect(offered == [TickedGroup(key: key, type: .triset, indices: [0, 2], whole: false)])
+        #expect(offered.first?.copyType == .superset)
+        #expect(builtExercises(picks, routines: [arms]).groups.isEmpty)
+        let kept = builtExercises(picks, routines: [arms], keep: [key])
+        #expect(kept.items.map(\.versionId) == ["d", "a", "c"])
+        #expect(kept.groups.count == 1)
+        #expect(kept.groups.first?.type == .superset)
+        #expect(kept.items[0].groupId == nil)
+        #expect(kept.items[1].groupId == kept.groups.first?.id)
+        #expect(kept.items[2].groupId == kept.groups.first?.id)
     }
 
     @Test func partOfASupersetComesApart() {
