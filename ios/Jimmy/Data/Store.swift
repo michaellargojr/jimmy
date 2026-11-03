@@ -160,7 +160,7 @@ final class AppStore {
     /// The spot of the active split that comes up next.
     var nextSlot: Int? { activeSplit.flatMap { upNextSlot(in: $0, finished: finishedWorkouts) } }
 
-    /// Make next (press and hold a routine on the split page or in Plan's split list).
+    /// Make next (press and hold a routine on the split page).
     func makeNext(splitId: String, slot: Int) {
         guard var s = splits.first(where: { $0.id == splitId }) else { return }
         s.makeNext(slot, finished: finishedWorkouts)
