@@ -16,12 +16,54 @@ enum BuilderPick: Hashable {
     }
 }
 
-/// The ticks as rows of the new routine, in the order they were ticked. A superset, triset or
-/// circuit whose members were all ticked stays one, under a fresh group id, where its first
-/// member was ticked; one ticked only in part comes apart.
-func builtExercises(_ picks: [BuilderPick], routines: [Routine]) -> PickedExercises {
+/// A group in one of your routines.
+struct GroupKey: Hashable {
+    var routineId: String
+    var groupId: String
+}
+
+/// Two or more ticked members of one routine's superset, triset or circuit. They come over
+/// separate unless you say to copy them as a group, which is named by how many were ticked:
+/// two of a triset copy as a superset.
+struct TickedGroup: Hashable {
+    var key: GroupKey
+    /// What it is in its routine.
+    var type: GroupType
+    /// The ticked members' places in the routine, in routine order.
+    var indices: [Int]
+    /// Every member is ticked.
+    var whole: Bool
+    var copyType: GroupType { .forCount(indices.count) }
+}
+
+/// The groups with two or more members ticked, in the order their first member was ticked.
+func tickedGroups(_ picks: [BuilderPick], routines: [Routine]) -> [TickedGroup] {
     let byId = Dictionary(routines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-    let ticked: Set<RoutinePick> = Set(picks.compactMap { if case let .routine(p) = $0 { return p }; return nil })
+    let ticked = routineTicks(picks)
+    var out: [TickedGroup] = []
+    for pick in picks {
+        guard case let .routine(p) = pick, let r = byId[p.routineId], r.items.indices.contains(p.index),
+              let gid = r.items[p.index].groupId, let g = r.groups.first(where: { $0.id == gid }),
+              !out.contains(where: { $0.key == GroupKey(routineId: r.id, groupId: gid) }) else { continue }
+        let members = r.items.indices.filter { r.items[$0].groupId == gid }
+        let on = members.filter { ticked.contains(RoutinePick(routineId: r.id, index: $0)) }
+        if on.count > 1 {
+            out.append(TickedGroup(key: GroupKey(routineId: r.id, groupId: gid), type: g.type, indices: on, whole: on.count == members.count))
+        }
+    }
+    return out
+}
+
+private func routineTicks(_ picks: [BuilderPick]) -> Set<RoutinePick> {
+    Set(picks.compactMap { if case let .routine(p) = $0 { return p }; return nil })
+}
+
+/// The ticks as rows of the new routine, in the order they were ticked, each on its own: groups
+/// don't come along by default. For a group in `keep`, its ticked members stay together as a
+/// new group (named by how many), in routine order, where the first of them was ticked.
+func builtExercises(_ picks: [BuilderPick], routines: [Routine], keep: Set<GroupKey> = []) -> PickedExercises {
+    let byId = Dictionary(routines.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    let ticked = routineTicks(picks)
     var out = PickedExercises()
     var done: Set<RoutinePick> = []
     for pick in picks {
@@ -31,11 +73,13 @@ func builtExercises(_ picks: [BuilderPick], routines: [Routine]) -> PickedExerci
         case let .routine(p):
             guard !done.contains(p), let r = byId[p.routineId], r.items.indices.contains(p.index) else { continue }
             let item = r.items[p.index]
-            if let gid = item.groupId, let g = r.groups.first(where: { $0.id == gid }) {
-                let members = r.items.indices.filter { r.items[$0].groupId == gid }
-                if members.count > 1, members.allSatisfy({ ticked.contains(RoutinePick(routineId: r.id, index: $0)) }) {
+            if let gid = item.groupId, keep.contains(GroupKey(routineId: r.id, groupId: gid)) {
+                let members = r.items.indices.filter {
+                    r.items[$0].groupId == gid && ticked.contains(RoutinePick(routineId: r.id, index: $0))
+                }
+                if members.count > 1 {
                     let id = uid()
-                    out.groups.append(ExerciseGroup(id: id, type: g.type))
+                    out.groups.append(ExerciseGroup(id: id, type: .forCount(members.count)))
                     for i in members {
                         var it = r.items[i]
                         it.groupId = id
