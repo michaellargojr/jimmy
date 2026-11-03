@@ -21,6 +21,8 @@ final class AppStore {
     var historyUndo: HistoryUndo?
     /// The last routine saved from the split page, while its Undo bar shows. Never saved.
     var routineUndo: RoutineUndo?
+    /// A workout change waiting for Update, Save as new routine or Just today. Never saved.
+    var routineAsk: RoutineAsk?
 
     /// Backups to a folder in iCloud Drive. See Backup.swift.
     let backups: Backups
@@ -73,6 +75,8 @@ final class AppStore {
         switch v.family {
         case .body: break
         case .bar: words.append("Barbell")
+        // "Dumbbell Shoulder Press": one word before the name, pair or not. A single dumbbell says so in its chips.
+        case .dumbbell: words.append("Dumbbell")
         default: words.append(v.family.label)
         }
         let tag = v.tag?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -115,14 +119,16 @@ final class AppStore {
     /// The whole variation as chips: "Cable", "Two arms". For Plan, History and lists.
     func variationChips(_ v: Version) -> [String] {
         variationParts(family: v.family, arms: v.arms, position: v.position, armPosition: v.armPosition, tag: v.tag, machine: v.machine,
-                       loading: v.loading, legs: base(of: v)?.isLegs ?? false)
+                       loading: v.loading, single: v.isSingleDumbbell, legs: base(of: v)?.isLegs ?? false)
             .map { capitalized($0) }
     }
     /// The same words as armsText, one per chip: "Two arms", "Seated". The Workout card's title
-    /// already names the equipment, so it shows only these, plus Plates or Stack for a machine.
+    /// already names the equipment, so it shows only these, plus Plates or Stack for a machine and
+    /// Single dumbbell for one dumbbell in both hands.
     func variationTags(_ v: Version) -> [String] {
         let legs = base(of: v)?.isLegs ?? false
         var tags: [String] = []
+        if v.isSingleDumbbell { tags.append("Single dumbbell") }
         if v.family == .machine, let l = v.loading { tags.append(capitalized(l.label)) }
         if v.arms == .one || v.family != .body { tags.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { tags.append(capitalized(pos.label)) }
@@ -464,7 +470,8 @@ final class AppStore {
         if let v = findVariation(baseId: base.id, key: spec.key) { return v }
         let name = base.name + " · " + variationLabel(spec, legs: base.isLegs)
         let v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
-                        armPosition: spec.armPosition, tag: spec.tag, machine: spec.machine, loading: spec.loading, repMin: repMin ?? 5, repMax: repMax ?? 8)
+                        armPosition: spec.armPosition, tag: spec.tag, machine: spec.machine, loading: spec.loading,
+                        singleDumbbell: spec.family == .dumbbell && spec.single, repMin: repMin ?? 5, repMax: repMax ?? 8)
         put(v)
         return v
     }

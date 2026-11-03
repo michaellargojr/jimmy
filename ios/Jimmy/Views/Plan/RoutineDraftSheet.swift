@@ -2,8 +2,9 @@ import SwiftUI
 
 /// One sheet for two jobs:
 /// - Duplicate (Michael's pick A): name the copy, untick the exercises to leave out, Create routine.
-/// - Edit from the split page (pick 2): remove, reorder or add, then Done. A routine taken from the
-///   routine list asks first: Save as new routine, Update it, or Discard changes.
+/// - Edit from the split page (pick 2): remove, reorder, group or add, then Done. A routine taken
+///   from the routine list asks first: Save as new routine, Update it, or Discard changes. Rows
+///   group the way the Workout page's Overview does: tick boxes, then Make a superset or Ungroup.
 /// Nothing is saved until Create or Done.
 struct RoutineDraftSheet: View {
     enum Mode: Equatable {
@@ -22,6 +23,8 @@ struct RoutineDraftSheet: View {
     @State private var draft: RoutineDraft
     /// Duplicate: the rows unticked, left out of the copy.
     @State private var leftOut: Set<String> = []
+    /// Edit: the rows ticked for grouping.
+    @State private var selected: Set<String> = []
     @State private var adding = false
     @State private var asking = false
     @State private var naming = false
@@ -50,6 +53,7 @@ struct RoutineDraftSheet: View {
                 header
                 if isDuplicate { nameField }
                 rows
+                if !isDuplicate { groupBar }
                 if isDuplicate {
                     PillButton(title: "Create routine", style: .primary, full: true, height: 54) { create() }
                         .disabled(kept == 0 || nameTaken)
@@ -133,10 +137,11 @@ struct RoutineDraftSheet: View {
     private var rows: some View {
         List {
             if isDuplicate {
-                ForEach(draft.rows) { row in tickRow(row) }
+                ForEach(Array(draft.rows.enumerated()), id: \.element.id) { i, row in tickRow(row, index: i) }
             } else {
-                ForEach(draft.rows) { row in rowView(row) }
-                    .onMove { from, to in draft.move(from: from, to: to) }
+                ForEach(Array(draft.rows.enumerated()), id: \.element.id) { i, row in rowView(row, index: i) }
+                    // A drag in or out of a group works the way it does in the Workout page's Overview.
+                    .onMove { from, to in draft.groupable = moveItem(draft.groupable, from: from, to: to) }
                 PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -151,32 +156,15 @@ struct RoutineDraftSheet: View {
         store.version(item.versionId).map { store.baseName($0) } ?? "Missing exercise"
     }
 
-    /// Name over its chips (and its superset label), the same in both kinds of row.
-    private func exerciseLabel(_ row: RoutineDraft.Row) -> some View {
-        let v = store.version(row.item.versionId)
-        let inGroup = row.item.groupId.map { gid in draft.rows.filter { $0.item.groupId == gid }.count } ?? 0
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(exerciseName(row.item)).font(.system(size: 15, weight: .semibold)).foregroundStyle(p.text)
-            HStack(spacing: 6) {
-                if inGroup > 1 {
-                    Text(GroupType.forCount(inGroup).label).font(.system(size: 12, weight: .bold)).foregroundStyle(p.accent)
-                }
-                if let v {
-                    VariationChips(tags: store.variationChips(v), size: .small, note: store.style(row.item.styleId)?.label)
-                }
-            }
-        }
-    }
-
     /// Duplicate: tap anywhere on the row to tick or untick it. Unticked rows stay, dimmed.
-    private func tickRow(_ row: RoutineDraft.Row) -> some View {
+    private func tickRow(_ row: RoutineDraft.Row, index i: Int) -> some View {
         let on = !leftOut.contains(row.id)
         return Button {
             if on { leftOut.insert(row.id) } else { leftOut.remove(row.id) }
         } label: {
             HStack(spacing: 12) {
                 RectCheck(on: on, size: 26)
-                exerciseLabel(row).opacity(on ? 1 : 0.45)
+                RoutineItemLabel(item: row.item, place: draft.groupable.groupPlace(at: i)).opacity(on ? 1 : 0.45)
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 6)
@@ -193,34 +181,43 @@ struct RoutineDraftSheet: View {
         .listRowInsets(EdgeInsets(top: 3, leading: 28, bottom: 3, trailing: 28))
     }
 
-    /// Edit from the split page: remove on the left, hold and drag to reorder.
-    private func rowView(_ row: RoutineDraft.Row) -> some View {
-        let name = exerciseName(row.item)
-        return HStack(spacing: 12) {
-            Button { withAnimation(.snappy) { draft.remove(id: row.id) } } label: {
-                Image(systemName: "minus")
-                    .font(.system(size: 15, weight: .heavy)).foregroundStyle(p.danger)
-                    .frame(width: 32, height: 32)
-                    .background(p.dangerSoft, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+    /// Edit from the split page, the routine page's row: tick box, name and chips, drag handle.
+    /// Swipe left to delete.
+    private func rowView(_ row: RoutineDraft.Row, index i: Int) -> some View {
+        let place = draft.groupable.groupPlace(at: i)
+        return HStack(spacing: 14) {
+            GroupTickBox(on: selected.contains(row.id)) {
+                if selected.contains(row.id) { selected.remove(row.id) } else { selected.insert(row.id) }
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, -6)
-            .accessibilityLabel("Remove \(name)")
-            exerciseLabel(row)
-            Spacer(minLength: 0)
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(p.border)
+            RoutineItemLabel(item: row.item, place: place)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
                 .accessibilityHidden(true)
         }
-        .padding(.vertical, 4)
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(p.elevated)
-                .padding(.horizontal, 16).padding(.vertical, 3)
-        )
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 3, leading: 26, bottom: 3, trailing: 28))
+        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button { remove(row.id) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
+        }
+        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last, fill: p.elevated)
+    }
+
+    /// Ticking loose rows offers to group them; ticking a grouped one offers to ungroup, the same
+    /// bar as the Workout page and the routine page (GroupSelect.swift).
+    private var groupBar: some View {
+        let g = draft.groupable
+        let ticked = Set(g.items.indices.filter { selected.contains(g.items[$0].id) })
+        return GroupSelectBar(anyGrouped: ticked.contains(where: { g.liveGroup(at: $0) != nil }), count: ticked.count,
+                              makeGroup: { draft.groupable = makeGroup(draft.groupable, at: ticked); selected = [] },
+                              ungroup: { draft.groupable = ungroup(draft.groupable, at: ticked); selected = [] },
+                              background: p.card)
+    }
+
+    private func remove(_ id: String) {
+        withAnimation(.snappy) {
+            draft.remove(id: id)
+            draft.groupable = tidyGroups(draft.groupable)
+        }
+        selected.remove(id)
     }
 
     /// Done after a change to a routine from the list.

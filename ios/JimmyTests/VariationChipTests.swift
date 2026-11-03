@@ -25,7 +25,7 @@ import Testing
 
         // Plan, History and lists: the whole variation.
         #expect(s.variationChips(pull) == ["Cable", "Two arms"])
-        #expect(s.variationChips(db) == ["Dumbbell", "Two arms", "Seated"])
+        #expect(s.variationChips(db) == ["Dumbbells", "Two arms", "Seated"])
         #expect(s.variationChips(cable) == ["Cable", "Overhead", "One arm"])
         #expect(s.variationChips(dStars) == ["Machine", "D Stars"])
 
