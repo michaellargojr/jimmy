@@ -207,8 +207,9 @@ struct BasePageView: View {
     }
 }
 
-/// Main muscles as big bright tags, helpers as small dim tags under them, so you can see
-/// which muscle groups you are collecting. Plain words for beginners.
+/// Main muscles as bright tags, helpers as dim tags of the same size under them (Michael, Nov 3:
+/// small helper text was too hard to read), so you can see which muscle groups you are
+/// collecting. Plain words for beginners.
 struct MuscleTags: View {
     @Environment(\.palette) private var p
     let primary: [String]
@@ -228,12 +229,12 @@ struct MuscleTags: View {
                 }
             }
             if !secondary.isEmpty {
-                FlowRow(spacing: 5, lineSpacing: 4) {
+                FlowRow(spacing: 5, lineSpacing: 5) {
                     ForEach(Array(secondary.enumerated()), id: \.offset) { _, m in
-                        Text(capitalized(m)).font(.system(size: 10.5, weight: .medium))
+                        Text(capitalized(m)).font(.system(size: 13.5, weight: .medium))
                             .foregroundStyle(p.isDark ? Color(hex: 0x6E717A) : Color(hex: 0x8A8F9A)).lineLimit(1)
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(p.isDark ? Color(hex: 0x18191D) : Color(hex: 0xF0F1F5), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(p.isDark ? Color(hex: 0x18191D) : Color(hex: 0xF0F1F5), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                 }
             }

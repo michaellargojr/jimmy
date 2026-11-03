@@ -107,17 +107,25 @@ struct SplitsList: View {
                             NavigationLink(value: active) { Chip(text: "Edit", small: true) }
                         }
                         VStack(spacing: 6) {
+                            let next = store.nextSlot
                             ForEach(Array(active.routineIds.enumerated()), id: \.offset) { i, rid in
                                 if let r = store.routine(rid) {
                                     HStack(spacing: 10) {
                                         Text("\(i + 1)").font(.system(size: 13, weight: .bold)).foregroundStyle(p.muted).frame(width: 28)
                                         Text(r.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                                         Spacer()
+                                        if next == i { Badge(text: "next", kind: .up) }
                                         Text("\(r.items.count) ex").font(.system(size: 13)).foregroundStyle(p.muted)
-                                        if store.upNextRoutine?.id == r.id { Badge(text: "next", kind: .up) }
                                     }
                                     .padding(.horizontal, 10).frame(height: 44)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                                    .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
+                                    // Hidden on purpose (Michael): hold a routine to make it next.
+                                    .contextMenu {
+                                        if next != i {
+                                            Button { store.makeNext(splitId: active.id, slot: i) } label: { Label("Make next", systemImage: "forward.end") }
+                                        }
+                                    }
                                 }
                             }
                             if active.routineIds.isEmpty {
@@ -228,8 +236,10 @@ struct RoutineMenu: View {
     var duplicate: () -> Void
     var remove: (() -> Void)? = nil
     var delete: (() -> Void)? = nil
+    var makeNext: (() -> Void)? = nil
 
     var body: some View {
+        if let makeNext { Button(action: makeNext) { Label("Make next", systemImage: "forward.end") } }
         Button(action: rename) { Label("Rename", systemImage: "pencil") }
         Button(action: duplicate) { Label("Duplicate", systemImage: "doc.on.doc") }
         if let remove { Button(role: .destructive, action: remove) { Label("Remove from split", systemImage: "minus.square") } }

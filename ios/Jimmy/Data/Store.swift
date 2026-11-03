@@ -157,10 +157,20 @@ final class AppStore {
         return splits.first
     }
 
+    /// The spot of the active split that comes up next.
+    var nextSlot: Int? { activeSplit.flatMap { upNextSlot(in: $0, finished: finishedWorkouts) } }
+
+    /// Make next (press and hold a routine on the split page or in Plan's split list).
+    func makeNext(splitId: String, slot: Int) {
+        guard var s = splits.first(where: { $0.id == splitId }) else { return }
+        s.makeNext(slot, finished: finishedWorkouts)
+        put(s)
+    }
+
     /// The routine to suggest next: the one after the last finished routine in the active split,
     /// or the one you have gone longest without.
     var upNextRoutine: Routine? {
-        if let split = activeSplit, let i = upNextSlot(in: split, finished: finishedWorkouts) {
+        if let split = activeSplit, let i = nextSlot {
             return routine(split.routineIds[i])
         }
         return routines.sorted { a, b in

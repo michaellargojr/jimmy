@@ -164,16 +164,48 @@ extension Split {
 }
 
 /// The spot after the last finished workout from this cycle (newest first in `finished`), or the
-/// first spot when none is from it.
+/// first spot when none is from it. A spot picked with Make next comes first; once it is done the
+/// cycle carries on from that spot, and once anything else from the cycle is done the pick is over.
 func upNextSlot(in split: Split, finished: [Workout]) -> Int? {
     let ids = split.routineIds
     guard !ids.isEmpty else { return nil }
-    for w in finished {
-        if let rid = w.routineId, let slot = split.slotRoutineId(for: rid), let i = ids.firstIndex(of: slot) {
-            return (i + 1) % ids.count
+    let cycle = cycleWorkouts(in: split, finished: finished, limit: 2)
+    if let pick = split.nextPick, ids.indices.contains(pick.slot), ids[pick.slot] == pick.routineId {
+        if cycle.first?.workout.id == pick.after { return pick.slot }
+        if let done = cycle.first, ids[done.slot] == pick.routineId, cycle.dropFirst().first?.workout.id == pick.after {
+            return (pick.slot + 1) % ids.count
         }
     }
+    if let last = cycle.first { return (last.slot + 1) % ids.count }
     return 0
+}
+
+/// The newest finished workouts from this cycle, each with the spot it stands for.
+func cycleWorkouts(in split: Split, finished: [Workout], limit: Int) -> [(workout: Workout, slot: Int)] {
+    var out: [(workout: Workout, slot: Int)] = []
+    for w in finished where out.count < limit {
+        if let rid = w.routineId, let id = split.slotRoutineId(for: rid), let i = split.routineIds.firstIndex(of: id) {
+            out.append((w, i))
+        }
+    }
+    return out
+}
+
+/// What Make next remembers: the spot, the routine in it then, and the newest finished workout
+/// from the cycle at that moment (nil when there was none).
+struct NextPick: Codable, Hashable {
+    var slot: Int
+    var routineId: String
+    var after: String?
+}
+
+extension Split {
+    /// Make next: this spot comes up next, on Home and the Workout tab.
+    mutating func makeNext(_ slot: Int, finished: [Workout]) {
+        guard routineIds.indices.contains(slot) else { return }
+        nextPick = NextPick(slot: slot, routineId: routineIds[slot],
+                            after: cycleWorkouts(in: self, finished: finished, limit: 1).first?.workout.id)
+    }
 }
 
 /// Edits from the split page ask first unless the routine was made on that split page and is

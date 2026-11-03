@@ -5,6 +5,7 @@ import SwiftUI
 /// - Edit from the split page (pick 2): remove, reorder, group or add, then Done. A routine taken
 ///   from the routine list asks first: Save as new routine, Update it, or Discard changes. Rows
 ///   group the way the Workout page's Overview does: tick boxes, then Make a superset or Ungroup.
+///   Tap an exercise's name to open its variation page, the way the routine page does.
 /// Nothing is saved until Create or Done.
 struct RoutineDraftSheet: View {
     enum Mode: Equatable {
@@ -31,6 +32,8 @@ struct RoutineDraftSheet: View {
     @State private var newName = ""
     @State private var taken: NameTaken? = nil
     @FocusState private var nameFocused: Bool
+    /// Edit: the variation a row's name opened.
+    @State private var opened: Version? = nil
 
     init(mode: Mode, routine: Routine, takenNames: [String], onCreated: @escaping (Routine) -> Void = { _ in }) {
         self.mode = mode
@@ -48,6 +51,16 @@ struct RoutineDraftSheet: View {
     private var nameTaken: Bool { routineNameTaken(draft.name, in: store.routines) }
 
     var body: some View {
+        // A stack of its own, so a variation page opens inside the sheet. The sheet keeps its
+        // own header, so the bar shows only on the pages it opens.
+        NavigationStack {
+            sheetBody
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(item: $opened) { v in VersionEditorView(versionId: v.id) }
+        }
+    }
+
+    private var sheetBody: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 0) {
                 header
@@ -64,7 +77,7 @@ struct RoutineDraftSheet: View {
             }
             if asking { changedPanel }
         }
-        .background(p.card)
+        .background(p.card.ignoresSafeArea())
         .interactiveDismissDisabled(changed)
         .alert("New routine", isPresented: $naming) {
             TextField("Name", text: $newName)
@@ -189,8 +202,14 @@ struct RoutineDraftSheet: View {
             GroupTickBox(on: selected.contains(row.id)) {
                 if selected.contains(row.id) { selected.remove(row.id) } else { selected.insert(row.id) }
             }
-            RoutineItemLabel(item: row.item, place: place)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            let v = store.version(row.item.versionId)
+            Button { opened = v } label: {
+                RoutineItemLabel(item: row.item, place: place)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(v == nil)
             Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
                 .accessibilityHidden(true)
         }
