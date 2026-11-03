@@ -149,3 +149,27 @@ private func workout(_ items: [WorkoutItem]) -> Workout { Workout(name: "Arms", 
         #expect(off.pocketMode == false)
     }
 }
+
+@Suite struct ReopenTests {
+    private let started = Workout(name: "Push", startedAt: 1)
+    private let waiting = Workout(name: "Push", pickedAt: 1)
+
+    @Test func aStartedWorkoutPullsYouBackAfterTheWait() {
+        #expect(Focus.returnsOnReopen(started, away: 25, wait: 20, presenting: false))
+        #expect(!Focus.returnsOnReopen(started, away: 5, wait: 20, presenting: false))
+        #expect(!Focus.returnsOnReopen(started, away: 600, wait: 0, presenting: false))
+    }
+
+    @Test func aPickedWorkoutNotStartedYetDoesnt() {
+        #expect(!Focus.returnsOnReopen(waiting, away: 600, wait: 20, presenting: false))
+        #expect(!Focus.returnsOnReopen(nil, away: 600, wait: 20, presenting: false))
+    }
+
+    @Test func neverFromUnderASheet() {
+        #expect(!Focus.returnsOnReopen(started, away: 600, wait: 20, presenting: true))
+    }
+
+    @Test func aFinishedWorkoutDoesnt() {
+        #expect(!Focus.returnsOnReopen(Workout(name: "Push", startedAt: 1, endedAt: 2), away: 600, wait: 20, presenting: false))
+    }
+}

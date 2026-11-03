@@ -1,7 +1,7 @@
 import Foundation
 
 // Putting a split together: a routine built from exercises already in other routines, and the
-// order of the split page while the split is new.
+// order of the split page.
 
 /// One ticked exercise: which routine, and its spot in that routine's list.
 struct RoutinePick: Hashable {
@@ -59,12 +59,13 @@ extension RoutineDraft {
 
 /// The parts of the split page, top to bottom.
 enum SplitSection: Hashable {
-    case goals, coverage, newRoutine, inSplit, addRoutine
+    case goals, inSplit, coverage, use, notes
 }
 
-/// Coverage is always last (Michael, Nov 2): the routines come first, the numbers after. While a
-/// split is being put together (opened with no routines yet) In this split comes before New routine.
-func splitSections(creating: Bool) -> [SplitSection] {
-    creating ? [.goals, .inSplit, .newRoutine, .addRoutine, .coverage]
-             : [.goals, .newRoutine, .inSplit, .addRoutine, .coverage]
+/// The split page (Michael, Nov 2): its routines first, under a big "In this split" with Edit;
+/// then Goals right above Coverage; Notes at the very bottom. Use this split shows only while it
+/// isn't the active one. New routine and Add an existing routine live in the Edit split sheet.
+func splitSections(active: Bool) -> [SplitSection] {
+    active ? [.inSplit, .goals, .coverage, .notes]
+           : [.inSplit, .goals, .coverage, .use, .notes]
 }

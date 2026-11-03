@@ -148,9 +148,10 @@ extension Split {
         replaced = map.isEmpty ? nil : map
     }
 
-    /// A routine joining the cycle by hand stands for itself again.
-    mutating func add(_ routineId: String) {
-        routineIds.append(routineId)
+    /// A routine joining the cycle by hand stands for itself again. It goes at the end, or at
+    /// `index` (a copy goes right after the routine it was made from).
+    mutating func add(_ routineId: String, at index: Int? = nil) {
+        if let i = index, i >= 0, i <= routineIds.count { routineIds.insert(routineId, at: i) } else { routineIds.append(routineId) }
         replaced?[routineId] = nil
         if replaced?.isEmpty == true { replaced = nil }
     }
