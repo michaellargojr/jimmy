@@ -148,7 +148,7 @@ import Testing
         #expect(back.madeHere == ["a2"])
     }
 
-    // Make next (press and hold a routine on the split page or Plan's split list).
+    // Make next (press and hold a routine on the split page).
 
     @Test func makeNextHoldsUntilACycleWorkoutIsDone() {
         var s = Split(name: "PPL", routineIds: ["push", "pull", "legs"])

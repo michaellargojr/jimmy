@@ -104,7 +104,8 @@ struct SplitsList: View {
                                 Text(active.name).font(.system(size: 22, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
                             }
                             Spacer()
-                            NavigationLink(value: active) { Chip(text: "Edit", small: true) }
+                            // Make next and every other change live on the split page (Michael, Nov 3).
+                            NavigationLink(value: active) { Chip(text: "Edit", on: true, small: true) }
                         }
                         VStack(spacing: 6) {
                             let next = store.nextSlot
@@ -119,13 +120,6 @@ struct SplitsList: View {
                                     }
                                     .padding(.horizontal, 10).frame(height: 44)
                                     .background(p.elevated, in: RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                                    .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Radius.field, style: .continuous))
-                                    // Hidden on purpose (Michael): hold a routine to make it next.
-                                    .contextMenu {
-                                        if next != i {
-                                            Button { store.makeNext(splitId: active.id, slot: i) } label: { Label("Make next", systemImage: "forward.end") }
-                                        }
-                                    }
                                 }
                             }
                             if active.routineIds.isEmpty {
