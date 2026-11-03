@@ -58,6 +58,20 @@ import Testing
         #expect(!t.canPickWorkout)
     }
 
+    @Test func backBeforeStartDropsThePick() {
+        let (s, shoulders, _) = store()
+        let w = s.startWorkout(from: shoulders)
+        s.unpickWorkout(w.id)
+        #expect(s.workout(w.id) == nil)
+        #expect(s.activeWorkout == nil)
+
+        // Once started, back does nothing: only Done ends it.
+        let started = s.startWorkout(from: shoulders)
+        s.startClock(started.id)
+        s.unpickWorkout(started.id)
+        #expect(s.activeWorkout?.id == started.id)
+    }
+
     @Test func savedWorkoutsKeepTheirState() throws {
         // Old saves have startedAt and no pickedAt: still running, not waiting.
         let old = try JSONDecoder().decode(Workout.self, from: Data(#"{"id":"w","name":"Back","date":"2026-10-30","startedAt":5,"items":[],"groups":[]}"#.utf8))

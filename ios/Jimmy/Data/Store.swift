@@ -398,6 +398,13 @@ final class AppStore {
         return w
     }
 
+    /// Back, before Start: the picked workout never began, so it goes and the routine list shows
+    /// again. Once the clock runs, only Done can end it.
+    func unpickWorkout(_ id: String) {
+        guard workout(id)?.isWaiting == true else { return }
+        deleteWorkout(id)
+    }
+
     /// Start: the clock runs from now.
     func startClock(_ id: String) {
         guard var w = workout(id), w.startedAt == nil else { return }

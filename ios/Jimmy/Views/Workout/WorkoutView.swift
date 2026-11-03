@@ -24,6 +24,8 @@ struct WorkoutView: View {
     @State private var askEnd = false
     @State private var sureFinish = false
     @State private var sureDiscard = false
+    /// Back before Start asks first only when a set is already logged, since going back drops it.
+    @State private var sureBack = false
     @State private var restEndsAt: Date? = nil
     /// The scroll area's height and each card's, measured, so a landing knows when a card is
     /// taller than the screen and the open set would be out of sight.
@@ -53,6 +55,11 @@ struct WorkoutView: View {
         if let w = workout {
             let ps = panes(w.items)
             VStack(spacing: 0) {
+                // Until Start, a back link above the row returns to the routine list to choose another.
+                // Start fades it out as the page slides up into its place.
+                if w.startedAt == nil {
+                    backLink.transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 header(w, finished: ps.map { paneFinished($0, versions: store.versions) })
                 // One scroll for the whole workout, and a free one: it stops wherever the thumb leaves
                 // it. Each pane used to be a scroll of its own inside this one, and the two fought over
@@ -158,6 +165,12 @@ struct WorkoutView: View {
             } message: {
                 Text("This workout won't be saved.")
             }
+            .alert("Go back?", isPresented: $sureBack) {
+                Button("Go back", role: .destructive) { store.unpickWorkout(workoutId) }
+                Button("Stay", role: .cancel) {}
+            } message: {
+                Text("Sets you logged won't be saved.")
+            }
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
             }
@@ -179,7 +192,9 @@ struct WorkoutView: View {
                 HStack(spacing: 8) {
                     // Picking a workout doesn't start the clock; Start does, and then Done takes its place.
                     if w.startedAt == nil {
-                        PillButton(title: "Start", style: .primary) { store.startClock(workoutId) }
+                        PillButton(title: "Start", style: .primary) {
+                            withAnimation(.smooth(duration: 0.35)) { store.startClock(workoutId) }
+                        }
                     } else {
                         PillButton(title: "Done", style: .primary) { askEnd = true }
                     }
@@ -198,6 +213,28 @@ struct WorkoutView: View {
             if !finished.isEmpty { progressStrip(finished) }
         }
         .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 8)
+    }
+
+    /// Back to the routine list, styled like an iPhone back button. Going back drops the pick, so
+    /// with a set already logged it asks first.
+    private var backLink: some View {
+        HStack {
+            Button {
+                if store.canPickWorkout { store.unpickWorkout(workoutId) } else { sureBack = true }
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+                    Text("Workout").font(.system(size: 17, weight: .semibold))
+                }
+                .foregroundStyle(p.accent)
+                .frame(height: 36)
+                .padding(.horizontal, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to routines")
+            Spacer()
+        }
     }
 
     /// The time, big. Grey at 0:00 until Start.
