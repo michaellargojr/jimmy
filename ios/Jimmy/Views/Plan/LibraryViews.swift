@@ -359,11 +359,6 @@ struct VersionEditorView: View {
                             .focused($nickFocused)
                     }
                 }
-                Section("Notes") {
-                    TextField("Setup, what to watch", text: $draftNotes, axis: .vertical)
-                        .lineLimit(2...5)
-                        .focused($notesFocused)
-                }
                 if !historySessions(v.id, workouts: store.workouts).isEmpty {
                     Section("History") {
                         ForEach(HistoryPick.allCases) { pick in
@@ -377,6 +372,12 @@ struct VersionEditorView: View {
                         }
                         Button(role: .destructive) { askErase = true } label: { Text("Erase history").foregroundStyle(p.danger) }
                     }
+                }
+                // Notes is always the last part of a page.
+                Section("Notes") {
+                    TextField("Setup, what to watch", text: $draftNotes, axis: .vertical)
+                        .lineLimit(2...5)
+                        .focused($notesFocused)
                 }
             }
             .scrollContentBackground(.hidden)

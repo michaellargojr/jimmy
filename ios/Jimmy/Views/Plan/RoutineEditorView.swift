@@ -28,9 +28,6 @@ struct RoutineEditorView: View {
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
                 }
-                if let s = store.split(containing: r.id) {
-                    Section { CoverageCard(splitId: s.id, routineId: r.id).rowCard(p, radius: Radius.card) }
-                }
                 Section {
                     ForEach(Array(r.items.enumerated()), id: \.offset) { i, item in
                         row(r, index: i, item: item)
@@ -45,6 +42,10 @@ struct RoutineEditorView: View {
                         selected = ticksAfterDelete(selected, deleted: idx)
                         store.put(tidyGroups(rr))
                     }
+                }
+                // Coverage is the last part of the page; the buttons stay under it.
+                if let s = store.split(containing: r.id) {
+                    Section { CoverageCard(splitId: s.id, routineId: r.id).rowCard(p, radius: Radius.card) }
                 }
                 Section {
                     PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
