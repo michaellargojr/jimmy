@@ -1,7 +1,11 @@
 import Dexie, { type Table } from 'dexie'
 import type { Exercise, Gym, Routine, Settings, Version, Workout } from './model'
 
-export interface Idea { id: string; kind: 'bug' | 'feature'; text: string; createdAt: number; page?: string; done?: boolean }
+export interface Idea {
+  id: string; kind: 'bug' | 'feature'; text: string; createdAt: number; page?: string; done?: boolean
+  /** Set once the idea has been filed as a GitHub issue. */
+  issue?: number; issueUrl?: string; closedAt?: number
+}
 
 export class JimmyDB extends Dexie {
   exercises!: Table<Exercise, string>
