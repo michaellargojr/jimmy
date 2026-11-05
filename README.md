@@ -8,18 +8,23 @@ Mobile-first PWA (iPhone). Data lives on the device (IndexedDB) and can be expor
 
 ```
 pnpm install
-pnpm dev        # local dev server
-pnpm test       # overload rules
+pnpm dev        # local dev server (no service worker in dev)
+pnpm check      # typecheck + lint + tests
 pnpm build      # dist/ ready to host anywhere (relative paths)
 ```
+
+Working on the code? Start with `CLAUDE.md` (rules and map), then `docs/ARCHITECTURE.md`.
+The November 2026 audit and what it changed is in `docs/REVIEW-2026-11.md`.
 
 ## Install on iPhone
 
 Open the hosted URL in Safari, tap Share, then **Add to Home Screen**. Standalone web apps keep their storage; a plain Safari tab may evict it after a week of non-use. Export JSON after workouts until sync exists.
 
+When a new build is deployed, Home shows "A new version of Jimmy is ready". Tap it to install.
+
 ## Hosting
 
-`.github/workflows/pages.yml` deploys `dist/` to GitHub Pages on every push to the default branch once Settings → Pages → Source is set to **GitHub Actions**.
+`.github/workflows/pages.yml` lints, tests, builds and deploys `dist/` to GitHub Pages on every push to the default branch once Settings → Pages → Source is set to **GitHub Actions**.
 
 ## How it works
 
@@ -33,7 +38,16 @@ Open the hosted URL in Safari, tap Share, then **Add to Home Screen**. Standalon
 
 ## Data
 
-Seeded once from the Notion workout log (Aug 3 to Oct 15, 2026). The app never talks to Notion. Settings → Export gives a single JSON with everything, Import restores it.
+Seeded once from the Notion workout log (Aug 3 to Oct 15, 2026). The app never talks to Notion. Settings → Export gives a single JSON with everything, Import restores it (older exports are upgraded on import). If storage ever fails to save, a red banner appears with an Export button; if the app crashes, the error screen also offers Export.
+
+## Drafts in the repo (not in the app yet)
+
+Under `src/features/`, off by default, each with its own README:
+
+- **news**: bodybuilding news, Mr. Olympia top 10, athlete profiles with favourite exercises and training videos.
+- **pose3d**: start/end position of an exercise animating on the card, from two rendered images now and real 3D later.
+
+Turn one on for a test on your phone: in the browser console, `localStorage.setItem('jimmy.flags', '{"news":true,"pose3d":true}')` then reload.
 
 ## Roadmap
 
@@ -44,3 +58,4 @@ Seeded once from the Notion workout log (Aug 3 to Oct 15, 2026). The app never t
 5. Machine photo → Claude names the machine and creates the version.
 6. Desktop app that syncs with the phone: planning, trends, review, and Claude living inside the app ("Jimmy" the assistant, which eventually replaces the light bulb on mobile too).
 7. More themes (metallic, high white space).
+8. Ship the `news` and `pose3d` drafts.
