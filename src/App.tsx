@@ -2,6 +2,9 @@
  * Route table + app-level chrome. Pages that pull in dnd-kit (Plan, Overview) and
  * rarely visited pages (Library, Settings) are lazy so the first paint only loads
  * what Home and Live need.
+ *
+ * Experimental features live under src/features/ behind flags; their routes are
+ * spliced in here only when the flag is on. See src/features/README.md.
  */
 import { Suspense, useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
@@ -11,6 +14,8 @@ import { Live } from './pages/Live'
 import { IdeaFab } from './components/IdeaFab'
 import { installAudioUnlock } from './components/Sound'
 import { lazyPage } from './lazy'
+import { FEATURES } from './features/flags'
+import { newsRoutes } from './features/news/routes'
 import { exportSnapshot } from './db'
 import { shareJson } from './share'
 
@@ -61,6 +66,7 @@ export default function App() {
           <Route path="/workout/:id/overview" element={<OverviewPage mode="workout" />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/library" element={<Library />} />
+          {FEATURES.news && newsRoutes()}
           <Route path="*" element={<Home />} />
         </Routes>
       </Suspense>

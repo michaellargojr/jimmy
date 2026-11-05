@@ -1,0 +1,6 @@
+/* Pose 3D feature styles. Imported only by the lazy PosePreview chunk. */
+.pose { position: relative; display: block; width: 100%; height: 150px; margin: 8px 0 2px; border-radius: 12px; background: var(--bg3); overflow: hidden; }
+.pose-frame { position: absolute; inset: 0; margin: auto; height: 100%; width: auto; opacity: 0; transition: opacity var(--pose-fade, 400ms) ease-in-out; }
+.pose-frame.on { opacity: 1; }
+.pose-label { position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: var(--fg3); text-transform: uppercase; letter-spacing: .06em; }
+.pose-stub { display: grid; place-items: center; }

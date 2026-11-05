@@ -7,8 +7,9 @@
  * is kept in `editOrig` so tapping the backdrop restores it ("tap outside to
  * cancel"); "Done" / "reps →" / "next set →" keep the edits.
  */
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import type { SetEntry, Version, Workout, WorkoutItem } from '../model'
+import { FEATURES } from '../features/flags'
 import { newSet } from '../model'
 import { useStore } from '../store'
 import { lastSession, otherVersionLast } from '../derive'
@@ -29,6 +30,9 @@ const REP_VALUES = range(0, 40, 1)
 const KG_NUDGES = [-1.25, -0.5, 0.5, 1.25]
 const LBS_NUDGES = [-2.5, 2.5]
 const MAX_PARTIALS = 5
+
+// Draft feature (src/features/pose3d). Lazy so nothing loads unless the flag is on.
+const PosePreview = lazy(() => import('../features/pose3d/PosePreview'))
 
 type Field = 'weight' | 'reps'
 
@@ -101,6 +105,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
         </div>
         <button className="iconbtn" onClick={() => setMenu(true)} aria-label="exercise menu">⋯</button>
       </div>
+      {FEATURES.pose3d && !compact && <Suspense fallback={null}><PosePreview version={version} /></Suspense>}
       {!compact && <LastTime last={last} other={other} />}
       <div className="stack" style={{ gap: 0, marginTop: 6 }}>
         {item.sets.map((s, i) => {
