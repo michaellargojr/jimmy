@@ -3,11 +3,33 @@ import { EQUIPMENT, MUSCLES, type Arms, type Equipment, type Exercise, type Musc
 import { useStore } from '../store'
 import { Sheet } from './Sheet'
 
-/** Create or edit a version. For create, pass exerciseName + muscle; a base Exercise is created if needed. */
+/**
+ * Defined at module level on purpose. A component declared inside another
+ * component's body is a new type on every render, so React unmounts and remounts
+ * it each time the parent re-renders (flicker, lost focus). Never nest component
+ * declarations.
+ */
+function Stepper({ v, set, min = 0, max = 99 }: { v: number; set: (n: number) => void; min?: number; max?: number }) {
+  return (
+    <span className="row" style={{ gap: 6 }}>
+      <button className="tog sm" onClick={() => set(Math.max(min, v - 1))} aria-label="less">−</button>
+      <b style={{ minWidth: 22, textAlign: 'center' }}>{v}</b>
+      <button className="tog sm" onClick={() => set(Math.min(max, v + 1))} aria-label="more">+</button>
+    </span>
+  )
+}
+
+/**
+ * Create or edit a version. For create, pass exerciseName + muscle; a base Exercise
+ * is created if none has that name. Changing the muscle group on an existing
+ * version moves the whole base exercise (and so its sibling versions) to that group.
+ */
 export function VersionSheet({ open, onClose, version, exerciseName, muscle, onSaved }: {
   open: boolean; onClose: () => void; version?: Version; exerciseName?: string; muscle?: MuscleGroup; onSaved: (v: Version) => void
 }) {
-  const { exercises, putExercise, putVersion } = useStore()
+  const exercises = useStore(s => s.exercises)
+  const putExercise = useStore(s => s.putExercise)
+  const putVersion = useStore(s => s.putVersion)
   const [name, setName] = useState(version?.name ?? exerciseName ?? '')
   const [mg, setMg] = useState<MuscleGroup>(muscle ?? (exercises.find(e => e.id === version?.exerciseId)?.muscleGroup ?? 'Back'))
   const [equipment, setEquipment] = useState<Equipment>(version?.equipment ?? 'cable')
@@ -21,24 +43,18 @@ export function VersionSheet({ open, onClose, version, exerciseName, muscle, onS
   const [notes, setNotes] = useState(version?.notes ?? '')
 
   const save = () => {
-    let ex: Exercise | undefined = version ? exercises.find(e => e.id === version.exerciseId) : exercises.find(e => e.name.toLowerCase() === (exerciseName ?? name).toLowerCase())
-    if (!ex) { ex = { id: uid(), name: exerciseName ?? name, muscleGroup: mg, aliases: [] }; putExercise(ex) }
+    let ex: Exercise | undefined = version ? exercises.find(e => e.id === version.exerciseId) : exercises.find(e => e.name.toLowerCase() === (exerciseName ?? name).trim().toLowerCase())
+    if (!ex) { ex = { id: uid(), name: (exerciseName ?? name).trim(), muscleGroup: mg, aliases: [] }; putExercise(ex) }
     else if (ex.muscleGroup !== mg) putExercise({ ...ex, muscleGroup: mg })
+    const lo = Math.min(repMin, repMax), hi = Math.max(repMin, repMax)
     const v: Version = {
-      id: version?.id ?? uid(), exerciseId: ex.id, name: name.trim() || ex.name, equipment, arms, repMin, repMax, defaultSets: sets, defaultWarmup: warm,
+      id: version?.id ?? uid(), exerciseId: ex.id, name: name.trim() || ex.name, equipment, arms, repMin: lo, repMax: hi, defaultSets: sets, defaultWarmup: warm,
       machine: machine.trim() || undefined, attachment: attachment.trim() || undefined, notes: notes.trim() || undefined,
       gymNotes: version?.gymNotes ?? {}, media: version?.media ?? [], changes: version?.changes ?? [],
       cableHeight: version?.cableHeight, benchAngle: version?.benchAngle,
     }
     putVersion(v); onSaved(v); onClose()
   }
-  const Stepper = ({ v, set, min = 0 }: { v: number; set: (n: number) => void; min?: number }) => (
-    <span className="row" style={{ gap: 6 }}>
-      <button className="tog sm" onClick={() => set(Math.max(min, v - 1))}>−</button>
-      <b style={{ minWidth: 22, textAlign: 'center' }}>{v}</b>
-      <button className="tog sm" onClick={() => set(v + 1)}>+</button>
-    </span>
-  )
   return (
     <Sheet open={open} onClose={onClose} title={version ? 'Edit exercise' : 'New exercise'}>
       <div className="stack">
@@ -54,7 +70,7 @@ export function VersionSheet({ open, onClose, version, exerciseName, muscle, onS
           <button className={'chip' + (arms === 'one' ? ' on' : '')} onClick={() => setArms('one')}>one hand (L/R)</button>
         </div>
         <div className="row"><span className="muted small grow">Rep range</span><Stepper v={repMin} set={setRepMin} min={1} /><span className="faint">to</span><Stepper v={repMax} set={setRepMax} min={1} /></div>
-        <div className="row"><span className="muted small grow">Working sets</span><Stepper v={sets} set={setSets} min={1} /><button className={'chip' + (warm ? ' on' : '')} onClick={() => setWarm(!warm)}>warm-up</button></div>
+        <div className="row"><span className="muted small grow">Working sets</span><Stepper v={sets} set={setSets} min={1} max={12} /><button className={'chip' + (warm ? ' on' : '')} onClick={() => setWarm(!warm)}>warm-up</button></div>
         <div className="row">
           <input className="search grow" value={machine} onChange={e => setMachine(e.target.value)} placeholder="Machine / brand (optional)" />
           <input className="search grow" value={attachment} onChange={e => setAttachment(e.target.value)} placeholder="Attachment (rope, V-bar)" />

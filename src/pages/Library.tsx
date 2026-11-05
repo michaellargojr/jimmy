@@ -3,17 +3,20 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../store'
 import { MUSCLES, type Version } from '../model'
 import { lastSession } from '../derive'
+import { exerciseIndex } from '../indexes'
 import { VersionSheet } from '../components/VersionSheet'
 
 export function Library() {
-  const { exercises, versions, workouts } = useStore()
+  const exercises = useStore(s => s.exercises)
+  const versions = useStore(s => s.versions)
+  const workouts = useStore(s => s.workouts)
   const [edit, setEdit] = useState<Version | null>(null)
   const [q, setQ] = useState('')
-  const exById = new Map(exercises.map(e => [e.id, e]))
-  const needle = q.toLowerCase()
+  const exById = exerciseIndex(exercises).byId
+  const needle = q.trim().toLowerCase()
   return (
     <div className="page">
-      <div className="topbar"><Link className="iconbtn" to="/">‹</Link><h1>Exercises</h1></div>
+      <div className="topbar"><Link className="iconbtn" to="/" aria-label="Home">‹</Link><h1>Exercises</h1></div>
       <input className="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Filter" />
       {MUSCLES.map(m => {
         const vs = versions.filter(v => exById.get(v.exerciseId)?.muscleGroup === m && (!needle || v.name.toLowerCase().includes(needle))).sort((a, b) => a.name.localeCompare(b.name))

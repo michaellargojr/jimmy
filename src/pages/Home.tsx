@@ -1,19 +1,41 @@
-import { useEffect, useState } from 'react'
+/**
+ * Home: routines ordered by "longest since last done" (never-done first), an
+ * in-progress banner, quick actions, recent history. If a workout is in progress
+ * we jump straight into it unless the user explicitly backed out of it
+ * (sessionStorage 'jimmy.left', set by the ‹ button on Live).
+ */
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { routineLast } from '../derive'
+import { historyIndex, versionIndex } from '../indexes'
 import { daysBetween, today, uid, type Routine } from '../model'
 import { Sheet } from '../components/Sheet'
+import { applyUpdate } from '../pwa'
+
+const HISTORY_ROWS = 8
 
 export function Home() {
-  const { routines, workouts, versions, putRoutine, putWorkout } = useStore()
+  const routines = useStore(s => s.routines)
+  const workouts = useStore(s => s.workouts)
+  const versions = useStore(s => s.versions)
+  const putRoutine = useStore(s => s.putRoutine)
+  const putWorkout = useStore(s => s.putWorkout)
+  const updateReady = useStore(s => s.updateReady)
   const nav = useNavigate()
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
-  const vmap = new Map(versions.map(v => [v.id, v]))
-  const active = workouts.find(w => w.startedAt && !w.endedAt)
-  useEffect(() => { if (active && sessionStorage.getItem('jimmy.left') !== active.id) nav(`/workout/${active.id}`, { replace: true }) }, [active?.id])
-  const history = workouts.slice().sort((a, b) => b.date.localeCompare(a.date)).filter(w => w.endedAt).slice(0, 8)
+  const vmap = versionIndex(versions).byId
+  const h = historyIndex(workouts)
+  const active = h.active
+  const activeId = active?.id
+  useEffect(() => {
+    if (activeId && sessionStorage.getItem('jimmy.left') !== activeId) nav(`/workout/${activeId}`, { replace: true })
+  }, [activeId, nav])
+  const history = h.sorted.filter(w => w.endedAt).slice(0, HISTORY_ROWS)
+  const ordered = useMemo(() => {
+    const lastDate = (r: Routine) => h.lastFinishedByRoutine.get(r.id)?.date ?? '0'
+    return routines.slice().sort((a, b) => lastDate(a).localeCompare(lastDate(b)))
+  }, [routines, h])
 
   const createRoutine = () => {
     const r: Routine = { id: uid(), name: name.trim() || 'New routine', items: [], groups: [] }
@@ -31,6 +53,9 @@ export function Home() {
         <Link className="iconbtn" to="/library" aria-label="Exercises">☰</Link>
         <Link className="iconbtn" to="/settings" aria-label="Settings">⚙︎</Link>
       </div>
+      {updateReady && (
+        <button className="banner" onClick={() => void applyUpdate()}>A new version of Jimmy is ready · tap to install</button>
+      )}
       {active && (
         <Link to={`/workout/${active.id}`} className="card routine" style={{ marginBottom: 12, outline: '2px solid var(--accent)' }}>
           <div className="small" style={{ color: 'var(--accent)', fontWeight: 700 }}>IN PROGRESS</div>
@@ -39,8 +64,8 @@ export function Home() {
         </Link>
       )}
       <div className="stack">
-        {routines.slice().sort((a, b) => (routineLast(a, workouts)?.date ?? '0').localeCompare(routineLast(b, workouts)?.date ?? '0')).map(r => {
-          const last = routineLast(r, workouts)
+        {ordered.map(r => {
+          const last = h.lastFinishedByRoutine.get(r.id)
           const templateNames = r.items.map(i => vmap.get(i.versionId)?.name).filter(Boolean) as string[]
           const lastNames = last ? (last.items.map(i => vmap.get(i.versionId)?.name).filter(Boolean) as string[]) : []
           const added = lastNames.filter(n => !templateNames.includes(n))

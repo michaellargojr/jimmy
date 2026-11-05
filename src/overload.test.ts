@@ -34,6 +34,12 @@ describe('improved', () => {
     expect(improved(W(8, 30), undefined)).toBe(false)
     expect(improved(W(undefined, 30), W(8, 30))).toBe(false)
   })
+  it('compares across units in kg so switching to lbs is not a fake win', () => {
+    const lbs = newSet('working', 'lbs', { reps: 8, weight: 66 }) // ~29.9 kg
+    expect(improved(lbs, W(8, 30))).toBe(false)
+    const heavier = newSet('working', 'lbs', { reps: 8, weight: 70 }) // ~31.8 kg
+    expect(improved(heavier, W(8, 30))).toBe(true)
+  })
 })
 
 describe('matchLast', () => {

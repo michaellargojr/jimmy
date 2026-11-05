@@ -1,3 +1,12 @@
+/**
+ * One exercise inside a live workout: header (name, verdict dot, ⋯ menu), last
+ * time, set rows, +/− set buttons, and the weight/reps wheel sheet.
+ *
+ * Editing model: tapping a field opens the wheel sheet. Every wheel commit writes
+ * straight through to the workout (onChange -> putWorkout). A snapshot of the set
+ * is kept in `editOrig` so tapping the backdrop restores it ("tap outside to
+ * cancel"); "Done" / "reps →" / "next set →" keep the edits.
+ */
 import { useEffect, useRef, useState } from 'react'
 import type { SetEntry, Version, Workout, WorkoutItem } from '../model'
 import { newSet } from '../model'
@@ -10,16 +19,29 @@ import { LastTime } from './LastTime'
 import { Sheet } from './Sheet'
 import { Wheel, range } from './WheelPicker'
 import { ding } from './Sound'
-import { swallowNextClick } from './SwipeRow'
+import { useHold } from './useHold'
 import { VersionSheet } from './VersionSheet'
+
+// Wheel contents never change, so build them once per module, not per render.
+const KG_VALUES = range(0, 250, 2.5)
+const LBS_VALUES = range(0, 500, 5)
+const REP_VALUES = range(0, 40, 1)
+const KG_NUDGES = [-1.25, -0.5, 0.5, 1.25]
+const LBS_NUDGES = [-2.5, 2.5]
+const MAX_PARTIALS = 5
+
+type Field = 'weight' | 'reps'
 
 export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwap, compact }: {
   workout: Workout; item: WorkoutItem; version: Version
   onChange: (item: WorkoutItem) => void; onRemove: () => void; onSwap?: () => void; compact?: boolean
 }) {
-  const { workouts, versions, settings } = useStore()
+  const workouts = useStore(s => s.workouts)
+  const versions = useStore(s => s.versions)
+  const settings = useStore(s => s.settings)
   const last = lastSession(version.id, workouts, versions, workout.id)
   const other = otherVersionLast(version, workouts, versions, workout.id)
+  const lastSets = last?.item.sets
   const v = verdict(item.sets, version)
   const played = useRef(false)
   useEffect(() => {
@@ -27,9 +49,9 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
     if (v !== 'up') played.current = false
   }, [v, settings.sound])
 
-  const [edit, setEdit] = useState<{ setId: string; field: 'weight' | 'reps' } | null>(null)
+  const [edit, setEdit] = useState<{ setId: string; field: Field } | null>(null)
   const editOrig = useRef<SetEntry | null>(null) // snapshot so tapping outside cancels
-  const openEdit = (setId: string, field: 'weight' | 'reps') => {
+  const openEdit = (setId: string, field: Field) => {
     if (!editOrig.current || editOrig.current.id !== setId) editOrig.current = item.sets.find(s => s.id === setId) ?? null
     setEdit({ setId, field })
   }
@@ -41,8 +63,7 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
   }
   const [menu, setMenu] = useState(false)
   const [editVersion, setEditVersion] = useState(false)
-  const holdRef = useRef<number | undefined>(undefined)
-  const holdOrigin = useRef<{ x: number; y: number } | null>(null)
+  const hold = useHold(() => setMenu(true))
   const labels = setLabels(item.sets)
 
   const patchSet = (id: string, patch: Partial<SetEntry>) =>
@@ -57,66 +78,67 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
     onChange({ ...item, sets: [...item.sets, ...add] })
   }
   const removeSet = () => {
-    const idx = [...item.sets].map((s, i) => ({ s, i })).reverse().find(x => x.s.kind === 'working')?.i
-    if (idx == null) return
+    let idx = -1
+    for (let i = item.sets.length - 1; i >= 0; i--) if (item.sets[i].kind === 'working') { idx = i; break }
+    if (idx < 0) return
     const sets = item.sets.slice(); sets.splice(idx, 1)
     onChange({ ...item, sets })
   }
+  const hasWarmup = item.sets.some(s => s.kind === 'warmup')
   const toggleWarmup = () => {
-    const has = item.sets.some(s => s.kind === 'warmup')
-    if (has) onChange({ ...item, sets: item.sets.filter(s => s.kind !== 'warmup') })
+    if (hasWarmup) onChange({ ...item, sets: item.sets.filter(s => s.kind !== 'warmup') })
     else onChange({ ...item, sets: [newSet('warmup', item.sets[0]?.unit ?? settings.unit, { bar: item.sets[0]?.bar }), ...item.sets] })
   }
 
   const editing = edit ? item.sets.find(s => s.id === edit.setId) : undefined
-  const weightVals = (unit: string) => (unit === 'lbs' ? range(0, 500, 5) : range(0, 250, 2.5))
 
   return (
     <div className={'exercise' + (v === 'up' ? ' up' : '')}>
-      <div className="row" onContextMenu={e => { e.preventDefault(); setMenu(true) }}
-        onTouchStart={e => { const t = e.touches[0]; holdOrigin.current = { x: t.clientX, y: t.clientY }; window.clearTimeout(holdRef.current); holdRef.current = window.setTimeout(() => { swallowNextClick(); setMenu(true) }, 1500) }}
-        onTouchEnd={() => window.clearTimeout(holdRef.current)} onTouchCancel={() => window.clearTimeout(holdRef.current)}
-        onTouchMove={e => { const t = e.touches[0]; if (holdOrigin.current && Math.hypot(t.clientX - holdOrigin.current.x, t.clientY - holdOrigin.current.y) > 4) window.clearTimeout(holdRef.current) }}>
+      <div className="row" onContextMenu={e => { e.preventDefault(); setMenu(true) }} {...hold}>
         <div className="grow">
           <h2 className="exname" onClick={() => setEditVersion(true)}>{version.name} {v === 'down' && <span className="dot red" title="under range" />}</h2>
           <div className="small faint">{version.equipment}{version.arms === 'one' ? ' · one arm' : ''} · {version.repMin}-{version.repMax} reps{version.machine ? ` · ${version.machine}` : ''}{version.cableHeight != null ? ` · cable ${Math.round(version.cableHeight * 100)}%` : ''}{version.benchAngle != null ? ` · bench ${version.benchAngle}°` : ''}</div>
         </div>
-        <button className="iconbtn" onClick={() => setMenu(true)}>⋯</button>
+        <button className="iconbtn" onClick={() => setMenu(true)} aria-label="exercise menu">⋯</button>
       </div>
       {!compact && <LastTime last={last} other={other} />}
       <div className="stack" style={{ gap: 0, marginTop: 6 }}>
-        {item.sets.map((s, i) => (
-          <SetRow key={s.id} set={s} label={labels[i]} version={version}
-            last={last ? matchLast(s, item.sets, last.item.sets) : undefined}
-            improved={last ? improved(s, matchLast(s, item.sets, last.item.sets)) : false}
-            onEdit={field => openEdit(s.id, field)}
-            onPatch={p => patchSet(s.id, p)} />
-        ))}
+        {item.sets.map((s, i) => {
+          const lm = lastSets ? matchLast(s, item.sets, lastSets) : undefined
+          return (
+            <SetRow key={s.id} set={s} label={labels[i]} version={version}
+              last={lm} improved={improved(s, lm)}
+              onEdit={field => openEdit(s.id, field)}
+              onPatch={p => patchSet(s.id, p)} />
+          )
+        })}
       </div>
       <div className="setbtns">
         <button className="btn sm" onClick={addSet}>+ set</button>
         <button className="btn sm" onClick={removeSet}>− set</button>
-        <button className="btn sm" onClick={toggleWarmup}>{item.sets.some(s => s.kind === 'warmup') ? 'no warm-up' : '+ warm-up'}</button>
+        <button className="btn sm" onClick={toggleWarmup}>{hasWarmup ? 'no warm-up' : '+ warm-up'}</button>
         {item.note && <span className="small faint" style={{ alignSelf: 'center' }}>{item.note}</span>}
       </div>
 
       <Sheet open={!!editing} onClose={cancelEdit}>
         {editing && edit && (() => {
-          const lastMatch = last ? matchLast(editing, item.sets, last.item.sets) : undefined
+          const lastMatch = lastSets ? matchLast(editing, item.sets, lastSets) : undefined
+          const idx = item.sets.indexOf(editing)
+          const nxt = item.sets[idx + 1]
           return (
           <>
             <div className="row" style={{ marginBottom: 2 }}>
-              <h3 className="grow" style={{ margin: 0 }}>Set {labels[item.sets.indexOf(editing)]} · {edit.field}</h3>
+              <h3 className="grow" style={{ margin: 0 }}>Set {labels[idx]} · {edit.field}</h3>
               {edit.field === 'weight' && (
                 <button className="chip" onClick={() => patchSet(editing.id, { unit: editing.unit === 'kg' ? 'lbs' : 'kg' })}>{editing.unit}</button>
               )}
             </div>
-            <div className="sub">{version.name}{last ? ` · last: ${last.item.sets.filter(x => x.reps != null || x.weight != null).map(x => `${x.weight ?? '–'}×${x.reps ?? '–'}${x.plus ? '+' : ''}`).join(' · ')}` : ''}</div>
+            <div className="sub">{version.name}{lastSets ? ` · last: ${lastSets.filter(x => x.reps != null || x.weight != null).map(x => `${x.weight ?? '–'}×${x.reps ?? '–'}${x.plus ? '+' : ''}`).join(' · ')}` : ''}</div>
             {edit.field === 'weight' ? (
               <>
-                <Wheel key={editing.unit} values={weightVals(editing.unit)} value={editing.weight} hint={lastMatch?.weight ?? last?.item.sets.find(x => x.kind === 'working' && x.weight != null)?.weight} onChange={w => patchSet(editing.id, { weight: w })} />
+                <Wheel key={editing.unit} values={editing.unit === 'lbs' ? LBS_VALUES : KG_VALUES} value={editing.weight} hint={lastMatch?.weight ?? lastSets?.find(x => x.kind === 'working' && x.weight != null)?.weight} onChange={w => patchSet(editing.id, { weight: w })} />
                 <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
-                  {(editing.unit === 'lbs' ? [-2.5, 2.5] : [-1.25, -0.5, 0.5, 1.25]).map(d => (
+                  {(editing.unit === 'lbs' ? LBS_NUDGES : KG_NUDGES).map(d => (
                     <button key={d} className="btn sm" onClick={() => patchSet(editing.id, { weight: Math.max(0, Math.round(((editing.weight ?? 0) + d) * 100) / 100) })}>{d > 0 ? '+' : ''}{d}</button>
                   ))}
                   <span className="grow" style={{ textAlign: 'right', fontWeight: 700, fontSize: 20 }}>{editing.weight ?? '–'} {editing.unit}</span>
@@ -124,20 +146,17 @@ export function ExerciseCard({ workout, item, version, onChange, onRemove, onSwa
               </>
             ) : (
               <>
-                <Wheel values={range(0, 40, 1)} value={editing.reps} hint={lastMatch?.reps ?? version.repMax} onChange={r => patchSet(editing.id, { reps: r })} />
+                <Wheel values={REP_VALUES} value={editing.reps} hint={lastMatch?.reps ?? version.repMax} onChange={r => patchSet(editing.id, { reps: r })} />
                 <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
                   <button className={'chip' + (editing.plus ? ' on' : '')} onClick={() => patchSet(editing.id, { plus: !editing.plus })}>+ at least</button>
-                  <button className="chip" onClick={() => patchSet(editing.id, { partials: ((editing.partials ?? 0) + 1) % 6 || undefined })}>partials {editing.partials ?? 0}</button>
+                  <button className="chip" onClick={() => patchSet(editing.id, { partials: ((editing.partials ?? 0) + 1) % (MAX_PARTIALS + 1) || undefined })}>partials {editing.partials ?? 0}</button>
                 </div>
               </>
             )}
             <input className="note" style={{ marginTop: 10 }} value={editing.note ?? ''} onChange={e => patchSet(editing.id, { note: e.target.value || undefined })} placeholder="Note for this set (grip, notch, how it felt)" />
             <div className="row" style={{ marginTop: 10 }}>
               {edit.field === 'weight' && <button className="btn grow" onClick={() => { editOrig.current = null; openEdit(editing.id, 'reps') }}>reps →</button>}
-              {edit.field === 'reps' && (() => {
-                const i = item.sets.indexOf(editing); const nxt = item.sets[i + 1]
-                return nxt ? <button className="btn grow" onClick={() => { editOrig.current = null; openEdit(nxt.id, 'weight') }}>next set →</button> : null
-              })()}
+              {edit.field === 'reps' && nxt && <button className="btn grow" onClick={() => { editOrig.current = null; openEdit(nxt.id, 'weight') }}>next set →</button>}
               <button className="btn primary grow" onClick={closeEdit}>Done</button>
             </div>
             <div className="small faint" style={{ textAlign: 'center', marginTop: 8 }}>tap outside to cancel</div>

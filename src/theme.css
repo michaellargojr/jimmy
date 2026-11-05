@@ -1,3 +1,8 @@
+/*
+ * Jimmy theme. Three palettes via :root[data-theme]; everything else reads the
+ * variables. Keep component CSS here (one file, ~150 lines) unless it belongs to
+ * a draft feature, which carries its own .css next to its code.
+ */
 :root {
   --bg: #0b0d12; --bg2: #141824; --bg3: #1d2232; --fg: #eef1f7; --fg2: #a7afc2; --fg3: #6b7389;
   --accent: #5dd68c; --accent2: #2fa864; --red: #ff5f6d; --amber: #ffb84d; --line: #262c3d;
@@ -24,6 +29,7 @@ body {
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
 input, textarea { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
 a { color: inherit; text-decoration: none; }
 .page { min-height: 100%; padding: 12px 16px calc(96px + env(safe-area-inset-bottom)); }
@@ -51,8 +57,12 @@ a { color: inherit; text-decoration: none; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .dot.red { background: var(--red); }
 
-/* Live pager */
-.pager { height: calc(100dvh - 52px - 56px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; scroll-snap-type: y mandatory; }
+/* App-level notices (update ready, storage failure) */
+.banner { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; margin-bottom: 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 18%, var(--bg2)); color: var(--fg); font-size: 15px; }
+.banner.danger { background: color-mix(in srgb, var(--red) 18%, var(--bg2)); position: sticky; top: 0; z-index: 8; margin: 0; border-radius: 0; }
+
+/* Live pager: fills the space between topbar and strip (parent is a flex column at 100dvh) */
+.pager { flex: 1 1 auto; min-height: 0; overflow-y: auto; scroll-snap-type: y proximity; }
 .pane { scroll-snap-align: start; min-height: 100%; padding: 8px 16px 24px; }
 .exercise { position: relative; border-radius: var(--radius); background: var(--bg2); padding: 16px; transition: box-shadow .3s; }
 .exercise.up { box-shadow: 0 0 0 2px var(--accent), 0 0 28px color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -86,7 +96,7 @@ a { color: inherit; text-decoration: none; }
 input.note { width: 100%; height: 42px; border-radius: 12px; border: 0; background: var(--bg3); padding: 0 12px; font-size: 15px; outline: none; }
 .handle { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 10px; }
 
-/* Wheel */
+/* Wheel (H = 44px must match WheelPicker.tsx) */
 .wheel { height: 176px; overflow-y: auto; scroll-snap-type: y mandatory; position: relative; mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent); }
 .wheel::-webkit-scrollbar { display: none; }
 .wheel .pad { height: 66px; }
@@ -113,3 +123,7 @@ textarea.ta { width: 100%; min-height: 120px; border-radius: 12px; border: 0; ba
 .routine { display: block; }
 .routine h2 { margin: 0 0 4px; font-size: 20px; }
 .hr { height: 1px; background: var(--line); margin: 10px 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0s !important; animation-duration: 0s !important; }
+}
