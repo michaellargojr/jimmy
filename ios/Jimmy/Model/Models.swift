@@ -549,6 +549,8 @@ struct WorkoutItem: Codable, Identifiable, Hashable {
     /// Numbers picked for this exercise in this workout. Finish saves the range used here.
     var repMin: Int?
     var repMax: Int?
+    /// Finished workouts: the range was picked, not just followed, so the next workout carries it.
+    var repPicked: Bool?
 
     init(id: String = uid(), versionId: String, styleId: String? = nil, groupId: String? = nil, sets: [SetEntry], skipped: Bool? = nil, note: String? = nil) {
         self.id = id; self.versionId = versionId; self.styleId = styleId; self.groupId = groupId; self.sets = sets; self.skipped = skipped; self.note = note
@@ -577,6 +579,8 @@ struct Workout: Codable, Identifiable, Hashable {
     var groups: [ExerciseGroup]
     /// The rep range template for the whole workout; nil is Default.
     var repTemplate: RepTemplate?
+    /// The gear picked a template away from Settings, so it carries to the next workout.
+    var repPicked: Bool?
 
     init(id: String = uid(), name: String, date: String = today(), gymId: String? = nil, routineId: String? = nil,
          startedAt: Double? = nil, endedAt: Double? = nil, pickedAt: Double? = nil, notes: String? = nil, items: [WorkoutItem] = [],
@@ -600,6 +604,7 @@ struct Workout: Codable, Identifiable, Hashable {
         items = try c.decodeIfPresent([WorkoutItem].self, forKey: .items) ?? []
         groups = try c.decodeIfPresent([ExerciseGroup].self, forKey: .groups) ?? []
         repTemplate = try? c.decodeIfPresent(RepTemplate.self, forKey: .repTemplate)
+        repPicked = try? c.decodeIfPresent(Bool.self, forKey: .repPicked)
     }
 
     /// Picked or running, and not finished.

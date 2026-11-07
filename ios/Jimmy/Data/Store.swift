@@ -434,7 +434,10 @@ final class AppStore {
 
     func setRepTemplate(_ t: RepTemplate, workoutId: String) {
         guard let w = workout(workoutId) else { return }
-        put(settingRepTemplate(t, on: w))
+        var x = settingRepTemplate(t, on: w)
+        // Away from Settings it carries to the next workout; Settings' own one hands it back.
+        x.repPicked = t == settings.repTemplate ? nil : true
+        put(x)
     }
 
     /// Exercises with nothing logged, not even a warm-up. Finish drops them so history stays clean.

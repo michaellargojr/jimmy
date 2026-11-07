@@ -25,8 +25,10 @@ func defaultSets(for v: Version, style: Style? = nil, unit: WeightUnit, workouts
     return sets
 }
 
-func newItem(for v: Version, style: Style? = nil, unit: WeightUnit, workouts: [Workout], groupId: String? = nil) -> WorkoutItem {
-    WorkoutItem(versionId: v.id, styleId: style?.id, groupId: groupId, sets: defaultSets(for: v, style: style, unit: unit, workouts: workouts))
+/// carryRep starts it on the range it was last picked at; off once the gear set the workout.
+func newItem(for v: Version, style: Style? = nil, unit: WeightUnit, workouts: [Workout], groupId: String? = nil, carryRep: Bool = true) -> WorkoutItem {
+    let item = WorkoutItem(versionId: v.id, styleId: style?.id, groupId: groupId, sets: defaultSets(for: v, style: style, unit: unit, workouts: workouts))
+    return carryRep ? carryingRepPick(item, workouts: workouts) : item
 }
 
 func workoutFromRoutine(_ r: Routine, versions: [Version], styles: [Style] = [], unit: WeightUnit, workouts: [Workout], gymId: String? = nil) -> Workout {

@@ -162,7 +162,7 @@ struct ExerciseCardView: View {
                 picked: pickedRepTemplate(item: item, workout: w),
                 current: range,
                 templates: group != .hold,
-                onTemplate: { t in update { $0 = settingRepTemplate(t, on: $0) }; showRange = false },
+                onTemplate: { t in update { $0 = pickingRepTemplate(t, on: $0, in: w) }; showRange = false },
                 onRange: { r in update { $0 = settingRepRange(r, on: $0) }; showRange = false },
                 onCustom: {
                     showRange = false
