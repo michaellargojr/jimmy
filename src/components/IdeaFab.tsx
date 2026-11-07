@@ -4,7 +4,8 @@ import { useStore } from '../store'
 import { uid } from '../model'
 import { Sheet } from './Sheet'
 
-export function IdeaFab() {
+/** Lightbulb idea capture. `variant="strip"` renders it as a chip for the live workout's bottom strip. */
+export function IdeaFab({ variant = 'fab' }: { variant?: 'fab' | 'strip' }) {
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState<'bug' | 'feature'>('feature')
   const [text, setText] = useState('')
@@ -18,7 +19,7 @@ export function IdeaFab() {
   }
   return (
     <>
-      <button className="fab" onClick={() => setOpen(true)} aria-label="Capture an idea">💡</button>
+      <button className={variant === 'strip' ? 'item bulb' : 'fab'} onClick={() => setOpen(true)} aria-label="Capture an idea">💡</button>
       <Sheet open={open} onClose={() => setOpen(false)} title={saved ? 'Saved ✓' : 'Idea for Jimmy'}>
         <div className="stack">
           <div className="row" style={{ gap: 6 }}>
@@ -26,7 +27,7 @@ export function IdeaFab() {
             <button className={'chip' + (kind === 'bug' ? ' on' : '')} onClick={() => setKind('bug')}>bug</button>
             <span className="grow" /><span className="small faint">{ideas.length} saved</span>
           </div>
-          <textarea className="ta" autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="Dictate it. Saved in the app, hand it to Claude whenever." />
+          <textarea className="ta" autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="Dictate it. Saved in the app; send the list to GitHub or copy it for Claude from Settings." />
           <button className="btn primary block" onClick={save} disabled={!text.trim()}>Save idea</button>
         </div>
       </Sheet>

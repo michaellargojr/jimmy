@@ -25,6 +25,27 @@ export function lastSession(versionId: string, workouts: Workout[], versions: Ve
   return undefined
 }
 
+/** Most recent logged item of this version, used to carry the setup (height, angle, attachment) forward. */
+export function lastItemOf(versionId: string, workouts: Workout[], excludeWorkoutId?: string): WorkoutItem | undefined {
+  for (const w of sortDesc(workouts)) {
+    if (w.id === excludeWorkoutId) continue
+    const item = w.items.find(i => i.versionId === versionId && hasData(i))
+    if (item) return item
+  }
+  return undefined
+}
+
+/** Setup used in each past session of a version, newest first: the trend. */
+export function setupHistory(versionId: string, workouts: Workout[], limit = 8): { date: string; item: WorkoutItem }[] {
+  const out: { date: string; item: WorkoutItem }[] = []
+  for (const w of sortDesc(workouts)) {
+    const item = w.items.find(i => i.versionId === versionId && hasData(i))
+    if (item && (item.attachment || item.cableHeight != null || item.benchAngle != null)) out.push({ date: w.date, item })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 /** Most recent session of any *other* version of the same base exercise. */
 export function otherVersionLast(version: Version, workouts: Workout[], versions: Version[], excludeWorkoutId?: string): (LastSession & { version: Version }) | undefined {
   const siblings = versions.filter(v => v.exerciseId === version.exerciseId && v.id !== version.id)
