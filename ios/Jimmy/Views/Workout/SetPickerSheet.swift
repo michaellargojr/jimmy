@@ -102,7 +102,7 @@ struct SetPickerSheet: View {
                 .onChange(of: weight) { _, w in patch { $0.weight = w } }
             HStack(spacing: 8) {
                 Chip(text: s.unit.label) { patch { $0.unit = $0.unit == .kg ? .lbs : .kg } }
-                if v.isBarbell {
+                if offersBarChoice(v, style: store.style(item?.styleId)) {
                     Chip(text: s.bar == .ez ? "EZ bar" : "Straight bar") { patch { $0.bar = $0.bar == .ez ? .straight : .ez } }
                 }
                 Spacer()

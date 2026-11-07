@@ -143,6 +143,12 @@ enum BarType: String, Codable, CaseIterable, Hashable {
     }
     var equipment: Equipment { self == .ez ? .ezbar : (self == .smith ? .smith : .barbell) }
 }
+
+/// A Smith machine's bar is always straight, so a Smith style or variation never offers EZ bar.
+func isSmith(_ v: Version, style: Style?) -> Bool { v.equipment == .smith || style?.barType == .smith }
+
+/// Whether a set can switch between EZ bar and straight bar: bar variations, except on a Smith.
+func offersBarChoice(_ v: Version, style: Style?) -> Bool { v.isBarbell && !isSmith(v, style: style) }
 enum WeightUnit: String, Codable, CaseIterable, Hashable {
     case kg, lbs
     var label: String { self == .lbs ? "lb" : "kg" }
