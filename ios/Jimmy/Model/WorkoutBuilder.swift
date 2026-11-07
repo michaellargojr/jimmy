@@ -5,6 +5,7 @@ import Foundation
 func defaultSets(for v: Version, style: Style? = nil, unit: WeightUnit, workouts: [Workout]) -> [SetEntry] {
     var bar: Bar? = v.isBarbell ? (lastBar(versionId: v.id, workouts: workouts) ?? (v.equipment == .ezbar ? .ez : .straight)) : nil
     if let bt = style?.barType { bar = bt == .ez ? .ez : .straight }
+    if isSmith(v, style: style) { bar = .straight }
     var sets: [SetEntry] = []
     if v.defaultWarmup {
         if v.arms == .one {

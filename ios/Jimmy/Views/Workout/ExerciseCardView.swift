@@ -489,6 +489,10 @@ struct ExerciseCardView: View {
     private func update(_ f: (inout WorkoutItem) -> Void) {
         guard var w = workout, let i = w.items.firstIndex(where: { $0.id == itemId }) else { return }
         f(&w.items[i])
+        // Switching to a Smith style or variation puts any EZ bar sets back on the straight bar.
+        if let v = store.version(w.items[i].versionId), isSmith(v, style: store.style(w.items[i].styleId)) {
+            for j in w.items[i].sets.indices where w.items[i].sets[j].bar == .ez { w.items[i].sets[j].bar = .straight }
+        }
         store.put(w)
     }
 
