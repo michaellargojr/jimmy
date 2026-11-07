@@ -152,9 +152,15 @@ struct RoutineDraftSheet: View {
             if isDuplicate {
                 ForEach(Array(draft.rows.enumerated()), id: \.element.id) { i, row in tickRow(row, index: i) }
             } else {
-                ForEach(Array(draft.rows.enumerated()), id: \.element.id) { i, row in rowView(row, index: i) }
-                    // A drag in or out of a group works the way it does in the Workout page's Overview.
-                    .onMove { from, to in draft.groupable = moveItem(draft.groupable, from: from, to: to) }
+                // A group is one row: holding its header moves the whole group, the way the routine page does.
+                ForEach(draftEntries) { e in
+                    if e.block.group != nil {
+                        groupCard(e.block)
+                    } else {
+                        rowView(draft.rows[e.block.range.lowerBound], index: e.block.range.lowerBound)
+                    }
+                }
+                .onMove { from, to in draft.groupable = moveBlocks(draft.groupable, from: from, to: to) }
                 PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -194,22 +200,16 @@ struct RoutineDraftSheet: View {
         .listRowInsets(EdgeInsets(top: 3, leading: 28, bottom: 3, trailing: 28))
     }
 
+    /// A loose row or a whole group per list row, each with an id that stays with it.
+    private var draftEntries: [BlockEntry] {
+        draft.groupable.blocks.map { b in BlockEntry(id: b.group.map { "group|" + $0 } ?? draft.rows[b.range.lowerBound].id, block: b) }
+    }
+
     /// Edit from the split page, the routine page's row: tick box, name and chips, drag handle.
     /// Swipe left to delete.
     private func rowView(_ row: RoutineDraft.Row, index i: Int) -> some View {
-        let place = draft.groupable.groupPlace(at: i)
-        return HStack(spacing: 14) {
-            GroupTickBox(on: selected.contains(row.id)) {
-                if selected.contains(row.id) { selected.remove(row.id) } else { selected.insert(row.id) }
-            }
-            let v = store.version(row.item.versionId)
-            Button { opened = v } label: {
-                RoutineItemLabel(item: row.item, place: place)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(v == nil)
+        HStack(spacing: 14) {
+            rowContent(row, index: i)
             Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
                 .accessibilityHidden(true)
         }
@@ -217,7 +217,40 @@ struct RoutineDraftSheet: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button { remove(row.id) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
         }
-        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last, fill: p.elevated)
+        .groupRowCard(p, grouped: false, first: true, last: true, fill: p.elevated)
+    }
+
+    /// A group in one card, as on the routine page. Hold a member for Delete, since a swipe would
+    /// take the whole group.
+    private func groupCard(_ b: ExerciseBlock) -> some View {
+        let a = b.range.lowerBound
+        return GroupBlockCard(ids: b.range.map { draft.rows[$0].id }, fill: p.elevated, move: { from, to in
+            draft.groupable = moveMember(draft.groupable, from: a + from, to: a + to)
+        }) { k in
+            let row = draft.rows[a + k]
+            rowContent(row, index: a + k)
+                .contextMenu {
+                    Button(role: .destructive) { remove(row.id) } label: { Label("Delete", systemImage: "trash") }
+                }
+        }
+        .groupRowCard(p, grouped: true, first: true, last: true, fill: p.elevated)
+    }
+
+    /// Tick box, then name and chips (tap to open the variation).
+    private func rowContent(_ row: RoutineDraft.Row, index i: Int) -> some View {
+        let v = store.version(row.item.versionId)
+        return HStack(spacing: 14) {
+            GroupTickBox(on: selected.contains(row.id)) {
+                if selected.contains(row.id) { selected.remove(row.id) } else { selected.insert(row.id) }
+            }
+            Button { opened = v } label: {
+                RoutineItemLabel(item: row.item, place: draft.groupable.groupPlace(at: i))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(v == nil)
+        }
     }
 
     /// Ticking loose rows offers to group them; ticking a grouped one offers to ungroup, the same
