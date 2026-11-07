@@ -31,17 +31,23 @@ struct RoutineEditorView: View {
                 }
                 Section {
                     // Rows keep their id when they move, so a drop lands at once instead of redrawing every row.
-                    ForEach(routineRows(r.items)) { entry in
-                        row(r, index: entry.index, item: entry.item)
+                    // A group is one row: holding its header moves the whole group (GroupSelect.swift).
+                    ForEach(entries(r)) { e in
+                        if e.block.group != nil {
+                            groupCard(r, block: e.block)
+                        } else {
+                            row(r, index: e.block.range.lowerBound, item: r.items[e.block.range.lowerBound])
+                        }
                     }
-                    // A drag in or out of a group works the way it does in the Workout page's Overview.
                     .onMove { from, to in
-                        selected = ticksAfterMove(selected, count: r.items.count, from: from, to: to)
-                        store.put(moveItem(r, from: from, to: to))
+                        selected = ticks(selected, after: orderAfterBlockMove(r.blocks, from: from, to: to))
+                        store.put(moveBlocks(r, from: from, to: to))
                     }
                     .onDelete { idx in
-                        var rr = r; rr.items.remove(atOffsets: idx)
-                        selected = ticksAfterDelete(selected, deleted: idx)
+                        let blocks = r.blocks
+                        let gone = IndexSet(idx.filter { blocks.indices.contains($0) }.flatMap { Array(blocks[$0].range) })
+                        var rr = r; rr.items.remove(atOffsets: gone)
+                        selected = ticksAfterDelete(selected, deleted: gone)
                         store.put(tidyGroups(rr))
                     }
                 }
@@ -114,25 +120,63 @@ struct RoutineEditorView: View {
         selected = []
     }
 
+    /// A loose exercise or a whole group per row, each with an id that stays with it.
+    private func entries(_ r: Routine) -> [BlockEntry] {
+        let rows = routineRows(r.items)
+        return r.blocks.map { b in BlockEntry(id: b.group.map { "group|" + $0 } ?? rows[b.range.lowerBound].id, block: b) }
+    }
+
     /// Tick box, name and chips (tap to open the variation), drag handle: the Overview's row.
     private func row(_ r: Routine, index i: Int, item: RoutineItem) -> some View {
+        HStack(spacing: 14) {
+            rowContent(r, index: i, item: item)
+            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
+        }
+        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
+        .groupRowCard(p, grouped: false, first: true, last: true)
+    }
+
+    /// A group in one card. Hold a member for Delete, the way the Overview does, since a swipe
+    /// would take the whole group.
+    private func groupCard(_ r: Routine, block b: ExerciseBlock) -> some View {
+        let rows = routineRows(r.items)
+        let a = b.range.lowerBound
+        return GroupBlockCard(ids: b.range.map { rows[$0].id }, move: { from, to in
+            guard let rr = store.routine(routineId) else { return }
+            selected = ticks(selected, after: orderAfterMemberMove(count: rr.items.count, from: a + from, to: a + to))
+            store.put(moveMember(rr, from: a + from, to: a + to))
+        }) { k in
+            rowContent(r, index: a + k, item: r.items[a + k])
+                .contextMenu {
+                    Button(role: .destructive) { delete(at: a + k) } label: { Label("Delete", systemImage: "trash") }
+                }
+        }
+        .groupRowCard(p, grouped: true, first: true, last: true)
+        .deleteDisabled(true)
+    }
+
+    /// Tick box, then name and chips (tap to open the variation).
+    private func rowContent(_ r: Routine, index i: Int, item: RoutineItem) -> some View {
         let v = store.version(item.versionId)
-        let place = r.groupPlace(at: i)
         return HStack(spacing: 14) {
             GroupTickBox(on: selected.contains(i)) {
                 if selected.contains(i) { selected.remove(i) } else { selected.insert(i) }
             }
             Button { opened = v } label: {
-                RoutineItemLabel(item: item, place: place)
+                RoutineItemLabel(item: item, place: r.groupPlace(at: i))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .disabled(v == nil)
-            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
         }
         .buttonStyle(.plain)
-        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
-        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last)
+    }
+
+    private func delete(at i: Int) {
+        guard var rr = store.routine(routineId), rr.items.indices.contains(i) else { return }
+        rr.items.remove(at: i)
+        selected = ticksAfterDelete(selected, deleted: IndexSet(integer: i))
+        withAnimation { store.put(tidyGroups(rr)) }
     }
 
     /// Every muscle the routine works, primary first, each named once.

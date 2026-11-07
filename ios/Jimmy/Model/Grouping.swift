@@ -126,6 +126,76 @@ func moveItem<L: GroupedExercises>(_ w: L, from: IndexSet, to: Int) -> L {
     return tidyGroups(w)
 }
 
+/// What moves as one in a list: a loose exercise, or a whole group. Holding a group's header
+/// lifts every member together; a member's handle only reorders it inside the group.
+struct ExerciseBlock: Hashable {
+    /// The places in the list it covers, in order.
+    let range: Range<Int>
+    /// The group, when it is one.
+    let group: String?
+}
+
+extension GroupedExercises {
+    var blocks: [ExerciseBlock] {
+        var out: [ExerciseBlock] = []
+        var i = 0
+        while i < items.count {
+            guard let g = liveGroup(at: i) else { out.append(ExerciseBlock(range: i..<(i + 1), group: nil)); i += 1; continue }
+            var j = i
+            while j < items.count, items[j].groupId == g { j += 1 }
+            out.append(ExerciseBlock(range: i..<j, group: g))
+            i = j
+        }
+        return out
+    }
+}
+
+/// The old places of the exercises in their new order, after whole blocks move. `from` and `to`
+/// count blocks, the way List's onMove does.
+func orderAfterBlockMove(_ blocks: [ExerciseBlock], from: IndexSet, to: Int) -> [Int] {
+    var bs = blocks
+    let moving = from.filter { bs.indices.contains($0) }
+    let picked = moving.map { bs[$0] }
+    for i in moving.reversed() { bs.remove(at: i) }
+    let at = max(0, min(to - moving.filter { $0 < to }.count, bs.count))
+    bs.insert(contentsOf: picked, at: at)
+    return bs.flatMap { Array($0.range) }
+}
+
+/// A drag of whole blocks: a group moves with all its members, and nothing joins or leaves a group.
+func moveBlocks<L: GroupedExercises>(_ w: L, from: IndexSet, to: Int) -> L {
+    var w = w
+    let order = orderAfterBlockMove(w.blocks, from: from, to: to)
+    guard order.count == w.items.count else { return w }
+    let old = w.items
+    w.items = order.map { old[$0] }
+    return tidyGroups(w)
+}
+
+/// A drag inside a group: the member at place `from` takes place `to`, both in the same group.
+func moveMember<L: GroupedExercises>(_ w: L, from: Int, to: Int) -> L {
+    guard from != to, let g = w.liveGroup(at: from), w.liveGroup(at: to) == g else { return w }
+    var w = w
+    let it = w.items.remove(at: from)
+    w.items.insert(it, at: to)
+    return w
+}
+
+/// The old places in their new order after one exercise moves from `from` to `to`.
+func orderAfterMemberMove(count: Int, from: Int, to: Int) -> [Int] {
+    var order = Array(0..<count)
+    guard order.indices.contains(from), order.indices.contains(to) else { return order }
+    let x = order.remove(at: from)
+    order.insert(x, at: to)
+    return order
+}
+
+/// Where ticks (by place in the list) end up once the list takes a new order, so they follow
+/// their exercises.
+func ticks(_ ticked: Set<Int>, after order: [Int]) -> Set<Int> {
+    Set(order.indices.filter { ticked.contains(order[$0]) })
+}
+
 /// The ticked loose exercises (by place in the list) become one group, pulled together at the
 /// first one's place.
 func makeGroup<L: GroupedExercises>(_ w: L, at ticked: Set<Int>) -> L {

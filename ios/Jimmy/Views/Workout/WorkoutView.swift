@@ -404,7 +404,8 @@ struct SetLoggedKey: PreferenceKey {
     static func reduce(value: inout Double, nextValue: () -> Double) { value = max(value, nextValue()) }
 }
 
-/// Always ready to edit: tick boxes to group or ungroup, hold a row and drag to reorder, hold for
+/// Always ready to edit: tick boxes to group or ungroup, hold a row and drag to reorder (a group
+/// moves whole by its header; a member's handle reorders it inside), hold for
 /// Swap or Delete, swipe left to delete. Tapping a name jumps to that exercise; Add sits under the last one.
 struct OverviewSheet: View {
     @Environment(AppStore.self) private var store
@@ -422,10 +423,16 @@ struct OverviewSheet: View {
             let ps = panes(w.items)
             NavigationStack {
                 List {
-                    ForEach(Array(w.items.enumerated()), id: \.element.id) { i, item in
-                        row(w, index: i, item: item, paneIndex: ps.firstIndex { $0.contains { $0.id == item.id } } ?? 0)
+                    // A group is one row: holding its header moves the whole group (GroupSelect.swift).
+                    ForEach(entries(w)) { e in
+                        if e.block.group != nil {
+                            groupCard(w, block: e.block, panes: ps)
+                        } else {
+                            let i = e.block.range.lowerBound
+                            row(w, index: i, item: w.items[i], paneIndex: pane(ps, w.items[i]))
+                        }
                     }
-                    .onMove { from, to in store.put(moveItem(w, from: from, to: to)) }
+                    .onMove { from, to in store.put(moveBlocks(w, from: from, to: to)) }
                     // Under the last exercise, never floating over the list.
                     Button { adding = WorkoutView.AddTarget(); dismiss() } label: {
                         Label("Add exercise", systemImage: "plus").font(.system(size: 16, weight: .bold)).foregroundStyle(p.text)
@@ -463,7 +470,48 @@ struct OverviewSheet: View {
                               ungroup: { store.put(ungroup(w, ids: selected)); selected = [] })
     }
 
+    /// A loose exercise or a whole group per row, each with an id that stays with it.
+    private func entries(_ w: Workout) -> [BlockEntry] {
+        w.blocks.map { b in BlockEntry(id: b.group.map { "group|" + $0 } ?? w.items[b.range.lowerBound].id, block: b) }
+    }
+
+    private func pane(_ ps: [[WorkoutItem]], _ item: WorkoutItem) -> Int {
+        ps.firstIndex { $0.contains { $0.id == item.id } } ?? 0
+    }
+
     private func row(_ w: Workout, index i: Int, item: WorkoutItem, paneIndex: Int) -> some View {
+        HStack(spacing: 14) {
+            rowContent(w, index: i, item: item, paneIndex: paneIndex)
+            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
+        }
+        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
+        .contextMenu { menu(w, item) }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
+        }
+        .groupRowCard(p, grouped: false, first: true, last: true)
+    }
+
+    /// A group in one card; a member's handle reorders it inside. Hold a member for Swap or Delete.
+    private func groupCard(_ w: Workout, block b: ExerciseBlock, panes ps: [[WorkoutItem]]) -> some View {
+        let a = b.range.lowerBound
+        return GroupBlockCard(ids: b.range.map { w.items[$0].id }, move: { from, to in
+            if let ww = store.workout(workoutId) { store.put(moveMember(ww, from: a + from, to: a + to)) }
+        }) { k in
+            let item = w.items[a + k]
+            rowContent(w, index: a + k, item: item, paneIndex: pane(ps, item))
+                .contextMenu { menu(w, item) }
+        }
+        .groupRowCard(p, grouped: true, first: true, last: true)
+    }
+
+    @ViewBuilder private func menu(_ w: Workout, _ item: WorkoutItem) -> some View {
+        Button { adding = WorkoutView.AddTarget(swapItemId: item.id); dismiss() } label: { Label("Swap for another", systemImage: "arrow.left.arrow.right") }
+        Button(role: .destructive) { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }
+    }
+
+    /// Tick box, name, chips and logged sets (tap to jump to it), and a skipped badge.
+    private func rowContent(_ w: Workout, index i: Int, item: WorkoutItem, paneIndex: Int) -> some View {
         let v = store.version(item.versionId)
         let place = w.groupPlace(at: i)
         let sets = item.sets.filter { $0.isDone }.map { $0.kind.prefix + $0.formatted }.joined(separator: " - ")
@@ -493,18 +541,8 @@ struct OverviewSheet: View {
                 .contentShape(Rectangle())
             }
             if item.skipped == true { Badge(text: "skipped") }
-            Image(systemName: "line.3.horizontal").font(.system(size: 17, weight: .semibold)).foregroundStyle(p.muted)
         }
         .buttonStyle(.plain)
-        .padding(.leading, 6).padding(.trailing, 16).padding(.vertical, 8)
-        .contextMenu {
-            Button { adding = WorkoutView.AddTarget(swapItemId: item.id); dismiss() } label: { Label("Swap for another", systemImage: "arrow.left.arrow.right") }
-            Button(role: .destructive) { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button { askRemove(w, item) } label: { Label("Delete", systemImage: "trash") }.tint(p.danger)
-        }
-        .groupRowCard(p, grouped: place.group != nil, first: place.first, last: place.last)
     }
 
     /// Only an exercise with something logged asks first.
