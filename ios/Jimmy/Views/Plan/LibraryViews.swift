@@ -260,6 +260,7 @@ struct VersionEditorView: View {
     @State private var editingRange = false
     @State private var picking: HistoryPick? = nil
     @State private var askErase = false
+    @State private var editingVariation = false
 
     private var version: Version? { store.version(versionId) }
 
@@ -270,6 +271,8 @@ struct VersionEditorView: View {
 
     private func commitNick() {
         guard loaded else { return }
+        // Two variations with the same blocks can't share a nickname: that one stays as it was.
+        guard store.canUseNickname(versionId, draftNick) else { draftNick = store.version(versionId)?.nickname ?? ""; return }
         store.setNickname(versionId, draftNick)
     }
 
@@ -286,7 +289,14 @@ struct VersionEditorView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(store.baseName(v)).font(.system(size: 24, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(store.baseName(v)).font(.system(size: 24, weight: .heavy)).tracking(-0.4).foregroundStyle(p.text)
+                            Spacer()
+                            // Borderless, so only the word answers a tap, not the whole row.
+                            Button("Edit") { commitNick(); editingVariation = true }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 17, weight: .bold)).foregroundStyle(p.accent)
+                        }
                         VariationChips(tags: store.variationChips(v), nickname: store.nickname(v))
                         if let e = store.base(of: v) {
                             SectionLabel("Muscles").padding(.top, 8)
@@ -395,6 +405,9 @@ struct VersionEditorView: View {
             }
             .sheet(isPresented: $newStyle) {
                 StyleEditorSheet(version: v, style: nil).presentationDetents([.large]).presentationBackground(p.card)
+            }
+            .sheet(isPresented: $editingVariation, onDismiss: { draftNick = store.version(versionId)?.nickname ?? "" }) {
+                EditVariationSheet(version: v).presentationDetents([.large]).presentationBackground(p.card)
             }
             .sheet(isPresented: $editingRange) {
                 RepRangeSheet(range: RepRange(v.repMin, v.repMax)) { r in

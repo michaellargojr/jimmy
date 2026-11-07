@@ -80,7 +80,7 @@ struct SettingsView: View {
                                 RectToggle(on: Binding(get: { store.settings.pocketMode }, set: { v in store.update { $0.pocketMode = v } }))
                             }
                             Divider1()
-                            // Where every new workout starts; the gear changes one workout.
+                            // Where every new workout starts; the gear changes one workout. Picks carry to the next one.
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Rep ranges").font(.system(size: 16, weight: .semibold)).foregroundStyle(p.text)
                                 HStack(spacing: 6) {

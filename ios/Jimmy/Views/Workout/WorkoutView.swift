@@ -378,7 +378,7 @@ struct WorkoutView: View {
 
     private func addVersion(_ v: Version, style: Style?, target: AddTarget) {
         guard var w = workout else { return }
-        let item = newItem(for: v, style: style, unit: store.settings.unit, workouts: store.workouts)
+        let item = newItem(for: v, style: style, unit: store.settings.unit, workouts: store.workouts, carryRep: w.repPicked != true)
         if let swapId = target.swapItemId, let i = w.items.firstIndex(where: { $0.id == swapId }) {
             var it = item; it.groupId = w.items[i].groupId
             w.items[i] = it

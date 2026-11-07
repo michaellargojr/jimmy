@@ -57,10 +57,10 @@ extension AppStore {
 
     /// The variation for `spec`, made if new. A new one starts with the rep range and set defaults
     /// of `like`, the one it sits beside, so another gym's machine starts where you are.
-    func makeVariation(base b: Exercise, spec given: VariationSpec, like: Version?) -> Version {
+    func makeVariation(base b: Exercise, spec given: VariationSpec, like: Version?, nickname: NicknamePick = .any) -> Version {
         let spec = withLoading(given, base: b)
-        if let found = findVariation(baseId: b.id, key: spec.key) { return found }
-        var v = makeVariation(base: b, spec: spec, repMin: like?.repMin, repMax: like?.repMax)
+        if let found = findVariation(baseId: b.id, key: spec.key, nickname: nickname) { return found }
+        var v = makeVariation(base: b, spec: spec, repMin: like?.repMin, repMax: like?.repMax, nickname: nickname)
         if let like {
             v.defaultSets = like.defaultSets
             v.defaultWarmup = like.defaultWarmup
@@ -73,7 +73,7 @@ extension AppStore {
     func canSetLoading(_ v: Version, _ l: Loading) -> Bool {
         var k = VariationSpec(v)
         k.loading = l
-        guard let other = findVariation(baseId: v.exerciseId, key: k.key) else { return true }
+        guard let other = findVariation(baseId: v.exerciseId, key: k.key, nickname: .named(v.nickname)) else { return true }
         return other.id == v.id
     }
 
