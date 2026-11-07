@@ -122,7 +122,8 @@ struct BenchAnglePicker: View {
 }
 
 let ATTACHMENTS = ["rope", "straight bar", "EZ attachment", "D handle", "V bar", "cuff", "ankle strap"]
-let GRIPS = ["overhand", "underhand", "neutral", "wide", "close"]
+/// Which way the palms face. Close and wide grip are part of the variation (GripWidth).
+let GRIPS = ["overhand", "underhand", "neutral"]
 
 /// The Style block: only the fields that apply to the variation show.
 struct StyleFields: View {
@@ -196,7 +197,7 @@ struct StyleFields: View {
 }
 
 /// The Variation block: family, arms (with Single dumbbell under a pair of dumbbells), body
-/// position, then (on arm exercises) arm position.
+/// position, then (on arm exercises) arm position, then close or wide grip (not on leg exercises).
 struct VariationFields: View {
     @Environment(\.palette) private var p
     let legs: Bool
@@ -252,6 +253,13 @@ struct VariationFields: View {
                         Chip(text: capitalized(a.label), on: spec.armPosition == a, small: true) {
                             spec.armPosition = spec.armPosition == a ? nil : a
                         }
+                    }
+                }
+            }
+            if !legs || spec.grip != nil {
+                HStack(spacing: 8) {
+                    ForEach(GripWidth.allCases, id: \.self) { g in
+                        Chip(text: capitalized(g.label), on: spec.grip == g, small: true) { spec.grip = spec.grip == g ? nil : g }
                     }
                 }
             }

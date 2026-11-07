@@ -55,6 +55,7 @@ extension AppStore {
         v.machine = spec.machine
         v.loading = spec.family == .machine ? spec.loading : nil
         v.singleDumbbell = spec.family == .dumbbell && spec.single ? true : nil
+        v.grip = spec.grip
         v.nickname = cleanNickname(nickname)
         if let b = base(of: v) { v.name = b.name + " · " + variationLabel(spec, legs: b.isLegs) }
         put(v)

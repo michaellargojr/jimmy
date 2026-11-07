@@ -114,12 +114,13 @@ final class AppStore {
         if v.arms == .one || v.family != .body { parts.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { parts.append(parts.isEmpty ? capitalized(pos.label) : pos.label) }
         if let arm = v.armPosition, arm != .overhead { parts.append(parts.isEmpty ? capitalized(arm.label) : arm.label) }
+        if let g = v.grip { parts.append(parts.isEmpty ? capitalized(g.label) : g.label) }
         return parts.joined(separator: " - ")
     }
     /// The whole variation as chips: "Cable", "Two arms". For Plan, History and lists.
     func variationChips(_ v: Version) -> [String] {
         variationParts(family: v.family, arms: v.arms, position: v.position, armPosition: v.armPosition, tag: v.tag, machine: v.machine,
-                       loading: v.loading, single: v.isSingleDumbbell, legs: base(of: v)?.isLegs ?? false)
+                       loading: v.loading, single: v.isSingleDumbbell, grip: v.grip, legs: base(of: v)?.isLegs ?? false)
             .map { capitalized($0) }
     }
     /// The same words as armsText, one per chip: "Two arms", "Seated". The Workout card's title
@@ -133,6 +134,7 @@ final class AppStore {
         if v.arms == .one || v.family != .body { tags.append(capitalized(v.arms.label(legs: legs))) }
         if let pos = v.position { tags.append(capitalized(pos.label)) }
         if let arm = v.armPosition, arm != .overhead { tags.append(capitalized(arm.label)) }
+        if let g = v.grip { tags.append(capitalized(g.label)) }
         return tags
     }
     func routine(_ id: String) -> Routine? { routines.first { $0.id == id } }
@@ -195,6 +197,7 @@ final class AppStore {
             if splits.isEmpty, !routines.isEmpty { seedSplitFromRoutines() }
             if s.version < 2 { migrateToLibraryV2(); markDirty() }
             if fillMachineLoading() { markDirty() }
+            if moveGripStyles() { markDirty() }
             if !settings.nicknamesFilled { fillNicknames(); markDirty() }
         } catch {
             print("Jimmy: couldn't read \(fileURL.lastPathComponent): \(error)")
@@ -277,6 +280,7 @@ final class AppStore {
         if splits.isEmpty { seedSplitFromRoutines() }
         if s.version < 2 { migrateToLibraryV2() }
         fillMachineLoading()
+        moveGripStyles()
         // An export from before nicknames gets the suggestions; a newer one keeps what you cleared.
         if s.settings?.nicknamesFilled != true { fillNicknames() }
         markDirty()
@@ -486,7 +490,7 @@ final class AppStore {
         let name = base.name + " · " + variationLabel(spec, legs: base.isLegs)
         var v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
                         armPosition: spec.armPosition, tag: spec.tag, machine: spec.machine, loading: spec.loading,
-                        singleDumbbell: spec.family == .dumbbell && spec.single, repMin: repMin ?? 5, repMax: repMax ?? 8)
+                        singleDumbbell: spec.family == .dumbbell && spec.single, grip: spec.grip, repMin: repMin ?? 5, repMax: repMax ?? 8)
         if case .named(let n) = nickname { v.nickname = cleanNickname(n) }
         put(v)
         return v
