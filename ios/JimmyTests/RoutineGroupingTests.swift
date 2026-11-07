@@ -98,3 +98,28 @@ private func group(_ r: Routine, _ v: String) -> String? { r.items.first { $0.ve
         #expect(d.groups.isEmpty)
     }
 }
+
+@Suite struct RoutineRowIdTests {
+    @Test func aRowKeepsItsIdWhenDragged() {
+        let r = routine([item("a"), item("b"), item("c")])
+        let before = Dictionary(uniqueKeysWithValues: routineRows(r.items).map { ($0.item.versionId, $0.id) })
+        let moved = moveItem(r, from: [2], to: 0)
+        let after = routineRows(moved.items)
+        #expect(after.map(\.item.versionId) == ["c", "a", "b"])
+        #expect(after.allSatisfy { before[$0.item.versionId] == $0.id })
+        #expect(after.map(\.index) == [0, 1, 2])
+    }
+
+    @Test func theSameExerciseTwiceGetsTwoIds() {
+        let rows = routineRows([item("a"), item("a"), item("b", "g")])
+        #expect(Set(rows.map(\.id)).count == 3)
+    }
+
+    @Test func joiningAGroupKeepsTheId() {
+        let r = routine([item("a", "g"), item("b", "g"), item("c")])
+        let before = routineRows(r.items).first { $0.item.versionId == "c" }?.id
+        let moved = moveItem(r, from: [2], to: 1)
+        #expect(moved.items[1].groupId == "g")
+        #expect(routineRows(moved.items).first { $0.item.versionId == "c" }?.id == before)
+    }
+}

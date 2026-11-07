@@ -93,6 +93,23 @@ func tidyGroups<L: GroupedExercises>(_ w: L) -> L {
 
 /// A drag. The moved exercise joins a group when dropped between two of its members,
 /// stays in its own group while it still touches it, and otherwise leaves it.
+/// A routine exercise in a list, with an id that stays with it when it moves. Routine items have
+/// no id of their own, so it is the variation and style, plus a count when the same one is in twice.
+struct RoutineRow: Identifiable, Hashable {
+    let id: String
+    let index: Int
+    let item: RoutineItem
+}
+
+func routineRows(_ items: [RoutineItem]) -> [RoutineRow] {
+    var seen: [String: Int] = [:]
+    return items.enumerated().map { i, item in
+        let key = item.versionId + "|" + (item.styleId ?? "")
+        seen[key, default: 0] += 1
+        return RoutineRow(id: key + "#\(seen[key]!)", index: i, item: item)
+    }
+}
+
 func moveItem<L: GroupedExercises>(_ w: L, from: IndexSet, to: Int) -> L {
     var w = w
     // The same as List's move(fromOffsets:toOffset:), which lives in SwiftUI.
