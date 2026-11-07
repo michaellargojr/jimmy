@@ -133,3 +133,103 @@ private func S(_ reps: Int, _ weight: Double = 30) -> SetEntry { SetEntry(kind: 
         #expect(try JSONDecoder().decode(RepTemplate.self, from: Data(#""default""#.utf8)) == .standard)
     }
 }
+
+// Carry over (Nov 7 2026): what was picked last time is where the next workout starts.
+@Suite struct RepCarryTests {
+    let v = V(lo: 6, hi: 10)
+
+    private func finished(_ items: [WorkoutItem], template: RepTemplate? = nil, picked: Bool? = nil, date: String = "2026-11-01") -> Workout {
+        var w = Workout(name: "Push", date: date, startedAt: 1, endedAt: 2, items: items, repTemplate: template)
+        w.repPicked = picked
+        return freezingRepRanges(w, versions: [v]) { _ in .general }
+    }
+    private func fresh() -> WorkoutItem { WorkoutItem(versionId: v.id, sets: []) }
+
+    @Test func aCardTemplateCarries() {
+        let last = finished([settingRepTemplate(.high, on: fresh())])
+        let next = carryingRepPick(fresh(), workouts: [last])
+        #expect(next.repTemplate == .high && next.repMin == nil)
+    }
+    @Test func cardNumbersCarry() {
+        let last = finished([settingRepRange(RepRange(12, 15), on: fresh())], template: .mid)
+        let next = carryingRepPick(fresh(), workouts: [last])
+        #expect(next.repTemplate == nil && next.savedRepRange == RepRange(12, 15))
+    }
+    @Test func nothingPickedFollowsTheWorkout() {
+        let last = finished([fresh()], template: .mid)
+        let next = carryingRepPick(fresh(), workouts: [last])
+        #expect(next.repTemplate == nil && next.repMin == nil && next.repMax == nil)
+    }
+    @Test func aGearPickCarriesToEachExercise() {
+        let last = finished([fresh()], template: .high, picked: true)
+        #expect(carryingRepPick(fresh(), workouts: [last]).repTemplate == .high)
+        let backToDefault = finished([fresh()], picked: true)
+        #expect(carryingRepPick(fresh(), workouts: [backToDefault]).repTemplate == .standard)
+    }
+    @Test func onlyTheLastFinishedWorkoutCounts() {
+        let older = finished([settingRepTemplate(.high, on: fresh())], date: "2026-10-01")
+        let newer = finished([fresh()], date: "2026-11-01")
+        #expect(carryingRepPick(fresh(), workouts: [older, newer]).repTemplate == nil)
+        var running = Workout(name: "Push", date: "2026-11-05", pickedAt: 5, items: [settingRepTemplate(.lower, on: fresh())])
+        running.repPicked = true
+        #expect(carryingRepPick(fresh(), workouts: [older, running]).repTemplate == .high)
+    }
+    @Test func pickingTheWorkoutsOwnTemplateFollowsIt() {
+        let w = Workout(name: "Push", items: [fresh()], repTemplate: .mid)
+        let carried = settingRepTemplate(.high, on: fresh())
+        let back = pickingRepTemplate(.mid, on: carried, in: w)
+        #expect(back.repTemplate == nil && back.repMin == nil)
+        #expect(pickingRepTemplate(.lower, on: carried, in: w).repTemplate == .lower)
+    }
+    @Test func olderDataHasNoPick() throws {
+        let w = try JSONDecoder().decode(Workout.self, from: Data(#"{"id":"w","name":"Push","date":"2026-10-30","items":[{"id":"i","versionId":"v","sets":[],"repMin":5,"repMax":8}],"groups":[]}"#.utf8))
+        #expect(w.repPicked == nil && w.items[0].repPicked == nil)
+        var x = Workout(name: "Push", items: [fresh()]); x.repPicked = true
+        #expect(try JSONDecoder().decode(Workout.self, from: JSONEncoder().encode(x)).repPicked == true)
+    }
+}
+
+@Suite struct RepCarryStoreTests {
+    private func store() -> (AppStore, Routine) {
+        let s = AppStore(fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("carry-\(uid()).json"))
+        let raise = Exercise(name: "Lateral Raise", muscleGroup: .Shoulders)
+        let db = Version(exerciseId: raise.id, name: "x", equipment: .dumbbell, arms: .two, repMin: 10, repMax: 15)
+        s.exercises = [raise]
+        s.versions = [db]
+        s.workouts = []
+        return (s, Routine(name: "Shoulders", items: [RoutineItem(versionId: db.id)]))
+    }
+    /// Same day, so `at` keeps the order clear.
+    private func logAndFinish(_ s: AppStore, _ id: String, at: Double) {
+        guard var w = s.workout(id) else { return }
+        w.startedAt = at
+        w.items[0].sets = [SetEntry(kind: .working, unit: .kg, weight: 10, reps: 20)]
+        s.put(w)
+        s.finishWorkout(id)
+    }
+
+    @Test func aCardPickStartsTheNextWorkout() {
+        let (s, r) = store()
+        var w = s.startWorkout(from: r)
+        w.items[0] = settingRepTemplate(.high, on: w.items[0])
+        s.put(w)
+        logAndFinish(s, w.id, at: 1)
+        let next = s.startWorkout(from: r)
+        #expect(next.items[0].repTemplate == .high)
+        #expect(s.repRange(next.items[0], in: next) == RepRange(20, 30))
+    }
+    @Test func theGearOverridesAndSettingsOwnHandsItBack() {
+        let (s, r) = store()
+        let w = s.startWorkout(from: r)
+        s.setRepTemplate(.lower, workoutId: w.id)
+        #expect(s.workout(w.id)?.repPicked == true)
+        logAndFinish(s, w.id, at: 1)
+        let next = s.startWorkout(from: r)
+        #expect(next.items[0].repTemplate == .lower)
+        s.setRepTemplate(.standard, workoutId: next.id)
+        #expect(s.workout(next.id)?.repPicked == nil)
+        logAndFinish(s, next.id, at: 2)
+        let third = s.startWorkout(from: r)
+        #expect(third.items[0].repTemplate == nil)
+    }
+}

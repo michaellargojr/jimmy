@@ -124,6 +124,33 @@ func settingRepRange(_ r: RepRange, on item: WorkoutItem) -> WorkoutItem {
     return x
 }
 
+/// The card's template pick. The workout's own template just follows the workout again, so the
+/// exercise goes back to whatever Settings or the gear say.
+func pickingRepTemplate(_ t: RepTemplate, on item: WorkoutItem, in w: Workout) -> WorkoutItem {
+    guard t == (w.repTemplate ?? .standard) else { return settingRepTemplate(t, on: item) }
+    var x = item
+    x.repTemplate = nil
+    x.repMin = nil
+    x.repMax = nil
+    return x
+}
+
+// Carry over (Michael, Nov 7 2026): a range picked for an exercise sticks, quietly, from one
+// workout to the next until another pick changes it. Not a setting. An exercise nothing was
+// picked for follows the workout's template, as before.
+
+/// A new exercise starts on the range it was last finished at, when that range was picked
+/// (on the card, with the gear, or carried in itself).
+func carryingRepPick(_ item: WorkoutItem, workouts: [Workout]) -> WorkoutItem {
+    for w in sortedNewestFirst(workouts) where w.isFinished {
+        guard let last = w.items.first(where: { $0.versionId == item.versionId }) else { continue }
+        if let t = last.repTemplate { return settingRepTemplate(t, on: item) }
+        if last.repPicked == true, let r = last.savedRepRange { return settingRepRange(r, on: item) }
+        return item
+    }
+    return item
+}
+
 /// On finish each exercise keeps the range it was done at, so history stays true when the
 /// variation's own range or the templates change later.
 func freezingRepRanges(_ w: Workout, versions: [Version], group: (Version) -> RepGroup) -> Workout {
@@ -131,6 +158,13 @@ func freezingRepRanges(_ w: Workout, versions: [Version], group: (Version) -> Re
     for i in w.items.indices {
         guard let v = versions.first(where: { $0.id == w.items[i].versionId }) else { continue }
         let r = effectiveRepRange(item: w.items[i], workout: w, version: v, group: group(v))
+        // Note what was picked, so the next workout starts there (carryingRepPick).
+        if w.items[i].repTemplate != nil || (w.items[i].repMin != nil && w.items[i].repMax != nil) {
+            w.items[i].repPicked = true
+        } else if w.repPicked == true {
+            w.items[i].repPicked = true
+            w.items[i].repTemplate = w.repTemplate ?? .standard
+        }
         w.items[i].repMin = r.lo
         w.items[i].repMax = r.hi
     }
