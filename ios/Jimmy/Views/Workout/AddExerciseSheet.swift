@@ -193,7 +193,7 @@ struct AddExerciseSheet: View {
 
     private func basePage(_ b: Exercise) -> some View {
         let mine = store.variations(of: b.id)
-        let verdict = store.addVerdict(base: b, variation: variation, style: style)
+        let verdict = store.addVerdict(base: b, variation: variation, style: style, nickname: nickPick)
         let showMachines = variation.family == .machine
         let needsName = naming != nil && machineName(machineText) == nil
         let call = variationCall(b, verdict: verdict)
@@ -306,11 +306,15 @@ struct AddExerciseSheet: View {
         return nil
     }
 
+    /// A nickname you typed picks which of your variations with the same blocks you mean, or
+    /// makes a new one beside them; until you type, it's the one you have.
+    private var nickPick: NicknamePick { nickTyped ? .named(nick) : .any }
+
     private func add(_ b: Exercise, call: VariationCall?, asVariation: Bool, autoNick: String?) {
         let had = Set(store.versions.map(\.id))
         let done: (Version, Style?) -> Void = { v, s in
             // A new variation takes what the field shows; one you have changes only if you typed.
-            if !had.contains(v.id) || nickTyped { store.setNickname(v.id, nickTyped ? nick : autoNick) }
+            if !had.contains(v.id) || (nickTyped && !sameNickname(store.nickname(v), nick)) { store.setNickname(v.id, nickTyped ? nick : autoNick) }
             finish(store.version(v.id) ?? v, s)
         }
         if let call {
@@ -323,10 +327,10 @@ struct AddExerciseSheet: View {
                 done(call.target, store.makeStyle(for: call.target, spec: st))
             }
         } else if variation.family == .machine {
-            let v = store.makeVariation(base: b, spec: variation, like: nil)
+            let v = store.makeVariation(base: b, spec: variation, like: nil, nickname: nickPick)
             done(v, store.makeStyle(for: v, spec: style))
         } else {
-            let (v, s) = store.resolve(base: b, variation: variation, style: style)
+            let (v, s) = store.resolve(base: b, variation: variation, style: style, nickname: nickPick)
             done(v, s)
         }
     }
