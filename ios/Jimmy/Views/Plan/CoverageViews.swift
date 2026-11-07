@@ -84,13 +84,11 @@ struct GoalsSheet: View {
     }
 }
 
-/// What the split does right, then suggestions. `routineId` marks the day the card sits on,
-/// so suggestions it can fix come first and say "here".
+/// What the split does right, then suggestions. It sits on the split page only, never on a routine.
 struct CoverageCard: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var p
     let splitId: String
-    var routineId: String? = nil
     @State private var adding: AddTarget? = nil
 
     struct AddTarget: Identifiable { let exercise: Exercise; let routineId: String; var id: String { exercise.id + routineId } }
@@ -100,30 +98,21 @@ struct CoverageCard: View {
     var body: some View {
         if let s = split {
             let report = s.coverage ?? rulesReport(split: s, store: store)
-            let o = ordered(report.suggestions)
-            let shown = o.0, hidden = o.1
             VStack(alignment: .leading, spacing: 12) {
                 NavigationLink { CoverageDetailView(splitId: splitId) } label: {
                     HStack {
                         SectionLabel("Coverage")
-                        if routineId != nil { Badge(text: s.name) }
                         Spacer()
                     }
                 }
                 .buttonStyle(.plain)
                 if !report.right.isEmpty {
                     SectionLabel("Doing right")
-                    ForEach(report.right.prefix(routineId == nil ? 2 : 1)) { f in line(f, button: false) }
+                    ForEach(report.right.prefix(2)) { f in line(f, button: false) }
                 }
-                if !shown.isEmpty {
+                if !report.suggestions.isEmpty {
                     SectionLabel("Suggestions").padding(.top, 2)
-                    ForEach(shown) { f in line(f, button: true) }
-                }
-                if hidden > 0 {
-                    NavigationLink { CoverageDetailView(splitId: splitId) } label: {
-                        Text("\(hidden) more").font(.system(size: 13, weight: .semibold)).foregroundStyle(p.muted).frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.plain)
+                    ForEach(report.suggestions) { f in line(f, button: true) }
                 }
             }
             .padding(16)
@@ -139,26 +128,17 @@ struct CoverageCard: View {
         }
     }
 
-    /// On a routine, the suggestions this day can fix first; the rest fold behind "n more".
-    private func ordered(_ all: [Finding]) -> ([Finding], Int) {
-        guard let routineId else { return (all, 0) }
-        let here = all.filter { $0.routineId == routineId }
-        let rest = all.filter { $0.routineId != routineId }
-        let shown = Array((here + rest).prefix(max(here.count, 2)))
-        return (shown, all.count - shown.count)
-    }
-
     private func line(_ f: Finding, button: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Mark(mark: f.mark)
             VStack(alignment: .leading, spacing: 6) {
                 Text(f.text).font(.system(size: 15)).foregroundStyle(p.text).fixedSize(horizontal: false, vertical: true)
-                // On a routine screen the button always adds to that routine; on the split it names the day.
-                if button, let base = f.addBase, let target = (routineId ?? f.routineId).flatMap({ store.routine($0) }) {
+                // The button names the day it adds to.
+                if button, let base = f.addBase, let target = f.routineId.flatMap({ store.routine($0) }) {
                     Button {
                         if let e = store.exercise(named: base) { adding = AddTarget(exercise: e, routineId: target.id) }
                     } label: {
-                        Text(target.id == routineId ? "Add \(base) here" : "Add \(base) to \(target.name)")
+                        Text("Add \(base) to \(target.name)")
                             .font(.system(size: 13, weight: .bold)).foregroundStyle(p.accent)
                             .frame(height: 30).padding(.horizontal, 10)
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(p.accent, lineWidth: 1.5))

@@ -22,15 +22,17 @@ struct RoutineEditorView: View {
 
     var body: some View {
         if let r = routine {
+            let m = muscles(r)
             List {
                 Section {
-                    MuscleTags(primary: muscles(r).primary, secondary: muscles(r).secondary)
+                    MuscleTags(primary: m.primary, secondary: m.secondary)
                         .padding(.horizontal, 16).padding(.vertical, 14)
                         .rowCard(p, radius: Radius.card)
                 }
                 Section {
-                    ForEach(Array(r.items.enumerated()), id: \.offset) { i, item in
-                        row(r, index: i, item: item)
+                    // Rows keep their id when they move, so a drop lands at once instead of redrawing every row.
+                    ForEach(routineRows(r.items)) { entry in
+                        row(r, index: entry.index, item: entry.item)
                     }
                     // A drag in or out of a group works the way it does in the Workout page's Overview.
                     .onMove { from, to in
@@ -42,10 +44,6 @@ struct RoutineEditorView: View {
                         selected = ticksAfterDelete(selected, deleted: idx)
                         store.put(tidyGroups(rr))
                     }
-                }
-                // Coverage is the last part of the page; the buttons stay under it.
-                if let s = store.split(containing: r.id) {
-                    Section { CoverageCard(splitId: s.id, routineId: r.id).rowCard(p, radius: Radius.card) }
                 }
                 Section {
                     PillButton(title: "Add exercises", icon: "plus", full: true) { adding = true }
