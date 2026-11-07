@@ -237,10 +237,10 @@ struct WorkoutView: View {
         }
     }
 
-    /// The time, big. Grey at 0:00 until Start.
+    /// The time, big, in the theme color. Grey at 0:00 until Start.
     private func clock(_ text: String, running: Bool) -> some View {
         Text(text)
-            .font(.system(size: 28, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(running ? p.text : p.muted)
+            .font(.system(size: 28, weight: .heavy)).tracking(-0.5).monospacedDigit().foregroundStyle(running ? p.accent : p.muted)
             .lineLimit(1).minimumScaleFactor(0.7)
             .frame(maxWidth: 140)
     }
