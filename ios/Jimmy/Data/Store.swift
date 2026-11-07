@@ -473,15 +473,18 @@ final class AppStore {
         versions.first { $0.exerciseId == baseId && $0.key == key }
     }
 
-    /// The variation with these fields, created if needed.
+    /// The variation with these fields, created if needed. With a nickname picked, one with the
+    /// same blocks but another nickname doesn't count: a new one is made under that nickname.
     @discardableResult
-    func makeVariation(base: Exercise, spec given: VariationSpec, repMin: Int? = nil, repMax: Int? = nil) -> Version {
+    func makeVariation(base: Exercise, spec given: VariationSpec, repMin: Int? = nil, repMax: Int? = nil,
+                       nickname: NicknamePick = .any) -> Version {
         let spec = withLoading(given, base: base)
-        if let v = findVariation(baseId: base.id, key: spec.key) { return v }
+        if let v = findVariation(baseId: base.id, key: spec.key, nickname: nickname) { return v }
         let name = base.name + " · " + variationLabel(spec, legs: base.isLegs)
-        let v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
+        var v = Version(exerciseId: base.id, name: name, equipment: spec.family.equipment, arms: spec.arms, position: spec.position,
                         armPosition: spec.armPosition, tag: spec.tag, machine: spec.machine, loading: spec.loading,
                         singleDumbbell: spec.family == .dumbbell && spec.single, repMin: repMin ?? 5, repMax: repMax ?? 8)
+        if case .named(let n) = nickname { v.nickname = cleanNickname(n) }
         put(v)
         return v
     }
@@ -506,16 +509,17 @@ final class AppStore {
         var isExisting: Bool { if case .existing = self { return true }; return false }
     }
 
-    func addVerdict(base: Exercise, variation: VariationSpec, style: StyleSpec) -> AddVerdict {
-        guard let v = findVariation(baseId: base.id, key: withLoading(variation, base: base).key) else { return .newVariation }
+    func addVerdict(base: Exercise, variation: VariationSpec, style: StyleSpec, nickname: NicknamePick = .any) -> AddVerdict {
+        guard let v = findVariation(baseId: base.id, key: withLoading(variation, base: base).key, nickname: nickname) else { return .newVariation }
         if style.isEmpty { return .existing(v, nil) }
         if let s = findStyle(versionId: v.id, key: style.key) { return .existing(v, s) }
         return .newStyle(v)
     }
 
     /// Resolve a pick to a variation and style, creating what is missing.
-    func resolve(base: Exercise, variation: VariationSpec, style: StyleSpec, repMin: Int? = nil, repMax: Int? = nil) -> (Version, Style?) {
-        let v = makeVariation(base: base, spec: variation, repMin: repMin, repMax: repMax)
+    func resolve(base: Exercise, variation: VariationSpec, style: StyleSpec, repMin: Int? = nil, repMax: Int? = nil,
+                 nickname: NicknamePick = .any) -> (Version, Style?) {
+        let v = makeVariation(base: base, spec: variation, repMin: repMin, repMax: repMax, nickname: nickname)
         return (v, makeStyle(for: v, spec: style))
     }
 
