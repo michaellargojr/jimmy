@@ -31,6 +31,8 @@ struct ExerciseCardView: View {
     @State private var historyNext = false
     /// The set a full swipe asked to delete, waiting on the "are you sure".
     @State private var pendingDelete: String? = nil
+    /// Press and hold on a set row lifts it to drag up or down.
+    @State private var lift = SetLift()
 
     struct SetEdit: Identifiable { var id: String { setId + field.rawValue }; var setId: String; var field: SetField }
     enum SetField: String { case weight, reps, rating }
@@ -107,8 +109,11 @@ struct ExerciseCardView: View {
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
             }
             .sensoryFeedback(.success, trigger: upTrigger)
+            .sensoryFeedback(.impact(weight: .medium), trigger: lift.lifts)
+            .sensoryFeedback(.selection, trigger: lift.ticks)
             .sensoryFeedback(.impact(weight: .medium), trigger: logTrigger)
             .preference(key: SetLoggedKey.self, value: lastLogged)
+            .preference(key: SetLiftingKey.self, value: !lift.ids.isEmpty)
             .onChange(of: complete && verdictNow == .up) { _, isUp in
                 if isUp { upTrigger += 1 }
             }
@@ -418,8 +423,16 @@ struct ExerciseCardView: View {
             }
             .font(.system(size: 13)).foregroundStyle(p.muted)
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
+            // Which unit (a row, or a one-arm pair) each row is in, and the one that's lifted.
+            let units = setUnits(item.sets)
+            let unitOf = Dictionary(units.enumerated().flatMap { u, rows in rows.map { ($0, u) } }, uniquingKeysWith: { a, _ in a })
+            let liftedUnit = lift.ids.first.flatMap { id in item.sets.firstIndex { $0.id == id } }.flatMap { unitOf[$0] }
+            let liftedHeight = liftedUnit.flatMap { u in liftState()?.heights[u] } ?? 0
             ForEach(Array(item.sets.enumerated()), id: \.element.id) { i, s in
                 let lastMatch = last.map { matchLast(now: s, nowAll: item.sets, lastAll: $0.item.sets) } ?? nil
+                let u = unitOf[i] ?? i
+                let up = liftedUnit == u
+                let room = up ? 0 : makeRoom(u, from: liftedUnit, height: liftedHeight)
                 SetRowView(entry: s, label: labels[i], ghost: lastMatch,
                            improved: improved(now: s, last: lastMatch), bodyweight: bodyweight, rating: rating,
                            pendingDelete: pendingDelete == s.id,
@@ -428,7 +441,18 @@ struct ExerciseCardView: View {
                            onRating: { editing = SetEdit(setId: s.id, field: .rating) },
                            onCheck: { check(s, ghost: lastMatch, prev: i > 0 ? item.sets[i - 1] : nil, v: v) },
                            onLabel: { update { $0.sets = cycleSetKind($0.sets, at: i) } },
-                           onDelete: { pendingDelete = s.id })
+                           onDelete: { pendingDelete = s.id },
+                           onLift: { liftSet(s.id) },
+                           onLiftMove: { moveLift(s.id, $0) },
+                           onLiftEnd: { dropLift(s.id, cancelled: $0) })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { lift.heights[s.id] = $0 }
+                    // Lifted: a touch bigger with a shadow, over the rows it passes.
+                    .scaleEffect(up && lift.raised ? 1.03 : 1)
+                    .shadow(color: .black.opacity(up && lift.raised ? 0.5 : 0), radius: up && lift.raised ? 14 : 0, y: up && lift.raised ? 6 : 0)
+                    .modifier(LiftOffset(lift: lift, lifted: up, shift: room))
+                    // The rows it passes slide out of its way; the lifted one stays under the finger.
+                    .animation(.snappy(duration: 0.22), value: room)
+                    .zIndex(up ? 1 : 0)
                     // So the page can land on this set when the card is taller than the screen.
                     .id("set-\(s.id)")
             }
@@ -535,6 +559,71 @@ struct ExerciseCardView: View {
         update { $0.sets.removeAll { $0.id == id } }
     }
 
+    // MARK: Moving a set
+
+    /// How far a row slides to make room for the lifted one: the lifted unit's height, up or down,
+    /// for the rows between where it was and where it would land.
+    private func makeRoom(_ unit: Int, from: Int?, height h: CGFloat) -> CGFloat {
+        guard let from, !lift.settling else { return 0 }
+        if from < lift.target, unit > from, unit <= lift.target { return -h }
+        if lift.target < from, unit >= lift.target, unit < from { return h }
+        return 0
+    }
+
+    /// The units (rows, or one-arm pairs), which one is lifted, and how tall each is on screen.
+    private func liftState() -> (from: Int, heights: [CGFloat])? {
+        guard let item, let id = lift.ids.first, let i = item.sets.firstIndex(where: { $0.id == id }) else { return nil }
+        let units = setUnits(item.sets)
+        guard let from = units.firstIndex(where: { $0.contains(i) }) else { return nil }
+        return (from, units.map { $0.reduce(CGFloat(0)) { $0 + (lift.heights[item.sets[$1].id] ?? 60) } })
+    }
+
+    /// The hold went through: lift the row, and its other arm with it on a one-arm exercise.
+    private func liftSet(_ setId: String) {
+        guard !lift.settling, lift.ids.isEmpty, let item, let i = item.sets.firstIndex(where: { $0.id == setId }) else { return }
+        let units = setUnits(item.sets)
+        guard let u = units.firstIndex(where: { $0.contains(i) }) else { return }
+        lift.ids = units[u].map { item.sets[$0].id }
+        lift.y = 0
+        lift.target = u
+        lift.lifts += 1
+        withAnimation(.snappy(duration: 0.2)) { lift.raised = true }
+    }
+
+    /// Follows the finger, kept inside the grid; the others make room as it passes their middle.
+    private func moveLift(_ setId: String, _ y: CGFloat) {
+        guard !lift.settling, lift.ids.contains(setId), let s = liftState() else { return }
+        let above = s.heights[..<s.from].reduce(0, +)
+        let below = s.heights[(s.from + 1)...].reduce(0, +)
+        lift.y = min(max(y, -above), below)
+        let t = setDropIndex(heights: s.heights, from: s.from, offset: lift.y)
+        if t != lift.target { lift.target = t; lift.ticks += 1 }
+    }
+
+    /// Let go: the sets take their new order at once, and the row settles into its place from
+    /// wherever the finger left it. Cut short, it goes back where it was.
+    private func dropLift(_ setId: String, cancelled: Bool) {
+        // Only the hold that lifted the rows drops them; a second finger's hold does nothing.
+        guard !lift.settling, lift.ids.contains(setId) else { return }
+        guard let s = liftState() else { lift.clear(); return }
+        let to = cancelled ? s.from : lift.target
+        let done = { lift.clear() }
+        guard to != s.from else {
+            withAnimation(.snappy(duration: 0.25)) { lift.settling = true; lift.y = 0; lift.raised = false } completion: { done() }
+            return
+        }
+        // How far its new place is from where it started.
+        let shift = to > s.from ? s.heights[(s.from + 1)...to].reduce(0, +) : -s.heights[to..<s.from].reduce(0, +)
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) {
+            lift.settling = true
+            update { $0.sets = moveSetUnit($0.sets, from: s.from, to: to) }
+            lift.y -= shift
+        }
+        withAnimation(.snappy(duration: 0.25)) { lift.y = 0; lift.raised = false } completion: { done() }
+    }
+
     private func todayRange(_ v: Version) -> RepRange {
         guard let w = workout, let item, let r = store.repRange(item, in: w) else { return RepRange(v.repMin, v.repMax) }
         return r
@@ -567,6 +656,10 @@ struct SetRowView: View {
     let onCheck: () -> Void
     let onLabel: () -> Void
     var onDelete: () -> Void = {}
+    /// Press and hold lifts the row; moving the finger then moves it up or down the list.
+    var onLift: () -> Void = {}
+    var onLiftMove: (CGFloat) -> Void = { _ in }
+    var onLiftEnd: (_ cancelled: Bool) -> Void = { _ in }
 
     @State private var dx: CGFloat = 0
     @State private var width: CGFloat = 0
@@ -639,6 +732,11 @@ struct SetRowView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // Sideways only: a swipe up or down that starts on a row moves the page, not the row.
         .sidewaysDrag(swipe, changed: { x in slide(x) }, ended: { x, predicted in letGo(x, predicted: predicted) })
+        // The finger lifts over one of the boxes, so taps wait until just after, as with a swipe.
+        .holdDrag(began: { sliding = true; onLift() }, moved: onLiftMove, ended: { cancelled in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { sliding = false }
+            onLiftEnd(cancelled)
+        })
         .onChange(of: pendingDelete) { _, pending in
             if !pending { withAnimation(.snappy) { dx = 0 } }
         }
@@ -703,6 +801,36 @@ struct SetRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A set row being dragged: which rows are up, how far the finger has taken them, and where they
+/// would land. Only LiftOffset reads the distance, so a moving finger redraws the lifted row alone,
+/// not the whole card (Last time and the rest stay as they are).
+@Observable final class SetLift {
+    var ids: [String] = []
+    var y: CGFloat = 0
+    var target = 0
+    var raised = false
+    /// Between letting go and the row settling in its place; nothing new lifts meanwhile.
+    var settling = false
+    /// Haptic counters: a thump when a row lifts, a tick each time its landing place changes.
+    var lifts = 0
+    var ticks = 0
+    /// Each row's height, measured as it lays out; read only during a drag, so it redraws nothing.
+    @ObservationIgnored var heights: [String: CGFloat] = [:]
+
+    func clear() { ids = []; y = 0; raised = false; settling = false }
+}
+
+/// Puts the lifted row under the finger, or slides another out of its way.
+private struct LiftOffset: ViewModifier {
+    let lift: SetLift
+    let lifted: Bool
+    let shift: CGFloat
+
+    func body(content: Content) -> some View {
+        content.offset(y: lifted ? lift.y : shift)
     }
 }
 
