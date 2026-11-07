@@ -121,6 +121,19 @@ enum ArmPosition: String, Codable, CaseIterable, Hashable {
     }
 }
 
+/// How far apart the hands are on a bar or handle. Close and wide grips need other weights, so
+/// each is its own variation (Michael, Nov 2026); before that they were styles, and logged sets move
+/// over when the app loads (see AppStore.moveGripStyles). Which way the palms face stays a style.
+enum GripWidth: String, Codable, CaseIterable, Hashable {
+    case close, wide
+    var label: String { self == .close ? "close grip" : "wide grip" }
+    /// A style's old grip word ("close", "Wide") as a width; nil for the palm grips.
+    init?(styleGrip: String?) {
+        guard let g = GripWidth(rawValue: (styleGrip ?? "").trimmingCharacters(in: .whitespaces).lowercased()) else { return nil }
+        self = g
+    }
+}
+
 /// Bench angle applies when the body sits or lies on a bench, or the arms hang behind it (an incline curl).
 func usesBench(_ position: Position?, _ arm: ArmPosition?) -> Bool { position?.usesBench == true || arm == .behind }
 
@@ -306,6 +319,8 @@ struct Version: Codable, Identifiable, Hashable {
     /// One dumbbell held in both hands (an overhead extension, a goblet squat). True only on
     /// dumbbells; nil is a pair. Needs other weights than a pair, so it's its own variation.
     var singleDumbbell: Bool?
+    /// Close or wide grip. Nil is a normal grip.
+    var grip: GripWidth?
     /// The name people know it by ("Bayesian Curl"), shown as a tag beside the name. Yours to
     /// type or clear; the app only suggests the few in Nicknames.swift.
     var nickname: String?
@@ -325,10 +340,11 @@ struct Version: Codable, Identifiable, Hashable {
 
     init(id: String = uid(), exerciseId: String, name: String, equipment: Equipment, arms: Arms,
          position: Position? = nil, armPosition: ArmPosition? = nil, tag: String? = nil, machine: String? = nil, loading: Loading? = nil,
-         singleDumbbell: Bool? = nil, repMin: Int = 5, repMax: Int = 8, defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
+         singleDumbbell: Bool? = nil, grip: GripWidth? = nil, repMin: Int = 5, repMax: Int = 8, defaultWarmup: Bool = true, defaultSets: Int = 2, notes: String? = nil) {
         self.id = id; self.exerciseId = exerciseId; self.name = name; self.equipment = equipment
         self.arms = arms; self.position = position; self.armPosition = armPosition; self.tag = tag; self.machine = machine; self.loading = loading
         self.singleDumbbell = singleDumbbell == true ? true : nil
+        self.grip = grip
         self.repMin = repMin; self.repMax = repMax
         self.defaultWarmup = defaultWarmup; self.defaultSets = defaultSets; self.notes = notes
     }
@@ -351,6 +367,7 @@ struct Version: Codable, Identifiable, Hashable {
         machine = try c.decodeIfPresent(String.self, forKey: .machine)
         loading = try? c.decodeIfPresent(Loading.self, forKey: .loading)
         singleDumbbell = (try? c.decodeIfPresent(Bool.self, forKey: .singleDumbbell)) == true ? true : nil
+        grip = try? c.decodeIfPresent(GripWidth.self, forKey: .grip)
         if armPosition == nil, equipment.family != .machine, let a = ArmPosition.fromOldTag(tag) {
             armPosition = a; tag = nil
         }
@@ -376,7 +393,7 @@ struct Version: Codable, Identifiable, Hashable {
     /// The fields that make two variations the same one.
     var key: VariationKey {
         VariationKey(family: family, arms: arms, position: position, tag: tag?.lowercased(), machine: machine?.lowercased(),
-                     loading: family == .machine ? loading : nil, armPosition: armPosition, single: isSingleDumbbell)
+                     loading: family == .machine ? loading : nil, armPosition: armPosition, single: isSingleDumbbell, grip: grip)
     }
 }
 
@@ -390,10 +407,11 @@ struct VariationKey: Hashable {
     var armPosition: ArmPosition? = nil
     /// One dumbbell in both hands.
     var single: Bool = false
+    var grip: GripWidth? = nil
 }
 
 /// A Style is a way of doing a variation that shares its history: attachment, cable height,
-/// bench notch, which bar, grip, or a named machine. Recorded on each set of a workout item.
+/// bench notch, which bar, which way the palms face, or a named machine. Recorded on each set of a workout item.
 struct Style: Codable, Identifiable, Hashable {
     var id: String
     var versionId: String
