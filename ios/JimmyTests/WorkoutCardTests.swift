@@ -202,3 +202,46 @@ private func S(_ kind: SetKind = .working, side: Side? = nil, weight: Double? = 
         #expect(o.first?.workout.date == "2026-10-08")
     }
 }
+
+// Press and hold a set row to move it: a row alone, or a one-arm pair together.
+@Suite struct SetMoveTests {
+    @Test func aForgottenWarmupGoesOnTop() {
+        // Set 1 was logged in the warm-up's place: add a row, drag it to the top, tap it to W.
+        var sets = [S(weight: 60, reps: 8), S(weight: 60, reps: 7), S(weight: nil)]
+        let blank = sets[2].id
+        sets = moveSetUnit(sets, from: 2, to: 0)
+        sets = cycleSetKind(sets, at: 0)
+        #expect(sets[0].id == blank)
+        #expect(setLabels(sets) == ["W", "1", "2"])
+        #expect(sets.map(\.reps) == [nil, 8, 7])
+    }
+
+    @Test func movingDownAndNowhere() {
+        let sets = [S(), S(), S()]
+        #expect(moveSetUnit(sets, from: 0, to: 2).map(\.id) == [sets[1].id, sets[2].id, sets[0].id])
+        #expect(moveSetUnit(sets, from: 1, to: 1).map(\.id) == sets.map(\.id))
+        #expect(moveSetUnit(sets, from: 5, to: 0).map(\.id) == sets.map(\.id))
+    }
+
+    @Test func oneArmPairsMoveTogether() {
+        let sets = [S(side: .L), S(side: .R), S(side: .L), S(side: .R)]
+        #expect(setUnits(sets) == [[0, 1], [2, 3]])
+        let moved = moveSetUnit(sets, from: 1, to: 0)
+        #expect(moved.map(\.id) == [sets[2].id, sets[3].id, sets[0].id, sets[1].id])
+        #expect(setLabels(moved) == ["1L", "1R", "2L", "2R"])
+    }
+
+    @Test func itLandsOnceItsEdgePassesANeighboursMiddle() {
+        let h: [CGFloat] = [60, 60, 60]
+        #expect(setDropIndex(heights: h, from: 2, offset: 0) == 2)
+        #expect(setDropIndex(heights: h, from: 2, offset: -29) == 2)
+        #expect(setDropIndex(heights: h, from: 2, offset: -31) == 1)
+        #expect(setDropIndex(heights: h, from: 2, offset: -120) == 0)
+        #expect(setDropIndex(heights: h, from: 0, offset: 29) == 0)
+        #expect(setDropIndex(heights: h, from: 0, offset: 31) == 1)
+        #expect(setDropIndex(heights: h, from: 0, offset: 120) == 2)
+        // A one-arm pair (two rows tall) dragged all the way past a single row still gets there.
+        #expect(setDropIndex(heights: [120, 60], from: 0, offset: 60) == 1)
+        #expect(setDropIndex(heights: [60, 120], from: 1, offset: -60) == 0)
+    }
+}

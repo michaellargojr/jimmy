@@ -109,6 +109,47 @@ func cycleSetKind(_ sets: [SetEntry], at index: Int) -> [SetEntry] {
     return out
 }
 
+/// The set rows cut into what a press-and-hold drag moves together: a one-arm L/R pair, or a row
+/// alone, read from the top the same way as setGroup.
+func setUnits(_ sets: [SetEntry]) -> [[Int]] {
+    var units: [[Int]] = []
+    var i = 0
+    while i < sets.count {
+        let g = setGroup(sets, at: i)
+        units.append(g.isEmpty ? [i] : g)
+        i = (g.last ?? i) + 1
+    }
+    return units
+}
+
+/// A drop after a press-and-hold drag: the unit at `from` (a row, or a one-arm pair) ends up at
+/// unit position `to`. The sets keep their ids, kinds and numbers; only the order changes, so the
+/// labels count again from the top (a blank row dragged above set 1 and tapped to W is the warm-up).
+func moveSetUnit(_ sets: [SetEntry], from: Int, to: Int) -> [SetEntry] {
+    var units = setUnits(sets).map { $0.map { sets[$0] } }
+    guard units.indices.contains(from), units.indices.contains(to), from != to else { return sets }
+    let moved = units.remove(at: from)
+    units.insert(moved, at: to)
+    return units.flatMap { $0 }
+}
+
+/// Where a lifted unit would land. Its leading edge passing a neighbour's middle takes that
+/// neighbour's place, so a tall pair can still reach past a short row at either end.
+/// `heights` are the units' heights on screen, `offset` how far the finger has moved it.
+func setDropIndex(heights: [CGFloat], from: Int, offset: CGFloat) -> Int {
+    guard heights.indices.contains(from) else { return from }
+    var y: CGFloat = 0
+    var tops: [CGFloat] = []
+    for h in heights { tops.append(y); y += h }
+    let top = tops[from] + offset, bottom = top + heights[from]
+    // The units that end up above it: the ones above whose middle it hasn't risen to, and the
+    // ones below whose middle it has sunk past.
+    return heights.indices.filter { j in
+        let mid = tops[j] + heights[j] / 2
+        return j < from ? top > mid : (j > from && bottom >= mid)
+    }.count
+}
+
 /// One-arm sets always carry a side. A row without one (from a workout started on an older build,
 /// or a variation switched to one arm mid-workout) becomes L, with an empty R partner after it.
 func pairSides(_ sets: [SetEntry]) -> [SetEntry] {
