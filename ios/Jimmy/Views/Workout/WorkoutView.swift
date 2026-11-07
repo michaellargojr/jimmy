@@ -30,6 +30,8 @@ struct WorkoutView: View {
     /// The scroll area's height and each card's, measured, so a landing knows when a card is
     /// taller than the screen and the open set would be out of sight.
     @State private var pageHeight: CGFloat = 0
+    /// A set row is held up for moving, so the page stays still under it.
+    @State private var lifting = false
     @State private var cardHeights: [String: CGFloat] = [:]
     /// Bumped on every glide back to your set, for a light tap of feedback.
     @State private var glides = 0
@@ -88,6 +90,7 @@ struct WorkoutView: View {
                     }
                     .scrollPosition(id: $current, anchor: .top)
                     .scrollIndicators(.hidden)
+                    .scrollDisabled(lifting)
                     // Back to your set: when the page first shows, when asked (the Workout tile, coming
                     // back from the lock screen), and after a while with no touch while nothing is up.
                     .onAppear {
@@ -171,6 +174,7 @@ struct WorkoutView: View {
             } message: {
                 Text("Sets you logged won't be saved.")
             }
+            .onPreferenceChange(SetLiftingKey.self) { lifting = $0 }
             .onPreferenceChange(SetLoggedKey.self) { stamp in
                 if stamp > 0, store.settings.restTimer { restEndsAt = Date().addingTimeInterval(Double(store.settings.restSeconds)) }
             }
@@ -402,6 +406,12 @@ struct WorkoutView: View {
 struct SetLoggedKey: PreferenceKey {
     static var defaultValue: Double = 0
     static func reduce(value: inout Double, nextValue: () -> Double) { value = max(value, nextValue()) }
+}
+
+/// True while a card has a set row lifted to move it.
+struct SetLiftingKey: PreferenceKey {
+    static var defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
 }
 
 /// Always ready to edit: tick boxes to group or ungroup, hold a row and drag to reorder (a group
